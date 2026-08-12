@@ -1,0 +1,15 @@
+# The identity of this port's boot executable — the ONE place the expected numbers live.
+#
+# WHY A FILE RATHER THAN A CONSTANT IN THE TOOL: the sibling ports read their expected hash out of a
+# vendored decomp's own check file at run time, so the check tracks the reference. THERE IS NO DECOMP
+# OF THIS GAME (docs/references.md), so no third party states a target hash for SLUS_008.93 and there
+# is nothing to track. The expectation is therefore OUR OWN MEASUREMENT, and this file is where it
+# lives so that the tool, the claim (docs/info/claims/001-*) and the docs cannot drift apart.
+#
+# WHAT THIS CAN AND CANNOT TELL YOU. It detects "the file you extracted differs from the one every
+# measurement in this repo was made on" — a different region, a different revision, a bad rip. It
+# CANNOT tell you which of the two is right, because the expectation is not independent of us. A
+# mismatch is a reason to stop and identify your disc, not evidence that your disc is wrong.
+#
+# Fields: <sha1>  <size in bytes>  <name on disc>
+f90c9cd6b4fc9845adfe34e306b7df393bf9154c  598016  SLUS_008.93
