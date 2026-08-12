@@ -206,6 +206,10 @@ static const GameConfig g_ts2_cfg = {
     .paceQuota = 1,
 
     .windowTitle = "Toy Story 2 (psxport)",
+    // crt0 stack-top bias, MEASURED by psxport tools/crt0_extract over this game's own boot
+    // executable (SLUS_008.93, entry 0x80082D60). `declared = 1` is mandatory: crt0_plan REFUSES a boot when it is 0,
+    // because this game's measured bias IS 0 — it has no `addi v0,v0,N` at all, like Mega Man X4.
+    .stackBias = {1, 0},
 };
 
 const GameConfig* ts2_game_config() { return &g_ts2_cfg; }
