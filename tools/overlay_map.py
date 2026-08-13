@@ -155,7 +155,13 @@ def fold_args(exe, site, regs=(A0, A1)):
         if op == OP_LUI:
             val[rt], why[rt] = imm << 16, "lui at 0x%08X" % va
         elif op in (OP_ADDIU, OP_ADDI) and rs in val:
-            val[rt], why[rt] = val[rs] & 0xFFFFFFFF, "lui+addiu, addiu at 0x%08X" % va  # SABOTAGE
+            # The immediate is SIGN-EXTENDED and ADDED. Dropping it (`val[rs]` alone) is not a small
+            # error: every destination then folds to its own `lui` page base, so 0x800D12C0 reads as
+            # 0x800D0000 and 0x800D5D20 vanishes entirely — which silently collapses the slot
+            # derivation to a page boundary AND makes the discrimination check compare that boundary
+            # against the 4 KiB floor, i.e. against itself. Every path string degrades the same way,
+            # to whatever byte sits at the page base. Measured 2026-08-13.
+            val[rt], why[rt] = (val[rs] + sx16(imm)) & 0xFFFFFFFF, "lui+addiu, addiu at 0x%08X" % va
         elif op == OP_ORI and rs in val:
             val[rt], why[rt] = val[rs] | imm, "lui+ori, ori at 0x%08X" % va
         elif op in (OP_ADDIU, OP_ADDI) and rs == SP:
