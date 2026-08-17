@@ -23,43 +23,52 @@ endif()
 
 project(toystory2 CXX C)
 
-# PSXPORT_DIR — WHERE THE FRAMEWORK SOURCE COMES FROM. Defaults to the pinned submodule, so a fresh
-# clone of this repo alone builds standalone: that property is what "each game is its own project using
-# psxport as the framework" means, and it must stay testable.
+# PSXPORT_DIR — WHERE THE FRAMEWORK SOURCE COMES FROM. Defaults to external/psxport, which is no
+# longer a git submodule (2026-08-16): tools/psxport_sync.py --auto (called by run.sh) makes it a
+# SYMLINK to the workspace's shared framework clone when one exists, or a private clone at this
+# repo's psxport.pin on a fresh machine. So a fresh clone of this repo alone still builds standalone:
+# that property is what "each game is its own project using psxport as the framework" means, and it
+# must stay testable.
 #
-# Point it at the workspace's framework DEV CLONE to build against in-progress framework work WITHOUT
-# editing the submodule (the submodule is a READ-ONLY pinned consumer; framework edits happen in one
-# place only — external/psxport/docs/workspace/PROTOCOL.md):
+# Point it at a specific framework checkout to build against in-progress framework work:
 #
 #   cmake -S . -B build -DPSXPORT_DIR=/path/to/psxport
 #
 # It is a CACHE path, so it survives reconfigures. Everything else in this file and in cmake/ derives
-# from it — never re-spell `external/psxport` at a call site, or the two halves of a build can come from
-# different checkouts.
+# from it — never re-spell `external/psxport` at a call site, or the two halves of a build can come
+# from different checkouts.
 set(PSXPORT_DIR "${CMAKE_SOURCE_DIR}/external/psxport" CACHE PATH
-    "psxport framework source directory (default: the external/psxport submodule)")
+    "psxport framework source directory (default: external/psxport)")
 if(NOT EXISTS "${PSXPORT_DIR}/cmake/psxport.cmake")
   message(FATAL_ERROR "PSXPORT_DIR=${PSXPORT_DIR} has no cmake/psxport.cmake — "
-                      "run `git submodule update --init external/psxport`, or point PSXPORT_DIR at a psxport checkout.")
+                      "run `python3 tools/psxport_sync.py --auto`, or point PSXPORT_DIR at a psxport checkout.")
 endif()
-# The framework's OWN submodules, checked here rather than 200 lines into the framework. Initialising
-# external/psxport does NOT populate them: `git submodule update --init --recursive` ABORTS on
-# beetle-psx's url-less `deps/lightning/gnulib` (external/psxport/docs/workspace/KNOWN-DEFECT-sync-submodules.md),
-# and scripts/sync-submodules.sh prints "all at recorded gitlinks" while vendor/lucent is still EMPTY.
-# Without this guard the failure surfaces as a raw `add_subdirectory` / "does not contain a
-# CMakeLists.txt" error from inside psxport, which tells a fresh-clone user nothing.
-foreach(_psxport_vendor "vendor/lucent" "vendor/beetle-psx/deps/libchdr")
-  if(NOT EXISTS "${PSXPORT_DIR}/${_psxport_vendor}/CMakeLists.txt")
-    message(FATAL_ERROR
-      "the psxport checkout at PSXPORT_DIR=${PSXPORT_DIR} is missing ${_psxport_vendor} — its own "
-      "submodules are not populated, and this build needs them (lucent = the logger, libchdr = CHD "
-      "access).\n"
-      "  Fix it PER PATH, non-recursively (--recursive aborts on beetle-psx's url-less "
-      "deps/lightning/gnulib, and sync-submodules.sh certifies pins it never checked):\n"
-      "    git -C \"${PSXPORT_DIR}\" submodule update --init vendor/lucent vendor/beetle-psx")
-  endif()
-endforeach()
 message(STATUS "psxport framework: ${PSXPORT_DIR}")
+
+# RECORD WHAT THIS CONFIGURE RESOLVED, so `tools/psxport_sync.py --check` can compare the framework
+# you actually BUILT against with the one psxport.pin RECORDS. The framework is no longer a git
+# submodule (external/psxport is a symlink to the workspace's shared clone, or a private clone at the
+# pin — see tools/psxport_sync.py); the pin is provenance, and this file is what keeps it honest.
+execute_process(COMMAND git -C "${PSXPORT_DIR}" rev-parse HEAD
+                OUTPUT_VARIABLE PSXPORT_RESOLVED_SHA OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET RESULT_VARIABLE _psxport_rev_rc)
+if(NOT _psxport_rev_rc EQUAL 0)
+  set(PSXPORT_RESOLVED_SHA "unknown")   # honest: never silently record a plausible-looking sha
+endif()
+file(WRITE "${CMAKE_BINARY_DIR}/psxport_resolved.txt"
+     "dir = ${PSXPORT_DIR}\ncommit = ${PSXPORT_RESOLVED_SHA}\n")
+message(STATUS "psxport commit: ${PSXPORT_RESOLVED_SHA}")
+
+# The framework's OWN nested vendors (vendor/lucent, vendor/beetle-psx/deps/libchdr) are the SHARED
+# clone's concern now: they were initialized once in the dev clone, and external/psxport is a symlink
+# to it. A fresh machine's private clone at the pin gets them from tools/psxport_sync.py --clone (which
+# inits them non-recursively). If they are somehow missing, the error comes from inside psxport with a
+# clear "does not contain a CMakeLists.txt", and the fix is `git -C external/psxport submodule update
+# --init <vendor>` in the dev clone.
+if(NOT EXISTS "${PSXPORT_DIR}/vendor/lucent/CMakeLists.txt")
+  message(FATAL_ERROR "psxport's vendor/lucent is not checked out in the shared clone — run "
+                      "`git -C ${PSXPORT_DIR} submodule update --init vendor/lucent` there once.")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
