@@ -1,10 +1,11 @@
 ---
 id: C007
 kind: claim
-status: holds
+status: falsified
 created: 2026-08-12
 tags: state,honesty
 depends: game/core/game_config.cpp, game/recomp_seeds.json, docs/re-frontier.md
+falsified_on: 2026-08-20
 ---
 
 ## Claim
@@ -18,3 +19,9 @@ VERIFIED 2026-08-12 by inspection of the tree as created. game/core/game_config.
 ## What would falsify it
 
 generated/rec_sources.cmake existing (a substrate has been emitted), or a toystory2_port binary existing, or any nonzero guest address in game/core/game_config.cpp, or any docs/re-frontier.md entry reaching re-verified or re-partial. Any of those means this claim is stale and must be rewritten rather than left to read as current
+
+## FALSIFIED 2026-08-20
+
+FALSIFIED 2026-08-20 by C008 / RE-00: a fresh Ghidra project is now re-verified and the entry at 0x80082D60 has been decompiled from the measured executable. The port still has no substrate, port binary, native producer, native renderer body, or nonzero GameConfig guest field; only the old all-frontier-todo and no-RE-address clauses are false.
+
+> Anything that cited this claim as proof must be re-checked. Grep the repo for it.

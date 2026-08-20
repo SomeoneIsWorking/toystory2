@@ -7,19 +7,20 @@ A PC-native port of **Disney/Pixar Toy Story 2: Buzz Lightyear to the Rescue!** 
 
 ## Status: scaffolding. It does not run
 
-Created 2026-08-12. There is no recompiled substrate, no port binary, and nothing about the game is
-reverse-engineered yet. What exists:
+There is no recompiled substrate or port binary. RE-00 is complete: the verified executable can be
+placed into a manifest-bounded RAM image, freshly imported into Ghidra, cross-checked, and decompiled.
+No game subsystem or `GameConfig` address is verified yet. What exists:
 
 - disc → executable provisioning from **your own** disc image (nothing game-derived is in this repo),
 - the framework seam (`GameConfig` / `GameHooks`) compiling against the pinned framework, with every
   guest address honestly `0`,
-- four measured instruments — the code/overlay census, the overlay load-base fit, the `.RAW` container
-  probe, and the disc extractor — each with a `--selftest` that gates both classes,
+- five measured instruments — the code/overlay census, overlay load-base fit, `.RAW` container probe,
+  disc extractor, and the two-method Ghidra xref gate — each validated in both directions,
 - the project registries (`docs/re-frontier.md`, `docs/codemap.md`, `docs/references.md`, `docs/info/`,
   `docs/issues/`).
 
-`docs/codemap.md` is the honest inventory; `docs/re-frontier.md` is the ordered RE chain and **every
-entry in it is `todo` or `blocked` — none is re-verified.**
+`docs/codemap.md` is the honest inventory; `docs/re-frontier.md` is the ordered RE chain. Only RE-00,
+the RE supply itself, is re-verified; crt0, overlays, CD, frame, input, HLE and assets remain open.
 
 **Two facts that shape everything here:**
 
@@ -34,36 +35,31 @@ entry in it is `todo` or `blocked` — none is re-verified.**
 
 ```sh
 git clone <this repo> && cd toystory2
-git submodule update --init external/psxport                                      # the one submodule
-git -C external/psxport submodule update --init vendor/lucent vendor/beetle-psx    # and psxport's own
+python3 tools/psxport_sync.py --auto              # shared workspace checkout or private clone at psxport.pin
 cp .env.example .env && $EDITOR .env                # point it at your own disc image (.env is gitignored)
 python3 tools/extract_exe.py                        # extract + identity-check SLUS_008.93
 python3 tools/extract_disc_files.py                 # the flat scan corpus in scratch/flat/ (~25 MiB)
 python3 tools/code_scan.py --census scratch/flat --ctrl-exe scratch/bin/toystory2/SLUS_008.93
 python3 tools/base_fit.py --selftest                # re-derive the overlay slot from the bytes
-cmake -S . -B build && cmake --build build --target toystory2_seam -j"$(nproc)"
+python3 tools/ram_image.py                          # header-driven 2 MiB image + placement manifest
+external/psxport/tools/decomp.sh import scratch/ghidra/ram-boot.bin ts2boot
+python3 tools/re_xref.py --selftest                 # prove Ghidra and the independent fold both answer
+cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+cmake --build build --target toystory2_seam -j"$(nproc)"
 python3 tools/re_frontier.py next                   # what to work on
 ```
 
-**The second line is not optional and `--recurse-submodules` does not replace it.** psxport's own
-`vendor/lucent` (the logger) and `vendor/beetle-psx/deps/libchdr` (CHD access) are what `cmake` and the
-provisioning tools need, and initialising `external/psxport` alone leaves them empty:
-
-- `git clone --recurse-submodules` (of this repo or of psxport) **aborts** with `fatal: No url found for
-  submodule path 'vendor/beetle-psx/deps/lightning/gnulib'` and leaves `vendor/lucent` empty,
-- `external/psxport/scripts/sync-submodules.sh` prints *"all at this repo's recorded gitlinks"* while
-  `vendor/lucent` is still empty — it certifies pins it never reached
-  (`external/psxport/docs/workspace/KNOWN-DEFECT-sync-submodules.md`),
-- so the **per-path, non-recursive** form above is the one that works. It sidesteps the url-less
-  `gnulib` path entirely. `CMakeLists.txt` checks for both vendors and fails with that exact command
-  rather than letting an `add_subdirectory` error surface from inside the framework.
+`tools/psxport_sync.py --auto` is the single framework-resolution path. In the workspace it makes
+`external/psxport` a symlink to the one shared framework checkout; in a standalone clone it creates a
+private checkout at `psxport.pin` and initializes the required framework vendors non-recursively.
 
 `run.sh` is the eventual play launcher; today it does every real step and then stops, naming what
 blocks the recompile.
 
 ## Requirements
 
-cmake ≥ 3.21, pkg-config, SDL3, zlib, zstd, python3, a C++20 toolchain.
+cmake ≥ 3.21, pkg-config, SDL3, zlib, zstd, Python 3, Clang/clang++ with clang-format, and Ruff for
+Python format/lint gates.
 
 ## Legal
 

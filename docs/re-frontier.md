@@ -19,27 +19,26 @@ intended behaviour of the real target being reproduced.
 Statuses: ✅ re-verified · 🟡 re-partial (honest gap) · 🔬 in-progress · ⛔ hack (debt, must remove) ·
 ⬜ todo · ➖ skip-by-design · ⏸ blocked (computed).
 
-## THE STATE OF THIS PORT, 2026-08-12: NOTHING IS RE-VERIFIED. The repo is scaffolding
+## THE STATE OF THIS PORT, 2026-08-20: RE-00 is verified; the game remains scaffolding
 
-**Every entry below is `todo` or (computed) `blocked`. ZERO are `re-verified`, zero are `re-partial`,
-zero are `skip-by-design`.** That is not modesty — it is the whole state of the port. There is no
-recompiled substrate, no port binary, no native body, and no `GameConfig` value except this port's own
-env-var names. `game/core/game_config.cpp` is all zeros with TODOs pointing back here, and that is the
-honest value: a plausible-looking wrong address breaks boot in a way that reads as a framework bug.
+**RE-00, the Ghidra supply, is the sole `re-verified` entry.** It does not make the game boot: there is
+still no recompiled substrate, port binary, native body, or nonzero `GameConfig` guest address.
+`game/core/game_config.cpp` remains all zeros with TODOs pointing back here, and that is the honest
+value: a plausible-looking wrong address breaks boot in a way that reads as a framework bug.
 
-**What IS measured is the DISC and the SUPPLY, never a port step.** The executable's identity, the
+**What IS otherwise measured is the DISC, not a game implementation.** The executable's identity, the
 existence and byte count of 21 code overlays, a fitted (not resident) overlay base, the PSY-Q cohort, and
 the `.RAW` container's framing — all in `docs/info/claims/`, each with its falsifier. Not one of them
-fills a field or completes a step, and none of them may be quoted as progress.
+fills a field or completes a game step, and none of them may be quoted as boot progress.
 
-**THE REAL FIRST STEP IS `RE-00`: stand up Ghidra on `SLUS_008.93`.** Not RE-01. This game has **no
+**RE-00 now stands up Ghidra on `SLUS_008.93`.** This game still has **no
 decomp** (`docs/references.md`) — no symbol map, no function boundaries, no matching build — so the
-decompiler is not a convenience here, it is the *entire* RE supply, and every other step below is blocked
-behind it. The sibling ports could locate a value in a reference and then confirm it; this port must find
-it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
+decompiler is not a convenience here; it is the *entire* RE supply. With RE-00 verified, that supply no
+longer blocks the first code RE. The sibling ports could locate a value in a reference and then confirm
+it; this port must find it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
 `rood-reverse`, ~62% matched) or `megamanx4` (AGPL `sozud/mmx4`, byte-identical target).
 
-The first *concrete* decompilation target is already identified and it is not crt0: the function that
+The first *concrete* downstream target remains the function that
 references the overlay-name string group at VA `0x80022F84`..`0x80022FA8` (`level1.bin` at `0x80022F84`,
 `level.bin` itself at `0x80022FA8` — xref both), i.e. the overlay loader (RE-03). It is the one that
 turns this port's defining structural fact from a statistic into a mechanism.
@@ -47,21 +46,21 @@ turns this port's defining structural fact from a statistic into a mechanism.
 ## tooling
 
 ### RE-00 — a Ghidra project over SLUS_008.93: THE RE supply for this port
-- status: todo
+- status: re-verified
 - deps:
-- evidence:
-- where: external/psxport/tools/decomp.sh (the framework's Ghidra headless wrapper); output belongs in the gitignored scratch/, never committed — it is derived from a copyrighted executable
-- gap: Nothing stood up. This step exists as a step, rather than as an unstated assumption, because THIS PORT HAS NO DECOMP TO BORROW FROM: no symbol map, no function boundaries, no matching build (docs/references.md, docs/info/claims/006). The two sibling ports treat a decompiler as one tool among several; here it is the only source of every address the port will ever hold, which makes "is Ghidra actually running on these bytes" a real dependency and not boilerplate. Note the practical blocker recorded honestly rather than as a completed step: the session that measured this disc had NO Ghidra install available (no /opt/ghidra*), which is exactly why RE-03's mechanism is unanswered. Also note what must NOT be done in its place: hand-walking disassembly, or reasoning from a statistic to a mechanism. Both were tried on RE-03 and both correctly stopped short.
-- notes: Two entry points are known from the PS-EXE header and the string table and are ready to be dropped into a fresh project: the crt0 entry pc0 = 0x80082D60, and the overlay-name string group at VA 0x80022F84..0x80022FA8 (level1.bin at 0x80022F84, level2.bin 0x80022F90, level3.bin 0x80022F9C, level.bin 0x80022FA8 — 0x80022F84 is the TABLE BASE, not the level.bin literal; xref both ends). `mateusfavarin/tsr`'s 14 named functions are NOT usable as addresses here — they belong to a different game's executable with no translation (docs/references.md).
+- evidence: C008, I005 and issue #5. From verified SLUS_008.93 sha1 f90c9cd6b4fc9845adfe34e306b7df393bf9154c, tools/ram_image.py placed exactly 595,968 bytes at [0x80010000,0x800A1800). A fresh Ghidra 12 MIPS:LE:32:default import (ts2boot_re00) reported Analysis succeeded. python3 tools/re_xref.py --project ts2boot_re00 --selftest passed 10/10 fold controls plus 5/5 independent Ghidra/fold controls. external/psxport/tools/decomp.sh decomp then emitted one 24-line function for header entry 0x80082D60; Ghidra created FUN_80082d60 and warned that control flow truncates at unresolved data, which is a limitation rather than suppressed.
+- where: tools/ram_image.py (header-driven 2 MiB image + placement manifest); external/psxport/tools/decomp.sh (authoritative import/decompile); tools/ghidra_xref.py + tools/re_xref.py (cross-method evidence gate); all derived output stays in gitignored scratch/
+- gap: The RE supply is working; no game subsystem is thereby solved. Ghidra types, function boundaries and names remain hypotheses until each downstream step verifies them. The entry decompile exposes a clear loop from 0x800A1070 to 0x800D12C0, but RE-01 still needs a purpose-built symbolic crt0 instrument before any GameConfig field is wired. RE-03 still needs the overlay-loader mechanism, not merely an xref or the old fitted base.
+- notes: Reproduce from the repo root: python3 tools/ram_image.py; external/psxport/tools/decomp.sh import scratch/ghidra/ram-boot.bin ts2boot; python3 tools/re_xref.py --selftest; external/psxport/tools/decomp.sh decomp ts2boot scratch/decomp/entry.c list 0x80082D60. A fresh-project proof may use another project name and --project. The xref wrapper is Python because run.sh is the only shell script this repo may own. Issue #5 records why prior Ghidra xref residue was not trusted: PyGhidra 3 did not expose currentProgram through globals(), so the old postscript dispatch ran only the standalone fold.
 
 ## boot
 
 ### RE-01 — crt0 / boot layout: the GameConfig boot group for SLUS_008.93
 - status: todo
 - deps: RE-00
-- evidence: Only the PS-EXE header and SYSTEM.CNF, which are INPUTS and not the group: pc0 = 0x80082D60 (file offset 0x73560), t_addr 0x80010000, t_size 0x00091800, d_size = b_size = 0 (so t_size covers .data and this game clears its own BSS), s_addr 0x801FFFF0, gp0 = 0 (the loader sets no $gp). SYSTEM.CNF: BOOT = cdrom:\SLUS_008.93;1, TCB = 4, EVENT = 16, STACK = 801FFF00 — which DISAGREES with the header's s_addr; SYSTEM.CNF wins at boot, and both are recorded in game/core/game_config.cpp rather than one being picked.
+- evidence: C008 supplies the first real entry decompile from 0x80082D60. It shows a word-clear loop starting at 0x800A1070 and ending before 0x800D12C0, then a call at unresolved startup data; Ghidra explicitly warns that bad instruction data truncates control flow. The PS-EXE and SYSTEM.CNF inputs remain as previously recorded.
 - where: game/core/game_config.cpp (bssZeroLo/Hi, stackTopBase/2, heapBase, heapSizePtr, heapBasePtr, gp, libcInit, gameMain, crt0)
-- gap: Nobody has executed or decompiled the entry function. The framework consumes these eleven fields AS A GROUP, so writing the two or three a header hands you and zeroing the rest makes crt0_setup run a WRONG crt0 instead of refusing to run one — that is why the header facts sit in named constants and static_asserts and not in the struct. Measured but unexplained and therefore relevant here: BSS-looking addresses are materialised up to ~0x800CE1B0, i.e. well above the loaded image's end at 0x800A1800, so the BSS range is real and large; the clear loop's actual bounds are unmeasured. Expect the framework's crt0_setup to need the same generic fixes the sibling ports found (a stack bias field, treating heapSizePtr/heapBasePtr == 0 as "kept in registers only", and setting a1 for the BIOS InitHeap thunk) — those are FRAMEWORK changes and not this repo's to make.
+- gap: The entry has now been decompiled, but Ghidra output alone does not establish the full eleven-field GameConfig boot group. Build the purpose-specific symbolic crt0 verifier: it must follow startup control flow, print the exact instruction behind every derived field, distinguish the clear-loop bounds from heap/overlay meanings, gate both answer classes and a cross-binary negative, and resolve the bad-data truncation before wiring any nonzero field. The clear loop strongly suggests BSS [0x800A1070,0x800D12C0), but this remains evidence to verify, not a pasted GameConfig value.
 - notes: The sibling ports' crt0 tooling (Tomba!2's re_crt0.py, megamanx4's verify_crt0.py) is the SHAPE to reuse — a tool that symbolically executes the entry function and prints the disassembly line behind every field, with a --selftest gating both classes and a cross-binary negative. It is not copied in speculatively; write it when RE-00 makes it runnable.
 
 ### RE-02 — recompiler seed set for SLUS_008.93

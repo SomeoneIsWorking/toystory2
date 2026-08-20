@@ -52,12 +52,15 @@ engine-family layer. If a second Traveller's Tales title is ever ported, measure
 — the lineage claim that all 7 TT PSX games share one engine rests on one person's README and **could
 not be measured**, because no other TT disc is available on this machine.
 
-## THE STATE OF THIS PORT: nothing is reverse-engineered. Do not read anything else as progress
+## THE STATE OF THIS PORT: the RE supply works; no game subsystem does
 
-Created 2026-08-12. There is **no recompiled substrate, no port binary, and no RE'd guest address.**
-`game/core/game_config.cpp` is all zeros with each field pointing at its open step in
-`docs/re-frontier.md`. If something here looks like it works, check `docs/codemap.md` — the honest
-inventory is provisioning, a compiling seam, four instruments, and the registries.
+There is **no recompiled substrate, no port binary, and no wired guest address.** RE-00 is the one
+completed RE step: a fresh Ghidra 12 import over the measured executable passes the independent xref
+gate and emits C for entry `0x80082D60` (`docs/info/claims/008-*`). That proves the decompiler supply,
+not crt0, the overlay loader, or boot. `game/core/game_config.cpp` remains all zeros with each field
+pointing at its open step in `docs/re-frontier.md`. If something here looks like a running port, check
+`docs/codemap.md` — the honest inventory is provisioning, a compiling seam, five instruments, and the
+registries.
 
 What DOES build today, and is the gate for a change to the seam:
 
@@ -114,11 +117,12 @@ This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequenc
   the loader arrives at it is unknown. **Never paste it into `overlaySlots` or `overlay_bases`.**
 - **Whether `LEVEL.BIN` and `LEVEL1.BIN` share one slot or occupy two is UNRESOLVED** and both readings
   fit the bytes. It decides the memory map, so it is part of RE-03 and not an afterthought.
-- The next real step is a decompile of the function referencing the overlay-name string group at VA
+- One ready code step is a decompile of the function referencing the overlay-name string group at VA
   `0x80022F84`..`0x80022FA8` — a 12-byte-stride table holding `level1.bin` at `0x80022F84`, `level2.bin`
   at `0x80022F90`, `level3.bin` at `0x80022F9C` and **`level.bin` itself at `0x80022FA8`**. Xref both
   ends; `0x80022F84` is the table base, NOT the `level.bin` literal. A decompiler job, per the RE-first
-  rule — not a grep job and not more statistics.
+  rule — not a grep job and not more statistics. RE-01 (the entry/crt0 group) is independently ready;
+  `python3 tools/re_frontier.py next` is the authority when choosing between them.
 
 ## The rules that bite hardest here
 

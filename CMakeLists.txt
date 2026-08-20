@@ -1,10 +1,10 @@
 # Toy Story 2: Buzz Lightyear to the Rescue! (SLUS-00893, USA) — a PC-native port built on the psxport
-# framework (external/psxport submodule).
+# framework (external/psxport resolves to the shared checkout or a private clone at psxport.pin).
 #
 # The framework (PSX-generic static-recomp substrate + runtime + HW backends + SBS harness + SDL_GPU
 # renderer) is the reusable `psxport` library; this repo adds the game (game/**) and — once it exists —
-# the recompiled SLUS_008.93 substrate (generated/**). NOTHING IS RE'd YET: see docs/re-frontier.md and
-# cmake/toystory2_port.cmake for what does and does not build today.
+# the recompiled SLUS_008.93 substrate (generated/**). Only the Ghidra supply (RE-00) is verified; see
+# docs/re-frontier.md and cmake/toystory2_port.cmake for what does and does not build today.
 #
 # AND THERE IS NO DECOMP OF THIS GAME (docs/references.md), so there is no symbol map and no function
 # boundaries to start from — every address this port will ever hold comes out of Ghidra on this

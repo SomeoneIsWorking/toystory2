@@ -49,7 +49,7 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/generated/rec_sources.cmake)
   message(STATUS
     "toystory2_port: NOT configured — generated/rec_sources.cmake is absent, i.e. the recompiled "
     "substrate has never been emitted for this game. That is the honest state of this port, not a "
-    "build problem: see docs/re-frontier.md (RE-01 crt0/GameConfig, RE-02 seeds, RE-03 the 22 code "
+    "build problem: see docs/re-frontier.md (RE-01 crt0/GameConfig, RE-02 seeds, RE-03 the 21 code "
     "overlays' load bases — emit.py treats a missing overlay base as a hard error, deliberately). "
     "`--target toystory2_seam` is the gate that DOES run today.")
   return()

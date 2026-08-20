@@ -1,19 +1,21 @@
 // main.cpp — the Toy Story 2 port's process entry point.
 //
-// Installs the game seam (GameConfig + GameHooks + RecompRegistry), brings up the framework's PSX
-// hardware backends, loads the retail executable, and enters the native boot. After the install
-// nothing here names anything but framework symbols.
+// Installs the game seam (GameConfig + GameHooks + RecompRegistry), brings up
+// the framework's PSX hardware backends, loads the retail executable, and
+// enters the native boot. After the install nothing here names anything but
+// framework symbols.
 //
-// NOTHING IN THIS PORT IS REVERSE-ENGINEERED YET (docs/re-frontier.md), and this file is never
-// executed today because no port binary is configured (cmake/toystory2_port.cmake says why at
-// configure time). Were it built, the sequence below would install a RecompRegistry that refuses —
-// there is no substrate — and that refusal is the intended behaviour: the plumbing is real, the RE is
-// not, and the two must not be confused.
-#include "core.h"
-#include "game.h"
+// NOTHING IN THIS PORT IS REVERSE-ENGINEERED YET (docs/re-frontier.md), and
+// this file is never executed today because no port binary is configured
+// (cmake/toystory2_port.cmake says why at configure time). Were it built, the
+// sequence below would install a RecompRegistry that refuses — there is no
+// substrate — and that refusal is the intended behaviour: the plumbing is real,
+// the RE is not, and the two must not be confused.
 #include "cfg.h"
-#include "fs_util.h"
+#include "core.h"
 #include "disc.h"
+#include "fs_util.h"
+#include "game.h"
 #include <stdio.h>
 
 extern "C" {
@@ -22,72 +24,88 @@ void mdec_init(void);
 void spu_init(void);
 }
 
-void load_exe(const char* path, Core* c);      // runtime/recomp/boot.cpp (framework)
-void native_boot_run(Core* c);                 // runtime/recomp/native_boot.cpp (framework)
+void load_exe(const char *path, Core *c); // runtime/recomp/boot.cpp (framework)
+void native_boot_run(Core *c); // runtime/recomp/native_boot.cpp (framework)
 void gte_init(void);
-int  selftest_run(const char* path);           // runtime/recomp/selftest.cpp (framework harness)
+int selftest_run(
+    const char *path); // runtime/recomp/selftest.cpp (framework harness)
 
-extern void ts2_install_game_config();         // game/core/game_config.cpp (installs cfg + hooks)
-extern void ts2_install_recomp();              // game/core/recomp_register.cpp
+extern void
+ts2_install_game_config(); // game/core/game_config.cpp (installs cfg + hooks)
+extern void ts2_install_recomp(); // game/core/recomp_register.cpp
 
-// The retail US executable, as it is named on the disc. SYSTEM.CNF boots it directly
-// (`BOOT = cdrom:\SLUS_008.93;1` — measured 2026-08-12), so there is no boot stub LoadExec'ing a second
-// image the way Tomba!2's SCUS_944.54 -> MAIN.EXE hand-off does; the framework's stub stage is unused.
+// The retail US executable, as it is named on the disc. SYSTEM.CNF boots it
+// directly
+// (`BOOT = cdrom:\SLUS_008.93;1` — measured 2026-08-12), so there is no boot
+// stub LoadExec'ing a second image the way Tomba!2's SCUS_944.54 -> MAIN.EXE
+// hand-off does; the framework's stub stage is unused.
 //
-// THE ENGINE IS NOT ALL IN THIS FILE, WHICH IS THIS PORT'S DEFINING STRUCTURAL FACT: 22 code overlays
-// on the disc hold 29.1% of the game's code-bearing bytes (docs/info/claims/002-*). They are the
-// recompiler's problem (RE-02/RE-03), not this file's — but do not read "load the boot exe and go" as
-// "the boot exe is the game".
-static const char* kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
-static const char* kDiscExePath = "\\SLUS_008.93";
+// THE ENGINE IS NOT ALL IN THIS FILE, WHICH IS THIS PORT'S DEFINING STRUCTURAL
+// FACT: 22 code overlays on the disc hold 29.1% of the game's code-bearing
+// bytes (docs/info/claims/002-*). They are the recompiler's problem
+// (RE-02/RE-03), not this file's — but do not read "load the boot exe and go"
+// as "the boot exe is the game".
+static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
+static const char *kDiscExePath = "\\SLUS_008.93";
 
-int main(int argc, char** argv) {
-  // Must precede the first Core: Core's ctor snapshots psxport_game_config()/psxport_game_hooks().
+int main(int argc, char **argv) {
+  // Must precede the first Core: Core's ctor snapshots
+  // psxport_game_config()/psxport_game_hooks().
   ts2_install_game_config();
   ts2_install_recomp();
 
-  const char* path = argc > 1 ? argv[1] : kDefaultExe;
+  const char *path = argc > 1 ? argv[1] : kDefaultExe;
 
-  Game* game = new Game();
-  Core* c = &game->core;
+  Game *game = new Game();
+  Core *c = &game->core;
 
-  // Self-provision the executable so the binary is runnable straight from a disc image with no prior
-  // step (disc resolution: $PSXPORT_TS2_DISC, .env, or a *.chd in the working directory — the same
-  // order tools/resolve_disc.py implements host-side).
+  // Self-provision the executable so the binary is runnable straight from a
+  // disc image with no prior step (disc resolution: $PSXPORT_TS2_DISC, .env, or
+  // a *.chd in the working directory — the same order tools/resolve_disc.py
+  // implements host-side).
   if (!Fs::exists(path)) {
     cfg_logw("boot", "%s missing — extracting from disc", path);
     if (!disc_extract_file(&game->disc, kDiscExePath, path)) {
-      cfg_loge("boot", "extraction failed: provide a disc (PSXPORT_TS2_DISC, .env, or a *.chd in "
-                       "the working directory), or run `python3 tools/extract_exe.py`");
+      cfg_loge("boot",
+               "extraction failed: provide a disc (PSXPORT_TS2_DISC, .env, or "
+               "a *.chd in "
+               "the working directory), or run `python3 tools/extract_exe.py`");
       return 1;
     }
   }
 
-  // PSXPORT_SELFTEST=<name>: run the framework's headless selftest harness instead of booting.
+  // PSXPORT_SELFTEST=<name>: run the framework's headless selftest harness
+  // instead of booting.
   {
-    const char* st = cfg_str("PSXPORT_SELFTEST");
-    if (st && *st) return selftest_run(path);
+    const char *st = cfg_str("PSXPORT_SELFTEST");
+    if (st && *st)
+      return selftest_run(path);
   }
 
-  watchdog_init();            // PSXPORT_WATCHDOG=<sec>: abort + backtrace if a frame stalls
+  watchdog_init(); // PSXPORT_WATCHDOG=<sec>: abort + backtrace if a frame
+                   // stalls
   load_exe(path, c);
 
-  gte_init();                 // GTE (COP2)
-  mdec_init();                // MDEC (FMV)
-  spu_init();                 // SPU
-  game->spu_audio.init();     // SDL audio sink (PSXPORT_NOAUDIO to disable)
-  game->gpu.gpu_native_init();// native GPU renderer over the guest's GP0 stream
-  game->cd.overridesInit();   // native CD: drive-ready + by-LBA read
-  // Hardware-sync HLE. initBuiltins() installs the framework's generic handlers at whatever addresses
-  // THIS game declares in GameConfig::hle — which is all zero here (RE-07), so it registers nothing
-  // and says so. A run that needs one will hang in the guest's real spin loop; that is the honest
-  // signal that the RE is outstanding, and with no decomp of this game to borrow from there is no
-  // shortcut past it.
+  gte_init();             // GTE (COP2)
+  mdec_init();            // MDEC (FMV)
+  spu_init();             // SPU
+  game->spu_audio.init(); // SDL audio sink (PSXPORT_NOAUDIO to disable)
+  game->gpu
+      .gpu_native_init();   // native GPU renderer over the guest's GP0 stream
+  game->cd.overridesInit(); // native CD: drive-ready + by-LBA read
+  // Hardware-sync HLE. initBuiltins() installs the framework's generic handlers
+  // at whatever addresses THIS game declares in GameConfig::hle — which is all
+  // zero here (RE-07), so it registers nothing and says so. A run that needs
+  // one will hang in the guest's real spin loop; that is the honest signal that
+  // the RE is outstanding, and with no decomp of this game to borrow from there
+  // is no shortcut past it.
   game->platform_hle.initBuiltins();
-  game->pad.overridesInit();  // native controller input
-  c->r[4] = 1; c->r[5] = 0;   // a0/a1 as the BIOS leaves them
+  game->pad.overridesInit(); // native controller input
+  c->r[4] = 1;
+  c->r[5] = 0; // a0/a1 as the BIOS leaves them
 
-  c->hooks->registerOverrides(game);   // nothing to install yet, but keep the wiring honest
+  c->hooks->registerOverrides(
+      game); // nothing to install yet, but keep the wiring honest
   native_boot_run(c);
   cfg_logi("boot", "native boot returned");
   return 0;
