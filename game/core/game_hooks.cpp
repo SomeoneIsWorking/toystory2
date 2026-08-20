@@ -37,9 +37,7 @@ static void ts2_bootInit(Core *c) {
              "dispatch. Refusing to dispatch address 0.");
     abort();
   }
-  cfg_logi("boot",
-           "dispatching guest main() 0x%08X on the recompiled substrate",
-           c->cfg->gameMain);
+  cfg_logi("boot", "dispatching guest main() 0x%08X on the recompiled substrate", c->cfg->gameMain);
   rec_dispatch(c, c->cfg->gameMain);
 }
 
@@ -70,7 +68,9 @@ static int ts2_devAreaCount(Core *) {
 static const char *ts2_devAreaName(Core *, int) {
   return "";
 } // "" == no sourced name
-static bool ts2_devWarpAllowed(Core *) { return false; }
+static bool ts2_devWarpAllowed(Core *) {
+  return false;
+}
 
 // ── fail-fast
 // ───────────────────────────────────────────────────────────────────────────────────
@@ -99,8 +99,8 @@ static bool ts2_schedFreshEntry(Core *, int, uint32_t, uint32_t) {
   unstood_up("schedFreshEntry (PcScheduler)");
   return false;
 }
-static void ts2_devWarpAreaLoad(Core *) {
-  unstood_up("devWarpAreaLoad (dev warp)");
+static void ts2_devWarp(Core *, int, int) {
+  unstood_up("devWarp");
 }
 
 // DESIGNATED initialisers, deliberately — every hook binds BY NAME, so a field
@@ -118,11 +118,13 @@ static const GameHooks g_ts2_hooks = {
     .registerOverrides = ts2_registerOverrides,
     .renderFadeState = ts2_renderFadeState,
     .renderBbFrameReset = ts2_renderBbFrameReset,
-    .devWarpAreaLoad = ts2_devWarpAreaLoad,
+    .devWarp = ts2_devWarp,
     .devAreaCount = ts2_devAreaCount,
     .devAreaName = ts2_devAreaName,
     .devWarpAllowed = ts2_devWarpAllowed,
     .schedStageBody = ts2_schedStageBody,
 };
 
-const GameHooks *ts2_game_hooks() { return &g_ts2_hooks; }
+const GameHooks *ts2_game_hooks() {
+  return &g_ts2_hooks;
+}

@@ -23,6 +23,9 @@ endif()
 
 project(toystory2 CXX C)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+include(CTest)
+
 # PSXPORT_DIR — WHERE THE FRAMEWORK SOURCE COMES FROM. Defaults to external/psxport, which is no
 # longer a git submodule (2026-08-16): tools/psxport_sync.py --auto (called by run.sh) makes it a
 # SYMLINK to the workspace's shared framework clone when one exists, or a private clone at this
@@ -88,3 +91,14 @@ add_subdirectory(${PSXPORT_DIR}/vendor/beetle-psx/deps/libchdr
                  ${CMAKE_BINARY_DIR}/libchdr_build EXCLUDE_FROM_ALL)
 
 include(cmake/toystory2_port.cmake)
+
+if(BUILD_TESTING)
+  add_test(NAME run_py_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run.py --selftest)
+  add_test(
+    NAME cpp_policy
+    COMMAND
+      ${Python3_EXECUTABLE} ${PSXPORT_DIR}/tools/check_cpp_style.py
+      --root ${CMAKE_SOURCE_DIR}
+      --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
+  )
+endif()

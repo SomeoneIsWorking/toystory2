@@ -46,6 +46,7 @@ external/psxport/tools/decomp.sh import scratch/ghidra/ram-boot.bin ts2boot
 python3 tools/re_xref.py --selftest                 # prove Ghidra and the independent fold both answer
 cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 cmake --build build --target toystory2_seam -j"$(nproc)"
+ctest --test-dir build --output-on-failure         # format, tidy, and repository policy
 python3 tools/re_frontier.py next                   # what to work on
 ```
 
@@ -53,13 +54,13 @@ python3 tools/re_frontier.py next                   # what to work on
 `external/psxport` a symlink to the one shared framework checkout; in a standalone clone it creates a
 private checkout at `psxport.pin` and initializes the required framework vendors non-recursively.
 
-`run.sh` is the eventual play launcher; today it does every real step and then stops, naming what
-blocks the recompile.
+`run.sh` is the stable four-line launcher wrapper over `tools/run.py`; today the Python launcher does
+every real provisioning/build step and then exits 3, naming what blocks the recompile.
 
 ## Requirements
 
-cmake ≥ 3.21, pkg-config, SDL3, zlib, zstd, Python 3, Clang/clang++ with clang-format, and Ruff for
-Python format/lint gates.
+cmake ≥ 3.21, pkg-config, SDL3, zlib, zstd, Python 3, Clang/clang++ with clang-format and clang-tidy,
+and Ruff for Python formatting/linting.
 
 ## Legal
 

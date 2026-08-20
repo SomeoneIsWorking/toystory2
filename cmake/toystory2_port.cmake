@@ -7,11 +7,11 @@
 #                      nothing game-specific present. (psxport_smoke, the framework's agnosticism proof,
 #                      CANNOT be built from a consumer tree — docs/issues/0001. Leave
 #                      -DPSXPORT_BUILD_SMOKE at its OFF default.)
-#   toystory2_seam     AN OBJECT LIBRARY over the seam TUs (game_config / game_hooks / main). It COMPILES
-#                      but does not link, which is exactly the check that is possible before a substrate
-#                      exists: it proves this port's GameConfig/GameHooks still satisfy the pinned
-#                      framework's seam — every designator binds, every hook signature matches. That is
-#                      the gate for this repo today.
+#   toystory2_seam     AN OBJECT LIBRARY over the four game/core TUs. It COMPILES but does not link,
+#                      which is exactly the check that is possible before a substrate exists: it proves
+#                      this port's GameConfig/GameHooks/RecompRegistry seam still satisfies the pinned
+#                      framework. The registry's no-substrate branch compiles; the substrate branch
+#                      remains a deliberate #error until the generated interface exists.
 #   toystory2_port     the game binary. Configured ONLY when generated/rec_sources.cmake exists, i.e.
 #                      once the recompiled substrate has been emitted. It has NOT been: emit.py needs
 #                      this game's seeds (RE-02) and its OVERLAY LOAD BASES (RE-03 — this game has 21
@@ -26,12 +26,11 @@ option(PSXPORT_BUILD_PORT "Build the Toy Story 2 native port binary (needs gener
 include(${PSXPORT_DIR}/cmake/psxport.cmake)
 
 # ---- the seam, compile-only ----------------------------------------------------------------------
-# recomp_register.cpp is EXCLUDED on purpose: it is the one TU that names generated/ symbols, so it
-# cannot compile before the substrate exists (see that file's header).
 set(SEAM_SRC
   game/core/game_config.cpp
   game/core/game_hooks.cpp
   game/core/main.cpp
+  game/core/recomp_register.cpp
 )
 add_library(toystory2_seam OBJECT ${SEAM_SRC})
 set_target_properties(toystory2_seam PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
@@ -69,7 +68,7 @@ set_source_files_properties(${GEN_REC_SRCS}
   PROPERTIES LANGUAGE CXX
   COMPILE_OPTIONS "-O1;-foptimize-sibling-calls;-fno-strict-aliasing;-fwrapv")
 
-add_executable(toystory2_port ${SEAM_SRC} game/core/recomp_register.cpp ${GEN_REC_SRCS})
+add_executable(toystory2_port ${SEAM_SRC} ${GEN_REC_SRCS})
 
 # Tripwire, deliberately: recomp_register.cpp #errors under this define until someone writes the real
 # RecompRegistry for the emitted substrate. The alternative — a registry written against guessed

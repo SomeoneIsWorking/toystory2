@@ -48,19 +48,15 @@
 // overwrites is RE-01's job to measure; in the two sibling ports crt0 computed
 // sp itself and ignored both. Do NOT resolve the discrepancy by picking one
 // here.
-static constexpr uint32_t kPsExeEntry = 0x80082D60u;    // header pc0
-static constexpr uint32_t kPsExeTextAddr = 0x80010000u; // header t_addr
-static constexpr uint32_t kPsExeTextSize =
-    0x00091800u; // header t_size (595,968 B)
-static constexpr uint32_t kPsExeSpHeader = 0x801FFFF0u; // header s_addr
-static constexpr uint32_t kSystemCnfStack =
-    0x801FFF00u; // SYSTEM.CNF STACK=, which wins at boot
-static_assert(
-    kPsExeEntry >= kPsExeTextAddr &&
-        kPsExeEntry < kPsExeTextAddr + kPsExeTextSize,
-    "the PS-EXE entry must lie inside the loaded text — if this fires, the "
-    "header was "
-    "misread and every number in this file's comment block is suspect");
+static constexpr uint32_t kPsExeEntry = 0x80082D60u;     // header pc0
+static constexpr uint32_t kPsExeTextAddr = 0x80010000u;  // header t_addr
+static constexpr uint32_t kPsExeTextSize = 0x00091800u;  // header t_size (595,968 B)
+static constexpr uint32_t kPsExeSpHeader = 0x801FFFF0u;  // header s_addr
+static constexpr uint32_t kSystemCnfStack = 0x801FFF00u; // SYSTEM.CNF STACK=, which wins at boot
+static_assert(kPsExeEntry >= kPsExeTextAddr && kPsExeEntry < kPsExeTextAddr + kPsExeTextSize,
+              "the PS-EXE entry must lie inside the loaded text — if this fires, the "
+              "header was "
+              "misread and every number in this file's comment block is suspect");
 static_assert(kSystemCnfStack < kPsExeSpHeader,
               "the two stack values are recorded because they DISAGREE "
               "(SYSTEM.CNF 0x801FFF00 vs header "
@@ -104,8 +100,7 @@ static_assert(kSystemCnfStack < kPsExeSpHeader,
 // function that references the overlay-name string group at VA
 // 0x80022F84..0x80022FA8 (level1.bin at 0x80022F84, level.bin itself at
 // 0x80022FA8), not a value to ship.
-static constexpr uint32_t kFittedOverlayBase =
-    0x800D1000u; // MEASURED fit; NOT a resident base
+static constexpr uint32_t kFittedOverlayBase = 0x800D1000u; // MEASURED fit; NOT a resident base
 static_assert(kFittedOverlayBase > kPsExeTextAddr + kPsExeTextSize,
               "an overlay slot must sit above the loaded image; if this fires, "
               "either the fit or the "
@@ -334,7 +329,9 @@ static const GameConfig g_ts2_cfg = {
     .stackBias = {1, 0},
 };
 
-const GameConfig *ts2_game_config() { return &g_ts2_cfg; }
+const GameConfig *ts2_game_config() {
+  return &g_ts2_cfg;
+}
 
 // Installs BOTH halves of the seam, because a Core's ctor snapshots them
 // together — installing a config without its hooks leaves a Core holding a

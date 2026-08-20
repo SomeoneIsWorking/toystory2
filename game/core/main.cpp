@@ -25,14 +25,12 @@ void spu_init(void);
 }
 
 void load_exe(const char *path, Core *c); // runtime/recomp/boot.cpp (framework)
-void native_boot_run(Core *c); // runtime/recomp/native_boot.cpp (framework)
+void native_boot_run(Core *c);            // runtime/recomp/native_boot.cpp (framework)
 void gte_init(void);
-int selftest_run(
-    const char *path); // runtime/recomp/selftest.cpp (framework harness)
+int selftest_run(const char *path); // runtime/recomp/selftest.cpp (framework harness)
 
-extern void
-ts2_install_game_config(); // game/core/game_config.cpp (installs cfg + hooks)
-extern void ts2_install_recomp(); // game/core/recomp_register.cpp
+extern void ts2_install_game_config(); // game/core/game_config.cpp (installs cfg + hooks)
+extern void ts2_install_recomp();      // game/core/recomp_register.cpp
 
 // The retail US executable, as it is named on the disc. SYSTEM.CNF boots it
 // directly
@@ -78,21 +76,21 @@ int main(int argc, char **argv) {
   // instead of booting.
   {
     const char *st = cfg_str("PSXPORT_SELFTEST");
-    if (st && *st)
+    if (st && *st) {
       return selftest_run(path);
+    }
   }
 
   watchdog_init(); // PSXPORT_WATCHDOG=<sec>: abort + backtrace if a frame
                    // stalls
   load_exe(path, c);
 
-  gte_init();             // GTE (COP2)
-  mdec_init();            // MDEC (FMV)
-  spu_init();             // SPU
-  game->spu_audio.init(); // SDL audio sink (PSXPORT_NOAUDIO to disable)
-  game->gpu
-      .gpu_native_init();   // native GPU renderer over the guest's GP0 stream
-  game->cd.overridesInit(); // native CD: drive-ready + by-LBA read
+  gte_init();                  // GTE (COP2)
+  mdec_init();                 // MDEC (FMV)
+  spu_init();                  // SPU
+  game->spu_audio.init();      // SDL audio sink (PSXPORT_NOAUDIO to disable)
+  game->gpu.gpu_native_init(); // native GPU renderer over the guest's GP0 stream
+  game->cd.overridesInit();    // native CD: drive-ready + by-LBA read
   // Hardware-sync HLE. initBuiltins() installs the framework's generic handlers
   // at whatever addresses THIS game declares in GameConfig::hle — which is all
   // zero here (RE-07), so it registers nothing and says so. A run that needs
@@ -104,8 +102,7 @@ int main(int argc, char **argv) {
   c->r[4] = 1;
   c->r[5] = 0; // a0/a1 as the BIOS leaves them
 
-  c->hooks->registerOverrides(
-      game); // nothing to install yet, but keep the wiring honest
+  c->hooks->registerOverrides(game); // nothing to install yet, but keep the wiring honest
   native_boot_run(c);
   cfg_logi("boot", "native boot returned");
   return 0;

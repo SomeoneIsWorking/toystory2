@@ -3,16 +3,10 @@
 // that names generated/ symbols; the framework reaches them only through
 // psxport_recomp()->field.
 //
-// It therefore cannot compile until a substrate exists. `generated/` is
-// produced by the recompiler, which needs this game's seed file AND its overlay
-// load bases — RE-02 and RE-03 in docs/re-frontier.md, neither done, and RE-03
-// is a real open step here rather than a skip: this game has 21 code overlays.
-// The build reflects that honestly rather than papering over it:
-// cmake/toystory2_port.cmake configures the port target ONLY when
-// generated/rec_sources.cmake exists, and this file belongs to that target
-// alone. The seam-check target (which DOES build today) compiles
-// game_config.cpp / game_hooks.cpp / main.cpp against the framework headers and
-// deliberately excludes this file.
+// Its explicit no-substrate branch compiles in the seam-check target. The real
+// registry branch cannot compile until `generated/` exists and is guarded by a
+// deliberate #error: the recompiler still needs this game's seeds and overlay
+// load bases (RE-02 and RE-03 in docs/re-frontier.md).
 //
 // When the substrate lands, this becomes the shape
 // spider1/game/core/recomp_register.cpp has: a designated-initialiser
@@ -28,18 +22,18 @@
 
 void ts2_install_recomp() {
 #ifdef TS2_HAVE_SUBSTRATE
-#error                                                                         \
-    "A substrate now exists, so this file must be written for real: fill in the RecompRegistry \
+#error "A substrate now exists, so this file must be written for real: fill in the RecompRegistry \
 from generated/overlay_table.h (see spider1/game/core/recomp_register.cpp) and delete this guard."
 #else
   // No substrate: install nothing. NOT silent — a run that gets here has no
   // recompiled code to dispatch to, and finding that out at the first
   // rec_dispatch would blame the wrong thing.
-  cfg_loge("recomp", "no recompiled substrate is registered: generated/ has "
-                     "never been emitted for "
-                     "this game (RE-02 seeds, RE-03 overlay bases — "
-                     "docs/re-frontier.md). Nothing can "
-                     "execute. Refusing to continue.");
+  cfg_loge("recomp",
+           "no recompiled substrate is registered: generated/ has "
+           "never been emitted for "
+           "this game (RE-02 seeds, RE-03 overlay bases — "
+           "docs/re-frontier.md). Nothing can "
+           "execute. Refusing to continue.");
   abort();
 #endif
 }

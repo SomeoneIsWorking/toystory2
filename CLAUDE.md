@@ -8,8 +8,7 @@ this repo supplies the game — the seam, the RE, and the native reimplementatio
 
 **The framework rules are NOT restated here. Read `external/psxport/CLAUDE.md`** — it is the authority
 for how a game consumes psxport: the CVar ladder, the seam, `generated/` being sacrosanct, RE-first,
-diagnostics through `lucent`, the registries, never editing `external/psxport`, and the standing USER
-directive that **`./run.sh` is the user's and agents must never invoke it**. The workspace map is
+diagnostics through `lucent`, the registries, and never editing `external/psxport`. The workspace map is
 `external/psxport/docs/workspace/WORKSPACE.md`; the multi-agent protocol is `…/PROTOCOL.md`; the
 methodology is `…/docs/porting-a-new-psx-game.md`.
 
@@ -67,7 +66,11 @@ What DOES build today, and is the gate for a change to the seam:
 ```sh
 python3 tools/psxport_sync.py --auto                                    # resolve external/psxport (symlink to the shared clone, or a private clone at psxport.pin)
 cmake -S . -B build && cmake --build build --target toystory2_seam -j$(nproc)
+ctest --test-dir build --output-on-failure                              # shared format/tidy policy over this repo
 ```
+
+`run.sh` is the stable launcher interface and delegates all provisioning/build policy to `tools/run.py`.
+Its current verified default route builds the real seam and exits 3 naming the missing substrate RE.
 
 **`external/psxport` is NOT a submodule any more (2026-08-16)** — it is a symlink to the workspace's
 shared framework clone when one exists, or a private clone at this repo's `psxport.pin` on a fresh
