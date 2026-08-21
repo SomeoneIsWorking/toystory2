@@ -22,6 +22,10 @@
 // binary evidence is the only provenance a value can have.
 #include "game_iface.h"
 
+#ifdef TS2_HAVE_SUBSTRATE
+#include "overlay_table.h"
+#endif
+
 // MEASURED, from the PS-EXE header of the extracted SLUS_008.93
 // (tools/extract_exe.py prints it) and from the disc's SYSTEM.CNF. Kept as
 // named constants rather than dropped into the struct below, because the
@@ -109,6 +113,16 @@ static_assert(kLevelOverlayBase == kCrt0HeapBase,
 static_assert(kMemoryOverlayBase - kLevelOverlayBase == 19040u,
               "the next co-resident slot bounds the level overlay window");
 
+// Physical resident range from the identity-checked PS-X EXE header. The recompilation gate checks
+// these literals against generated/overlay_table.h after every emission; the build adds a second
+// compile-time tripwire when the generated header is present.
+static constexpr uint32_t kRecMainLo = 0x00010000u;
+static constexpr uint32_t kRecMainHi = 0x000A1800u;
+#ifdef TS2_HAVE_SUBSTRATE
+static_assert(kRecMainLo == REC_MAIN_LO && kRecMainHi == REC_MAIN_HI,
+              "GameConfig resident range disagrees with the emitted substrate");
+#endif
+
 // DESIGNATED initialisers, deliberately. GameConfig is initialised POSITIONALLY
 // by the older consumers in this workspace, and the framework appends fields to
 // it — which means a positional list silently re-binds every value after an
@@ -133,18 +147,11 @@ static const GameConfig g_ts2_cfg = {
     .gameMain = kCrt0GameMain,
     .crt0 = kCrt0Entry,
 
-    // --- recompiled MAIN .text range (physical)
-    // ---------------------------------- RE-02, NOT DONE --
-    // These come from the RECOMPILER's own generated/overlay_table.h
-    // (REC_MAIN_LO / REC_MAIN_HI) so
-    // they can never drift from the substrate they describe. There is no
-    // substrate yet, so they are
-    // zero and this file does not #include that header — including a generated
-    // header that does not
-    // exist would make the tree un-configurable rather than honestly
-    // incomplete.
-    .recMainLo = 0,
-    .recMainHi = 0,
+    // --- recompiled MAIN .text range (physical) ---------------- RE-02 partial --
+    // Header-derived literals, checked against generated/overlay_table.h by both the emitter gate
+    // and a compile-time assertion whenever the substrate is present.
+    .recMainLo = kRecMainLo,
+    .recMainHi = kRecMainHi,
 
     // --- disc key ----------------------------------------------- this port's
     // own env name, not RE --

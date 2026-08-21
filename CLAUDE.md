@@ -51,25 +51,27 @@ engine-family layer. If a second Traveller's Tales title is ever ported, measure
 — the lineage claim that all 7 TT PSX games share one engine rests on one person's README and **could
 not be measured**, because no other TT disc is available on this machine.
 
-## THE STATE OF THIS PORT: RE-00, RE-01 and RE-03 work; there is still no substrate
+## THE STATE OF THIS PORT: the generated substrate reaches the CD boundary
 
-There is **no recompiled substrate or port binary.** RE-00 supplies Ghidra; RE-01's symbolic verifier
-now proves and wires the complete crt0 group from entry `0x80082D60` through InitHeap, gameMain and the
-terminating break (`docs/info/claims/009-*`). RE-03 proves and wires the LEVEL and MEMORY resident
-slots (`docs/info/claims/010-*`). Callable CD addresses remain zero. If something here looks like a
-running port, check `docs/codemap.md`: RE-02 has not emitted generated code, so a verified gameMain
-address and overlay map are not executable substrate.
+RE-00 supplies Ghidra; RE-01 proves crt0 and RE-03 proves the LEVEL/MEMORY slots. RE-02 now emits the
+identity-checked executable and all 21 measured modules, links the real port, and matches the independent
+CPU oracle 34/34 at first call `0x80089344`. The first live miss proved IRQ resume `0x80088A2C`; it is
+wired solely as a mid-function re-entry, which the framework emits and dispatches directly. Boot now
+opens the disc and reaches stock-libcd command/completion poll `0x80091DE4`. Callable CD addresses remain zero until RE-04 proves their ABI;
+that is the honest next boot boundary, not a framework hang.
 
 What DOES build today, and is the gate for a change to the seam:
 
 ```sh
 python3 tools/psxport_sync.py --auto                                    # resolve external/psxport (symlink to the shared clone, or a private clone at psxport.pin)
-cmake -S . -B build && cmake --build build --target toystory2_seam -j$(nproc)
-ctest --test-dir build --output-on-failure                              # launcher, RE-01, RE-03, format and tidy gates
+python3 tools/recomp_substrate.py --ensure
+cmake -S . -B build && cmake --build build --target toystory2_port toystory2_recomp_boundary -j$(nproc)
+ctest --test-dir build --output-on-failure                              # launcher, RE, oracle, format and tidy gates
 ```
 
 `run.sh` is the stable launcher interface and delegates all provisioning/build policy to `tools/run.py`.
-Its current verified default route builds the real seam and exits 3 naming the missing substrate RE.
+Its zero-argument route provisions the 21-module corpus, refreshes generated code only when inputs
+change, builds with Clang, and launches `toystory2_port`.
 
 **`external/psxport` is NOT a submodule any more (2026-08-16)** — it is a symlink to the workspace's
 shared framework clone when one exists, or a private clone at this repo's `psxport.pin` on a fresh
@@ -119,7 +121,8 @@ This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequenc
   caller advances the arena to `0x800E54F8`. Reproduce all shipping comparisons and the forced
   opposite answer with `python3 tools/overlay_map.py --check` and `--selftest`.
 - **`0x800D1000` remains only the old 4 KiB fit.** It is useful corroboration but is not wired. The
-  exact instruction-derived slot is authoritative. RE-02 is now the next boot-spine step.
+  exact instruction-derived slot is authoritative. RE-02 has now consumed it; the current live
+  boundary is RE-04's stock-libcd completion seam.
 
 ## The rules that bite hardest here
 

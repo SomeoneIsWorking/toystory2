@@ -5,12 +5,9 @@
 // enters the native boot. After the install nothing here names anything but
 // framework symbols.
 //
-// NOTHING IN THIS PORT IS REVERSE-ENGINEERED YET (docs/re-frontier.md), and
-// this file is never executed today because no port binary is configured
-// (cmake/toystory2_port.cmake says why at configure time). Were it built, the
-// sequence below would install a RecompRegistry that refuses — there is no
-// substrate — and that refusal is the intended behaviour: the plumbing is real,
-// the RE is not, and the two must not be confused.
+// RE-02 now supplies the generated registry and this is the shipping launcher.
+// The game behavior remains guest code; current boot reaches RE-04's honest CD
+// completion boundary rather than substituting a native game implementation.
 #include "cfg.h"
 #include "core.h"
 #include "disc.h"
@@ -41,8 +38,8 @@ extern void ts2_install_recomp();      // game/core/recomp_register.cpp
 // THE ENGINE IS NOT ALL IN THIS FILE, WHICH IS THIS PORT'S DEFINING STRUCTURAL
 // FACT: 21 code overlays on the disc hold 29.1% of the game's code-bearing
 // bytes (docs/info/claims/002-*). RE-03 proves their slots; emitting them and
-// the resident executable remains RE-02's problem, not this file's — but do not read "load the boot exe and go"
-// as "the boot exe is the game".
+// the resident executable and 21 modules are emitted by RE-02, not this file — but do not read "load the boot exe and
+// go" as "the boot exe is the game".
 static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
 static const char *kDiscExePath = "\\SLUS_008.93";
 

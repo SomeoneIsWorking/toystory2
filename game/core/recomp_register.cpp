@@ -4,9 +4,8 @@
 // psxport_recomp()->field.
 //
 // Its explicit no-substrate branch compiles in the seam-check target. The real
-// registry branch cannot compile until `generated/` exists and is guarded by a
-// deliberate #error: the recompiler still needs this game's resident-executable
-// seeds (RE-02 in docs/re-frontier.md). RE-03's overlay bases are verified.
+// branch is built only after tools/recomp_substrate.py has identity-checked and
+// emitted the executable plus all 21 RE-03-verified code modules.
 //
 // When the substrate lands, this becomes the shape
 // spider1/game/core/recomp_register.cpp has: a designated-initialiser
@@ -20,10 +19,23 @@
 #include "recomp_iface.h"
 #include <stdlib.h>
 
+#ifdef TS2_HAVE_SUBSTRATE
+#include "overlay_table.h"
+
+extern void shard_set_override(uint32_t, void (*)(Core *));
+
+static const RecompRegistry kTs2Recomp = {
+    .main_dispatch = main_dispatch,
+    .rec_func_index = rec_func_index,
+    .overlays = g_rec_overlays,
+    .overlay_count = g_rec_overlay_count,
+    .shard_set_override = shard_set_override,
+};
+#endif
+
 void ts2_install_recomp() {
 #ifdef TS2_HAVE_SUBSTRATE
-#error "A substrate now exists, so this file must be written for real: fill in the RecompRegistry \
-from generated/overlay_table.h (see spider1/game/core/recomp_register.cpp) and delete this guard."
+  psxport_install_recomp(&kTs2Recomp);
 #else
   // No substrate: install nothing. NOT silent — a run that gets here has no
   // recompiled code to dispatch to, and finding that out at the first

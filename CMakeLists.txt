@@ -23,6 +23,11 @@ endif()
 
 project(toystory2 CXX C)
 
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  message(FATAL_ERROR "Toy Story 2 C++ must use clang++; got ${CMAKE_CXX_COMPILER_ID} "
+                      "(${CMAKE_CXX_COMPILER}). Reconfigure with CC=clang CXX=clang++.")
+endif()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
@@ -77,18 +82,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(ZLIB REQUIRED)
-find_package(zstd CONFIG QUIET)
-if(NOT TARGET zstd::libzstd_shared)
-  find_library(ZSTD_LIBRARY zstd REQUIRED)
-  add_library(zstd::libzstd_shared SHARED IMPORTED)
-  set_target_properties(zstd::libzstd_shared PROPERTIES IMPORTED_LOCATION "${ZSTD_LIBRARY}")
-endif()
-find_package(Threads REQUIRED)
-
-# libchdr (CHD access) comes from the Beetle PSX submodule NESTED under psxport (PSXPORT_DIR, above).
-add_subdirectory(${PSXPORT_DIR}/vendor/beetle-psx/deps/libchdr
-                 ${CMAKE_BINARY_DIR}/libchdr_build EXCLUDE_FROM_ALL)
+# Embed psxport's normal root so this consumer gets the shipping oracle/crt0 tools as well as the
+# library. Framework tests stay off; this repo owns its own CTest surface.
+set(PSXPORT_BUILD_TESTS OFF CACHE BOOL "Register psxport's complete test suite" FORCE)
+set(PSXPORT_BUILD_SMOKE OFF CACHE BOOL "Build the framework smoke" FORCE)
+add_subdirectory(${PSXPORT_DIR} ${CMAKE_BINARY_DIR}/psxport_build)
 
 include(cmake/toystory2_port.cmake)
 
@@ -102,6 +100,20 @@ if(BUILD_TESTING)
     NAME overlay_map_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/overlay_map.py --selftest
   )
+  if(TARGET toystory2_recomp_boundary)
+    add_test(
+      NAME recomp_substrate_selftest
+      COMMAND
+        ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/tools/recomp_substrate.py --selftest
+    )
+    add_test(
+      NAME recomp_boundary_selftest
+      COMMAND
+        ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/tools/compare_recomp_boundary.py
+        --selftest --oracle $<TARGET_FILE:oracle_trace>
+        --runner $<TARGET_FILE:toystory2_recomp_boundary>
+    )
+  endif()
   add_test(
     NAME cpp_policy
     COMMAND

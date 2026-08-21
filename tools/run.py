@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Build and launch Toy Story 2's current project target.
-
-The port has no generated substrate yet, so a successful current run provisions the executable,
-builds the framework and four-TU game seam with Clang, then exits 3 naming RE-02.
-"""
+"""Provision, build, and launch Toy Story 2's current generated-code port target."""
 
 from __future__ import annotations
 
@@ -19,25 +15,6 @@ ROOT = Path(__file__).resolve().parents[1]
 CYAN = "\033[1;36m"
 RED = "\033[1;31m"
 RESET = "\033[0m"
-STOP_MESSAGE = """
-[run] ------------------------------------------------------------------------------------------
-[run] STOPPING HERE, ON PURPOSE. There is no toystory2_port binary to launch.
-[run]
-[run] The next step is the static recompilation of SLUS_008.93, and it CANNOT run yet:
-[run]   * RE-02  game/recomp_seeds.json is empty — seeds are grown from real [recomp-MISS] fail-fasts
-[run]            for the resident executable. RE-03 has already instruction-verified and wired the
-[run]            LEVEL slot at 0x800D12C0 and simultaneous MEMORY slot at 0x800D5D20.
-[run]
-[run] AND THERE IS NO DECOMP OF THIS GAME: no symbol map, no function boundaries. Every open address
-[run] must be proved from this executable's binary evidence; docs/references.md records the prior-art
-[run] search and why that search negative is weaker than a measurement.
-[run]
-[run] python3 tools/re_frontier.py next        -- the step that is actually ready to work
-[run] python3 tools/verify_crt0.py --check     -- re-derive the completed RE-01 boot group
-[run] python3 tools/overlay_map.py --check     -- re-derive the completed RE-03 memory map
-[run] python3 tools/raw_probe.py --selftest scratch/flat/LEVEL01__LEVEL.RAW scratch/flat/LEVEL01__LEVEL.DAT
-[run] ------------------------------------------------------------------------------------------
-"""
 
 
 class LaunchError(RuntimeError):
@@ -172,12 +149,23 @@ def launch(
         checked(command, ["bash", str(sync_submodules)], "submodule sync failed")
 
     run_env["PSXPORT_DIR"] = str(framework)
-    extract = [sys.executable, str(ROOT / "tools" / "extract_exe.py")]
+    recomp = [
+        sys.executable,
+        "-B",
+        str(ROOT / "tools" / "recomp_substrate.py"),
+        "--ensure",
+    ]
     if disc is not None:
-        extract.append(disc)
-    checked(command, extract, "executable provisioning failed", env=run_env)
+        recomp.append(disc)
+        run_env["PSXPORT_TS2_DISC"] = disc
+    checked(
+        command,
+        recomp,
+        "verified executable/overlay provisioning or recompilation failed",
+        env=run_env,
+    )
 
-    emit(f"{CYAN}[run]{RESET} building the framework library + the seam check…")
+    emit(f"{CYAN}[run]{RESET} building the Toy Story 2 port…")
     checked(
         command,
         [
@@ -203,12 +191,18 @@ def launch(
             "-j",
             str(os.cpu_count() or 4),
             "--target",
-            "toystory2_seam",
+            "toystory2_port",
         ],
-        "seam check failed",
+        "port build failed",
     )
-    emit(STOP_MESSAGE)
-    return 3
+    run_env.setdefault("PSXPORT_ASSET_DIR", str(framework))
+    executable = ROOT / "scratch" / "bin" / "toystory2_port"
+    emit(f"{CYAN}[run]{RESET} launching {executable.relative_to(ROOT)}")
+    return command(
+        [str(executable), str(ROOT / "scratch/bin/toystory2/SLUS_008.93")],
+        cwd=ROOT,
+        env=run_env,
+    ).returncode
 
 
 def selftest() -> int:
@@ -239,16 +233,18 @@ def selftest() -> int:
     result = launch(
         [], environ={}, which=fake_which, command=fake_command, emit=lambda _: None
     )
-    has_extract = any(
-        str(ROOT / "tools" / "extract_exe.py") in words for words in commands
+    has_recomp = any(
+        str(ROOT / "tools" / "recomp_substrate.py") in words and "--ensure" in words
+        for words in commands
     )
-    has_seam = any(
-        "--target" in words and "toystory2_seam" in words for words in commands
+    has_port = any(
+        "--target" in words and "toystory2_port" in words for words in commands
     )
-    if result == 3 and has_extract and has_seam:
+    launched = any(words and words[0].endswith("toystory2_port") for words in commands)
+    if result == 0 and has_recomp and has_port and launched:
         passed += 1
         print(
-            "[run-selftest] PASS positive: default route provisions, builds the project seam, then exits 3"
+            "[run-selftest] PASS positive: default route provisions, emits, builds, and launches the port"
         )
     else:
         print(
@@ -277,7 +273,7 @@ def selftest() -> int:
         capture_output: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         result = fake_command(args, cwd=cwd, env=env, capture_output=capture_output)
-        if str(ROOT / "tools" / "extract_exe.py") in args:
+        if str(ROOT / "tools" / "recomp_substrate.py") in args:
             return SimpleNamespace(returncode=2, stdout="")
         return result
 
@@ -293,7 +289,11 @@ def selftest() -> int:
     except LaunchError as exc:
         new_commands = commands[before_provisioning:]
         configured = any("-S" in words and "-B" in words for words in new_commands)
-        if str(exc) == "executable provisioning failed" and not configured:
+        if (
+            str(exc)
+            == "verified executable/overlay provisioning or recompilation failed"
+            and not configured
+        ):
             passed += 1
             print(
                 "[run-selftest] PASS refusal: provisioning failure stops before configure/build"

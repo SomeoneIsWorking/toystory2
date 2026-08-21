@@ -7,11 +7,19 @@ created: 2026-08-21
 
 ## Instrument
 
-run.sh -> tools/run.py launcher — does the default Toy Story 2 route resolve the framework/disc, provision the verified executable, build the Clang seam, and refuse honestly while the substrate is absent?
+`run.sh` -> `tools/run.py` launcher — does the default Toy Story 2 route resolve the framework/disc,
+provision and refresh the verified substrate, build with Clang, and launch the real project target?
 
 ## Validated by
 
-Validated again after RE-03 on 2026-08-21. The real zero-argument ./run.sh resolved clean psxport 2b5ef7b5, extracted SLUS_008.93 from the configured disc, matched sha1 f90c9cd6..., built toystory2_seam with Clang, and exited 3 naming only RE-02's missing resident-executable substrate. RE-01 and RE-03 are no longer presented as open. The production-injected --selftest still passed 3/3: default command sequence and exit 3, missing-tool refusal, and provisioning failure before configure/build. The prior CC=/bin/false negative still exits 1 naming the non-Clang compiler.
+Revalidated after RE-02 on 2026-08-21 against the clean shared framework at exact pinned revision
+`692b9b20e3d4a6194452522060fd2657c2235f40`. The real zero-argument route resolved that framework and
+the configured disc, provisioned the identity-checked executable and exact 21-module overlay corpus,
+reused the current hash-matched generated substrate, configured Clang, built `toystory2_port`, and
+launched it past generic BIOS A0:0x15 into stock-libcd command/completion poll `0x80091DE4`. The
+production-injected `--selftest` passed 3/3: the default command sequence
+reaches the real port executable, a missing required tool is named, and provisioning failure stops
+before configure/build. CMake independently refuses a non-Clang C++ compiler.
 
 ## Known failure modes
 

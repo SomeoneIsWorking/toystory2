@@ -38,7 +38,18 @@
 // unreviewable later.
 {
   "main": [],
-  "main_reentry": [],
+  "main_reentry": [
+    // Default live boot, 2026-08-21: the IRQ poll called the guest pointer stored at 0x8009ECD0
+    // on the path that later reaches CD command/completion poll 0x80091DE4, producing [recomp-MISS]
+    // 0x80088A2C with sp=0x8009FCB0. This is a MID-FUNCTION re-entry, not a function root:
+    // the first instruction branches on live v0, there is no prologue, and the path ends by
+    // restoring ra/s0 and adding 0x18 to sp at 0x80088A8C..0x80088A98. Ghidra auto-analysis found
+    // no containing function and only created FUN_80088A2C when asked, corroborating that ordinary
+    // direct-call discovery cannot see the runtime resume target. psxport 692b9b20 makes
+    // main_reentry an authoritative discovery root and emits its wrapper/body/dispatch directly;
+    // duplicating it in main would create two apparent authorities for one measured entry class.
+    "0x80088A2C"
+  ],
   "overlay_bases": {
     "BITS__MEMORY": "0x800D5D20"
   },

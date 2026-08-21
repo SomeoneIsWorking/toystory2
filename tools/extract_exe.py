@@ -15,10 +15,9 @@ byte-exact build target, which is an independent witness. **There is no decomp o
 It can therefore say "this is not the image every number in this repo was measured on"; it cannot say
 which of the two images is the right one.
 
-There is deliberately NO recompilation step here. RE-01's boot group is complete, but emit.py still
-requires this game's own seeds and verified overlay load bases — this game HAS code overlays
-(docs/info/claims/002-*). See docs/re-frontier.md (RE-02, RE-03). A tool that emitted anyway would
-produce a substrate nobody can gate.
+There is deliberately NO recompilation step here: extraction has one responsibility. The authoritative
+consumer is tools/recomp_substrate.py, which rechecks this identity, RE-01 and RE-03 before driving the
+shipping emitter over the exact 21-module corpus.
 
 WHAT THE HEADER PRINT IS FOR: entry pc0 / t_addr / t_size / initial sp / gp0 are independently checked
 by tools/verify_crt0.py against game/core/game_config.cpp. They are printed here too because this tool's

@@ -19,13 +19,18 @@ intended behaviour of the real target being reproduced.
 Statuses: ✅ re-verified · 🟡 re-partial (honest gap) · 🔬 in-progress · ⛔ hack (debt, must remove) ·
 ⬜ todo · ➖ skip-by-design · ⏸ blocked (computed).
 
-## THE STATE OF THIS PORT, 2026-08-21: RE-00, RE-01 and RE-03 are verified; the game remains scaffolding
+## THE STATE OF THIS PORT, 2026-08-21: a measured substrate reaches the CD-completion boundary
 
 **RE-00 supplies Ghidra and RE-01 proves the complete crt0 group.** `tools/verify_crt0.py` resolves the
 entry decompiler's bad-data truncation from the instruction stream and gates every shipped boot field.
-RE-03 now proves the two resident overlay slots and wires every known code module's load base. This
-still does not make the game boot: there is no recompiled substrate, port binary, or native body; RE-02
-is now the next ready step and must grow the executable seed set from real dispatch misses.
+RE-03 proves the two resident overlay slots and wires every known code module's load base. RE-02 now
+emits the executable plus all 21 measured modules, links the real port, and matches the independent CPU
+oracle at the executable's first call in all 34 state fields. The first live dispatch miss identified
+the IRQ resume at `0x80088A2C`; its binary shape proves it is a mid-function re-entry, and the landed
+emitter now discovers and dispatches that seed class directly. Boot advances through interrupt
+registration and disc opening. The honest boundary is
+now RE-04: the guest reaches stock-libcd command/completion poll `0x80091DE4` because no ABI-verified CD seam is
+wired. RE-02 remains partial because later indirect entries cannot be observed until that boundary moves.
 
 **What IS otherwise measured is the DISC, not a game implementation.** The executable's identity, the
 existence and byte count of 21 code overlays, the old coarse fitted base, the PSY-Q cohort, and the
@@ -39,8 +44,8 @@ longer blocks the first code RE. The sibling ports could locate a value in a ref
 it; this port must find it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
 `rood-reverse`, ~62% matched) or `megamanx4` (AGPL `sozud/mmx4`, byte-identical target).
 
-The next concrete target is RE-02: emit the resident executable and all 21 modules at the now-proven
-bases, then grow only the indirect/re-entry seed set surfaced by real `[recomp-MISS]` fail-fasts.
+The next concrete target is RE-04: map the stock libcd command/interrupt seam by ABI and let the real
+guest CD path advance. Any later `[recomp-MISS]` continues to grow RE-02 empirically.
 
 ## tooling
 
@@ -63,12 +68,12 @@ bases, then grow only the indirect/re-entry seed set surfaced by real `[recomp-M
 - notes: Reproduce the portable gate with python3 tools/verify_crt0.py --check and python3 tools/verify_crt0.py --selftest. In the shared workspace, add --cross ../Tomba2Engine/scratch/bin/tomba2/MAIN.EXE for the genuine second-binary negative. The verifier resolves Ghidra truncation by proving break 0x80082E08 ends control before the referenced inline word 0x80082E10.
 
 ### RE-02 — recompiler seed set for SLUS_008.93
-- status: todo
+- status: re-partial
 - deps: RE-01, RE-03
-- evidence:
-- where: game/recomp_seeds.json
-- gap: RE-03's dependency is satisfied: `game/recomp_seeds.json` now maps every LEVEL variant to 0x800D12C0 and BITS__MEMORY to 0x800D5D20. The remaining executable seed lists are grown EMPIRICALLY from `[recomp-MISS] 0x800xxxxx` fail-fasts on a booting port, each with the rationale for how the address is reached. There is no substrate yet, so those lists remain empty. Never copy another game's seeds — a foreign seed landing inside real text SPLITS a function at an arbitrary offset, the emit SUCCEEDS, and the recomp is silently corrupt. There is no decomp here to lift a seed from even if that rule allowed it.
-- notes:
+- evidence: C011, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 245,148 bytes: 321 binary-rooted resident seeds -> 864 functions and 176 roots -> 243 functions across exactly 21 overlay modules / 72 generated TUs. tools/compare_recomp_boundary.py then executes generated crt0 and the independent Mednafen CPU oracle to the first actual jal 0x80089344: 34/34 state fields agree; a forced a0 mutation produces one named mismatch. Default live boot surfaced [recomp-MISS] 0x80088A2C from irqPoll with guest RAM[0x8009ECD0] holding the target. Exact words and Ghidra show no prologue, live-v0 use and a shared stack epilogue, so it is recorded solely in main_reentry. The pinned psxport 692b9b20 makes that class a discovery root and emits its wrapper/body/dispatch directly; regeneration still declares and dispatches func_80088A2C without a duplicate main seed.
+- where: tools/recomp_substrate.py; tools/compare_recomp_boundary.py; tests/toystory2_recomp_boundary.cpp; game/recomp_seeds.json; game/core/recomp_register.cpp; generated/ is gitignored
+- gap: Seed completeness past the current boot boundary is unmeasured. With generic BIOS `A0:0x15` (`strcat`) present, the default run appends both measured `.vh`/`.vb` suffixes and reaches stock-libcd command/completion poll 0x80091DE4. Pinned psxport 692b9b20's continuous-read CDC model is active there (the watchdog capture includes `disc_read_raw`/CHD decompression), but this game still has no ABI-verified CD seam; RE-04 must map that contract before later computed entries can be called complete. Continue adding only addresses surfaced by a real `[recomp-MISS]`, with entry-vs-reentry classification from exact bytes.
+- notes: Never copy another game's seeds. A foreign address can split a real function at an arbitrary offset while emission still succeeds. Reproduce the committed evidence with `python3 tools/recomp_substrate.py --selftest`, build `toystory2_recomp_boundary`, then run `python3 tools/compare_recomp_boundary.py --selftest --oracle build/psxport_build/tools/oracle/oracle_trace --runner scratch/bin/toystory2_recomp_boundary`.
 
 ## overlays
 
