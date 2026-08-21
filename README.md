@@ -11,15 +11,16 @@ There is no recompiled substrate or port binary. RE-00 supplies the verified Ghi
 now proves the complete crt0 boot group directly from the executable's instructions. What exists:
 
 - disc → executable provisioning from **your own** disc image (nothing game-derived is in this repo),
-- the framework seam (`GameConfig` / `GameHooks`) compiling against the pinned framework, with only the
-  complete RE-01 boot group wired and every other un-RE'd guest address honestly `0`,
-- the symbolic crt0 verifier plus the code/overlay census, overlay load-base fit, `.RAW` container
+- the framework seam (`GameConfig` / `GameHooks`) compiling against the pinned framework, with the
+  complete RE-01 boot group and RE-03's two instruction-verified overlay slots wired while every
+  un-RE'd callable guest address remains honestly `0`,
+- the symbolic crt0 verifier plus the code/overlay census, exact overlay-loader verifier, `.RAW` container
   probe, disc extractor, and two-method Ghidra xref gate, each validated in both directions,
 - the project registries (`docs/re-frontier.md`, `docs/codemap.md`, `docs/references.md`, `docs/info/`,
   `docs/issues/`).
 
-`docs/codemap.md` is the honest inventory; `docs/re-frontier.md` is the ordered RE chain. RE-00 and
-RE-01 are re-verified; overlays, substrate, CD, frame, input, HLE and assets remain open.
+`docs/codemap.md` is the honest inventory; `docs/re-frontier.md` is the ordered RE chain. RE-00, RE-01
+and RE-03 are re-verified; substrate, CD, frame, input, HLE and assets remain open.
 
 **Two facts that shape everything here:**
 
@@ -27,8 +28,9 @@ RE-01 are re-verified; overlays, substrate, CD, frame, input, HLE and assets rem
    no function boundaries and no matching build to check against — every address must come from
    reproducible binary evidence on this executable. `docs/references.md` records how that negative was established and why a search
    negative is weaker than a measurement.
-2. **This game streams code overlays.** 21 files hold 29.1% of its code-bearing bytes, so the
-   recompiler cannot emit anything until their load bases are confirmed (`docs/re-frontier.md` RE-03).
+2. **This game streams code overlays.** 21 files hold 29.1% of its code-bearing bytes. RE-03 proves
+   that all LEVEL variants share the slot at `0x800D12C0` and BITS/MEMORY occupies the simultaneous
+   slot at `0x800D5D20`; RE-02 still has to emit the substrate.
 
 ## Getting started
 
@@ -44,9 +46,10 @@ python3 tools/ram_image.py                          # header-driven 2 MiB image 
 external/psxport/tools/decomp.sh import scratch/ghidra/ram-boot.bin ts2boot
 python3 tools/re_xref.py --selftest                 # prove Ghidra and the independent fold both answer
 python3 tools/verify_crt0.py --check                # re-derive all shipping RE-01 fields from instructions
+python3 tools/overlay_map.py --check                # re-derive both shipping RE-03 slots from instructions
 cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 cmake --build build --target toystory2_seam -j"$(nproc)"
-ctest --test-dir build --output-on-failure         # launcher, RE-01, format, and tidy gates
+ctest --test-dir build --output-on-failure         # launcher, RE-01, RE-03, format, and tidy gates
 python3 tools/re_frontier.py next                   # what to work on
 ```
 

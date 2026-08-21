@@ -99,6 +99,10 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_crt0.py --selftest
   )
   add_test(
+    NAME overlay_map_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/overlay_map.py --selftest
+  )
+  add_test(
     NAME cpp_policy
     COMMAND
       ${Python3_EXECUTABLE} ${PSXPORT_DIR}/tools/check_cpp_style.py

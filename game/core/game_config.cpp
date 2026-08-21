@@ -85,47 +85,29 @@ static_assert(kCrt0StackTopBase >= kPsExeTextAddr && kCrt0StackTopBase < kPsExeT
               "the stack-top word must be readable from the loaded executable image");
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────
-// THE OVERLAY WINDOW, MEASURED — and it is the one guest address in this file's
-// comments that did NOT come from a header. It is deliberately NOT in the
-// struct.
+// THE OVERLAY MAP, INSTRUCTION-VERIFIED BY tools/overlay_map.py --check.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────
-// 2026-08-12: **Toy Story 2 streams R3000A code overlays** — 21 files, 245,148
-// bytes = 29.1% of the game's code-bearing bytes (docs/info/claims/002-*). 15
-// of them fit a load base of 0x800D1000 with 75-100% of their own out-of-.text
-// jal targets inside [base, base+size) and a 0.0% runner-up, and the modules'
-// own trailer tables hold absolute 0x800Dxxxx pointers
-// (docs/info/claims/003-*). Reproduce with `python3 tools/base_fit.py
-// --selftest`.
+// FUN_8003D88C selects exactly one of level.bin/level1.bin/level2.bin/level3.bin,
+// then calls the one fixed-destination wrapper FUN_8003DE9C. Its
+// `lui a1,0x800D; addiu a1,0x12C0` passes 0x800D12C0 to file loader
+// FUN_80082508. The same caller can first load BITS/MEMORY.BIN at 0x800D5D20.
+// That next live slot makes the LEVEL window exactly 19,040 bytes, equal to
+// the largest LEVEL module; five of ten LEVEL/LEVEL1 pairs exceed it, so they
+// are alternative contents of one slot rather than simultaneous modules.
 //
-// WHY `overlaySlots` IS STILL ALL ZERO, and why filling it from that number
-// would be the exact faked-step failure this repo must not accumulate:
-//
-//   1. HOW the loader arrives at 0x800D1000 is UNKNOWN. The constant appears
-//   nowhere in the boot exe —
-//      not as a lui/addiu pair (12,670 pairs folded over all 148,992 .text
-//      words) and not as a literal word. It is presumably an end-of-BSS linker
-//      symbol or a runtime allocation, which means the RESIDENT base could
-//      differ from the fitted one and would still fit.
-//   2. WHETHER LEVEL.BIN AND LEVEL1.BIN SHARE ONE SLOT OR OCCUPY TWO is
-//   unresolved. Both fit
-//      0x800D1000 — a contradiction if they are ever resident together — and
-//      LEVEL06/LEVEL1.BIN's trailer points into LEVEL06/LEVEL.BIN's span, which
-//      reads like two simultaneously resident modules. Both readings fit the
-//      bytes. The slot COUNT is part of the answer, and this struct has exactly
-//      three slots.
-//
-// An overlay is keyed BY its load address: a wrong base emits a whole module of
-// correctly decoded instructions at wrong addresses, and every jal target,
-// pointer test and router lookup then goes silently wrong — while the emit
-// SUCCEEDS. So the base is a measurement waiting on RE-03's decompile of the
-// function that references the overlay-name string group at VA
-// 0x80022F84..0x80022FA8 (level1.bin at 0x80022F84, level.bin itself at
-// 0x80022FA8), not a value to ship.
-static constexpr uint32_t kFittedOverlayBase = 0x800D1000u; // MEASURED fit; NOT a resident base
-static_assert(kFittedOverlayBase > kPsExeTextAddr + kPsExeTextSize,
-              "an overlay slot must sit above the loaded image; if this fires, "
-              "either the fit or the "
-              "header was re-read and docs/info/claims/003-* is the arbiter");
+// MEMORY.BIN is 63,312 retail bytes at [0x800D5D20,0x800E5470). The loader
+// preserves the sector-rounded tail and returns the exact CdlFILE size; the
+// caller then computes its next arena pointer as
+// `(size & 0x000FFFFC) + 0x800D5DA8 = 0x800E54F8`. Its first eleven absolute
+// address words all map back inside that exact placement. `overlay_map.py`
+// proves the call chain, compares these constants with both shipping consumers,
+// and forces the opposite slot-count result by widening the next-slot bound.
+static constexpr uint32_t kLevelOverlayBase = 0x800D12C0u;
+static constexpr uint32_t kMemoryOverlayBase = 0x800D5D20u;
+static_assert(kLevelOverlayBase == kCrt0HeapBase,
+              "the level overlay slot starts at the independently verified crt0 heap base");
+static_assert(kMemoryOverlayBase - kLevelOverlayBase == 19040u,
+              "the next co-resident slot bounds the level overlay window");
 
 // DESIGNATED initialisers, deliberately. GameConfig is initialised POSITIONALLY
 // by the older consumers in this workspace, and the framework appends fields to
@@ -225,27 +207,20 @@ static const GameConfig g_ts2_cfg = {
     .stageDemo = 0,
     .stageGame = 0,
 
-    // --- overlay router slots
-    // ---------------------------------------------------- RE-03, NOT DONE --
-    // THIS GAME HAS 21 CODE OVERLAYS and this is the field they will eventually
-    // be routed through. It
-    // stays zero for the two reasons spelled out in the block above
-    // kFittedOverlayBase: the loader's
-    // own computation of the base is not understood, and the number of
-    // simultaneously resident slots is
-    // not established. Zero here means the router has no slot, which is what a
-    // port with no recompiled
-    // overlays should say — and emit.py treats a missing base as a HARD ERROR,
-    // deliberately, so the
-    // refusal is the feature.
-    .overlaySlots = {{0, nullptr}, {0, nullptr}, {0, nullptr}},
+    // --- overlay router slots -------------------------------- RE-03 re-verified --
+    // LEVEL{,1,2,3}.BIN are mutually exclusive contents of the first slot.
+    // BITS/MEMORY.BIN occupies the second slot concurrently. FMV/FMV.BIN also
+    // loads at the second address in other call paths, but its file class is
+    // still unresolved under RE-04 and is therefore not represented as code.
+    .overlaySlots = {{kLevelOverlayBase, "LEVEL"}, {kMemoryOverlayBase, "MEMORY"}, {0, nullptr}},
 
-    // --- CD chokepoints
-    // ---------------------------------------------------------- RE-04, NOT
-    // DONE --
-    // Load-bearing here in a way it is not in an overlay-free port: the CD path
-    // is also the OVERLAY
-    // LOADER's path, so RE-03 and RE-04 will be worked together.
+    // --- CD chokepoints ------------------------------------------- RE-04 partial --
+    // RE-03 identifies the game-level synchronous path loader at 0x80082508 and
+    // its stock-libcd chain (CdSearchFile 0x80092AE8, CdRead 0x80093AF0,
+    // CdReadSync 0x80093BF4). They remain zero here: psxport's cdFileLoad field
+    // has the incompatible (dest,lba,size) ABI, while this routine takes
+    // (path,dest). RE-04 must choose the correct stock-libcd seams rather than
+    // mis-registering a verified address under the wrong contract.
     .cdInit = 0,
     .cdCommand = 0,
     .cdSync = 0,

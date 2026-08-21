@@ -3,7 +3,7 @@
 
   python3 tools/ram_image.py                                  # boot exe only -> scratch/ghidra/ram-boot.bin
   python3 tools/ram_image.py -o scratch/ghidra/ram-l1.bin \\
-      --overlay scratch/flat/LEVEL01__LEVEL.BIN@0x800D1000    # + one overlay at an EXPLICIT base
+      --overlay scratch/flat/LEVEL01__LEVEL.BIN@0x800D12C0    # + one overlay at RE-03's proven base
   python3 tools/ram_image.py --selftest                       # gates BOTH classes
 
 WHY THIS EXISTS. `external/psxport/tools/decomp.sh` imports a **RAM DUMP** as a flat binary based at
@@ -32,8 +32,8 @@ BLIND SPOTS, printed every run:
   * BSS IS NOT MATERIALISED. The header declares b_size = 0 and this game clears its own BSS (RE-01),
     so everything above the loaded image reads as 0 here. A decompiled body that loads from such an
     address gives you the ADDRESS, never the value.
-  * NO OVERLAY IS PRESENT unless you inject it, and an injected base is a HYPOTHESIS (RE-03: 0x800D1000
-    is FITTED, not resident — docs/info/claims/003-*). Inject to read code; never to prove a base.
+  * NO OVERLAY IS PRESENT unless you inject it. The tool accepts any explicit base, so an image is
+    evidence only when that base is independently proven; C010 proves the LEVEL slot at 0x800D12C0.
   * NO RELOCATION AND NO PATCHING. crt0 has not run: $gp is unset, and any address the loader or a
     fixup table would have rewritten still holds its on-disc value.
   * Hardware registers (0x1F80xxxx) and the BIOS ROM are absent — this is RAM only, so a jal into the
@@ -52,8 +52,8 @@ HDR_BYTES = 0x800
 BLIND_SPOTS = [
     "BSS IS NOT MATERIALISED (header b_size=0; the game clears its own BSS — RE-01). Everything above "
     "the loaded image reads 0: that is 'unknown', not 'zero at boot'",
-    "NO OVERLAY unless --overlay injects one, and an injected base is a HYPOTHESIS — 0x800D1000 is "
-    "FITTED, not resident (docs/info/claims/003-*). Inject to READ code, never to PROVE a base",
+    "NO OVERLAY unless --overlay injects one. The tool accepts any explicit base, so the image is "
+    "evidence only when that base is independently proven (C010 proves LEVEL at 0x800D12C0)",
     "NO RELOCATION, NO PATCHING: crt0 has not run, $gp is unset, and anything a loader/fixup table "
     "would rewrite still holds its on-disc value",
     "RAM ONLY — no 0x1F80xxxx hardware registers and no BIOS ROM, so a call into the BIOS lands in "
@@ -243,7 +243,7 @@ def selftest():
           f"1 positive class and 6 negative classes exercised")
     print("[selftest] what this CANNOT see: whether the exe is the RIGHT exe (that is "
           "tools/extract_exe.py + docs/info/exe-identity.txt), and whether an injected overlay base is "
-          "CORRECT — no selftest can know that, it is RE-03.")
+          "CORRECT — no selftest can know that; use the independent RE-03 verifier.")
     return 1 if fails else 0
 
 

@@ -13,10 +13,10 @@
 #                      framework. The registry's no-substrate branch compiles; the substrate branch
 #                      remains a deliberate #error until the generated interface exists.
 #   toystory2_port     the game binary. Configured ONLY when generated/rec_sources.cmake exists, i.e.
-#                      once the recompiled substrate has been emitted. It has NOT been: emit.py needs
-#                      this game's seeds (RE-02) and its OVERLAY LOAD BASES (RE-03 — this game has 21
-#                      code overlays). RE-01's boot group is complete, but that cannot substitute for
-#                      missing generated code. A loud STATUS message says so at configure time rather
+#                      once the recompiled substrate has been emitted. It has NOT been: RE-02 still
+#                      needs the resident executable's empirically grown seeds. RE-01's boot group and
+#                      RE-03's exact overlay slots are complete, but cannot substitute for generated
+#                      code. A loud STATUS message says so at configure time rather
 #                      than a cryptic missing-file error or a stub binary that looks like a port.
 
 option(PSXPORT_BUILD_PORT "Build the Toy Story 2 native port binary (needs generated/)" ON)
@@ -48,9 +48,8 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/generated/rec_sources.cmake)
   message(STATUS
     "toystory2_port: NOT configured — generated/rec_sources.cmake is absent, i.e. the recompiled "
     "substrate has never been emitted for this game. That is the honest state of this port, not a "
-    "build problem: RE-01 crt0/GameConfig is verified; see docs/re-frontier.md for RE-02 seeds and "
-    "RE-03, the 21 code "
-    "overlays' load bases — emit.py treats a missing overlay base as a hard error, deliberately. "
+    "build problem: RE-01 crt0/GameConfig and RE-03's overlay slots are verified; see "
+    "docs/re-frontier.md for the remaining RE-02 resident-executable seeds. "
     "`--target toystory2_seam` is the gate that DOES run today.")
   return()
 endif()

@@ -29,10 +29,10 @@ BLIND SPOTS, because the method cannot see past them:
   * PLAIN, absolutely-linked code only. A relocated (PIC / fixup-table) module has no absolute jal to
     fit and would read as NO EVIDENCE.
   * 4 KiB granularity by default (--step): a real base that is not 4 KiB-aligned is reported at the
-    aligned address below it. BITS/MEMORY.BIN is exactly that case — see docs/re-frontier.md RE-03.
+    aligned address below it. RE-03's instruction-derived verifier now supplies the exact bases.
   * A fit is evidence about ONE module in isolation. It cannot tell you whether two modules that both
-    fit the same base are alternatives sharing one slot or two modules at two bases, which is the open
-    question RE-03 names for LEVEL.BIN vs LEVEL1.BIN.
+    fit the same base are alternatives sharing one slot or two modules at two bases. This instrument
+    cannot reproduce RE-03's resolved slot-count answer; `tools/overlay_map.py` owns that question.
 """
 import glob
 import os
@@ -50,7 +50,7 @@ BLIND_SPOTS = [
     "4 KiB granularity by default (--step): a base that is not 4 KiB-aligned is reported at the aligned "
     "address below it",
     "a fit is evidence about ONE module in isolation: two modules fitting the same base may be "
-    "alternatives sharing a slot OR two modules at two bases (RE-03's open question)",
+    "alternatives sharing a slot OR two modules at two bases; overlay_map.py owns the resolved answer",
 ]
 
 # The measured overlay slot (docs/info/claims/003-*). Used ONLY by --selftest, as the value the

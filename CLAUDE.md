@@ -51,20 +51,21 @@ engine-family layer. If a second Traveller's Tales title is ever ported, measure
 — the lineage claim that all 7 TT PSX games share one engine rests on one person's README and **could
 not be measured**, because no other TT disc is available on this machine.
 
-## THE STATE OF THIS PORT: RE-00 and RE-01 work; there is still no substrate
+## THE STATE OF THIS PORT: RE-00, RE-01 and RE-03 work; there is still no substrate
 
 There is **no recompiled substrate or port binary.** RE-00 supplies Ghidra; RE-01's symbolic verifier
 now proves and wires the complete crt0 group from entry `0x80082D60` through InitHeap, gameMain and the
-terminating break (`docs/info/claims/009-*`). Every non-boot guest address remains zero. If something
-here looks like a running port, check `docs/codemap.md`: RE-02 is still blocked on RE-03's overlay
-loader, so a verified gameMain address is not executable without generated code.
+terminating break (`docs/info/claims/009-*`). RE-03 proves and wires the LEVEL and MEMORY resident
+slots (`docs/info/claims/010-*`). Callable CD addresses remain zero. If something here looks like a
+running port, check `docs/codemap.md`: RE-02 has not emitted generated code, so a verified gameMain
+address and overlay map are not executable substrate.
 
 What DOES build today, and is the gate for a change to the seam:
 
 ```sh
 python3 tools/psxport_sync.py --auto                                    # resolve external/psxport (symlink to the shared clone, or a private clone at psxport.pin)
 cmake -S . -B build && cmake --build build --target toystory2_seam -j$(nproc)
-ctest --test-dir build --output-on-failure                              # launcher, RE-01, format and tidy gates
+ctest --test-dir build --output-on-failure                              # launcher, RE-01, RE-03, format and tidy gates
 ```
 
 `run.sh` is the stable launcher interface and delegates all provisioning/build policy to `tools/run.py`.
@@ -109,21 +110,16 @@ below the LEVEL band though nothing like the 0% of the `PATH*.BIN` trap case.
 
 This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequences are structural:
 
-- **`RE-03` (overlay load bases) is a REAL open step, not a skip.** `emit.py` treats a missing overlay
-  base as a hard error, deliberately, so there is no recompiling anything until it lands.
-- **A base is MEASURED but is NOT a resident base.** `tools/base_fit.py` fits `0x800D1000` for 15
-  modules (75–100% of their own out-of-`.text` jals, 0.0% runner-up), and the modules' own trailer tables
-  hold absolute `0x800Dxxxx` pointers. But the constant appears NOWHERE in the boot exe — not as a
-  lui/addiu pair (12,670 pairs folded over all 148,992 `.text` words) and not as a literal word — so how
-  the loader arrives at it is unknown. **Never paste it into `overlaySlots` or `overlay_bases`.**
-- **Whether `LEVEL.BIN` and `LEVEL1.BIN` share one slot or occupy two is UNRESOLVED** and both readings
-  fit the bytes. It decides the memory map, so it is part of RE-03 and not an afterthought.
-- One ready code step is a decompile of the function referencing the overlay-name string group at VA
-  `0x80022F84`..`0x80022FA8` — a 12-byte-stride table holding `level1.bin` at `0x80022F84`, `level2.bin`
-  at `0x80022F90`, `level3.bin` at `0x80022F9C` and **`level.bin` itself at `0x80022FA8`**. Xref both
-  ends; `0x80022F84` is the table base, NOT the `level.bin` literal. A decompiler job, per the RE-first
-  rule — not a grep job and not more statistics. RE-01 is complete; `python3 tools/re_frontier.py next`
-  is the authority and now names RE-03 as the boot-spine dependency.
+- **`RE-03` is instruction-verified, not fitted.** The retail caller chooses exactly one of
+  `level.bin`/`level1.bin`/`level2.bin`/`level3.bin`, calls one fixed-slot wrapper, and that wrapper
+  forms `0x800D12C0`. The 19,040-byte span to the next slot equals the largest LEVEL module and 5/10
+  LEVEL+LEVEL1 pairs cannot fit together, so they are alternative contents of one slot.
+- **BITS/MEMORY is simultaneously resident at `0x800D5D20`.** The same call path loads it first, the
+  retail loader preserves bytes beyond the exact 63,312-byte file size during sector reads, and its
+  caller advances the arena to `0x800E54F8`. Reproduce all shipping comparisons and the forced
+  opposite answer with `python3 tools/overlay_map.py --check` and `--selftest`.
+- **`0x800D1000` remains only the old 4 KiB fit.** It is useful corroboration but is not wired. The
+  exact instruction-derived slot is authoritative. RE-02 is now the next boot-spine step.
 
 ## The rules that bite hardest here
 

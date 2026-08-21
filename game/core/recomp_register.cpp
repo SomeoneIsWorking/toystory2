@@ -5,8 +5,8 @@
 //
 // Its explicit no-substrate branch compiles in the seam-check target. The real
 // registry branch cannot compile until `generated/` exists and is guarded by a
-// deliberate #error: the recompiler still needs this game's seeds and overlay
-// load bases (RE-02 and RE-03 in docs/re-frontier.md).
+// deliberate #error: the recompiler still needs this game's resident-executable
+// seeds (RE-02 in docs/re-frontier.md). RE-03's overlay bases are verified.
 //
 // When the substrate lands, this becomes the shape
 // spider1/game/core/recomp_register.cpp has: a designated-initialiser
@@ -31,7 +31,7 @@ from generated/overlay_table.h (see spider1/game/core/recomp_register.cpp) and d
   cfg_loge("recomp",
            "no recompiled substrate is registered: generated/ has "
            "never been emitted for "
-           "this game (RE-02 seeds, RE-03 overlay bases — "
+           "this game (RE-02 resident-executable seeds — "
            "docs/re-frontier.md). Nothing can "
            "execute. Refusing to continue.");
   abort();

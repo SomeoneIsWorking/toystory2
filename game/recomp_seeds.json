@@ -6,8 +6,9 @@
 // about THIS executable and THIS disc, so the framework ships none of them and every game supplies its
 // own file. JSON with `//` comments; every key is optional.
 //
-// IT IS EMPTY BECAUSE RE-02 seed discovery cannot start until RE-03 proves the overlay map. RE-01's
-// crt0 group is complete, but a verified gameMain address is not a generated substrate.
+// RE-03 now proves the overlay map. RE-02's executable seed lists remain empty because they grow from
+// real runtime dispatch misses, but the recompiler can place all 21 known code overlays without a
+// guessed base.
 //
 // Two rules, both learned the hard way elsewhere in this workspace:
 //
@@ -24,11 +25,13 @@
 // THIS GAME HAS 21 CODE OVERLAYS (docs/info/claims/002-*): LEVEL01..LEVEL10/{LEVEL,LEVEL1}.BIN (20)
 // plus BITS/MEMORY.BIN, 245,148 bytes = 29.1% of the game's code-bearing bytes. LEVEL00/LEVEL.BIN bears
 // an overlay name but is a 4-byte placeholder holding no code, and FMV/FMV.BIN — the only other file on
-// the disc with a `jr $ra` — is class-UNRESOLVED (RE-04), NOT a known overlay. `tools/base_fit.py` MEASURES
-// a load base of 0x800D1000 for 15 of them (75-100% of their own out-of-.text jal targets inside the
-// window, 0.0% runner-up) — and that number still does not belong in `overlay_bases` below, because how
-// the loader ARRIVES at it is unknown and whether LEVEL.BIN and LEVEL1.BIN share one slot is unresolved.
-// RE-03 is where a fitted base becomes a confirmed one. See game/core/game_config.cpp's overlay block.
+// the disc with a `jr $ra` — is class-UNRESOLVED (RE-04), NOT a known overlay. The earlier 0x800D1000
+// result was a 4 KiB-granular FIT, not a load address. RE-03 follows the actual caller: every LEVEL
+// filename goes through one wrapper that passes 0x800D12C0, while BITS/MEMORY.BIN is loaded earlier in
+// the same function at 0x800D5D20. The 19,040-byte gap between those co-resident slots equals the
+// largest LEVEL module, and five LEVEL+LEVEL1 pairs exceed it, proving the four level names select
+// alternative contents of ONE slot. `python3 tools/overlay_map.py --check` re-derives and gates both
+// this file and game/core/game_config.cpp.
 //
 // Grow the main list empirically: boot, and when the substrate fail-fasts with `[recomp-MISS]
 // 0x800xxxxx`, add that address WITH a note on how it is reached. An address with no rationale is
@@ -36,7 +39,11 @@
 {
   "main": [],
   "main_reentry": [],
-  "overlay_bases": {},
-  "overlay_base_patterns": [],
+  "overlay_bases": {
+    "BITS__MEMORY": "0x800D5D20"
+  },
+  "overlay_base_patterns": [
+    ["LEVEL(?:0[1-9]|10)__LEVEL[0-3]?", "0x800D12C0"]
+  ],
   "overlay_seeds": {}
 }

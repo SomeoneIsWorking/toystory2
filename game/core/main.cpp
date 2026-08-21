@@ -40,8 +40,8 @@ extern void ts2_install_recomp();      // game/core/recomp_register.cpp
 //
 // THE ENGINE IS NOT ALL IN THIS FILE, WHICH IS THIS PORT'S DEFINING STRUCTURAL
 // FACT: 21 code overlays on the disc hold 29.1% of the game's code-bearing
-// bytes (docs/info/claims/002-*). They are the recompiler's problem
-// (RE-02/RE-03), not this file's — but do not read "load the boot exe and go"
+// bytes (docs/info/claims/002-*). RE-03 proves their slots; emitting them and
+// the resident executable remains RE-02's problem, not this file's — but do not read "load the boot exe and go"
 // as "the boot exe is the game".
 static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
 static const char *kDiscExePath = "\\SLUS_008.93";
