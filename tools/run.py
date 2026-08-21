@@ -2,7 +2,7 @@
 """Build and launch Toy Story 2's current project target.
 
 The port has no generated substrate yet, so a successful current run provisions the executable,
-builds the framework and four-TU game seam with Clang, then exits 3 with the exact RE blockers.
+builds the framework and four-TU game seam with Clang, then exits 3 naming RE-02/RE-03.
 """
 
 from __future__ import annotations
@@ -24,17 +24,17 @@ STOP_MESSAGE = """
 [run] STOPPING HERE, ON PURPOSE. There is no toystory2_port binary to launch.
 [run]
 [run] The next step is the static recompilation of SLUS_008.93, and it CANNOT run yet:
-[run]   * RE-01  the crt0/boot group is unknown, so there is no guest main() to dispatch
 [run]   * RE-02  game/recomp_seeds.json is empty — seeds are grown from real [recomp-MISS] fail-fasts
 [run]   * RE-03  this game STREAMS 21 CODE OVERLAYS and their load bases are not confirmed. A base is
 [run]            MEASURED (0x800D1000, 15 modules) but how the loader computes it is unknown, so it is
 [run]            a fit and not a resident base. emit.py refuses a missing base by design.
 [run]
-[run] AND THERE IS NO DECOMP OF THIS GAME: no symbol map, no function boundaries. Everything above is
-[run] Ghidra from zero (external/psxport/tools/decomp.sh). docs/references.md says how that was
-[run] established, and that a search negative is weaker than a measurement.
+[run] AND THERE IS NO DECOMP OF THIS GAME: no symbol map, no function boundaries. Every open address
+[run] must be proved from this executable's binary evidence; docs/references.md records the prior-art
+[run] search and why that search negative is weaker than a measurement.
 [run]
 [run] python3 tools/re_frontier.py next        -- the step that is actually ready to work
+[run] python3 tools/verify_crt0.py --check     -- re-derive the completed RE-01 boot group
 [run] python3 tools/base_fit.py --selftest     -- re-derive the overlay slot from the bytes
 [run] python3 tools/raw_probe.py --selftest scratch/flat/LEVEL01__LEVEL.RAW scratch/flat/LEVEL01__LEVEL.DAT
 [run] ------------------------------------------------------------------------------------------

@@ -95,6 +95,10 @@ include(cmake/toystory2_port.cmake)
 if(BUILD_TESTING)
   add_test(NAME run_py_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run.py --selftest)
   add_test(
+    NAME verify_crt0_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_crt0.py --selftest
+  )
+  add_test(
     NAME cpp_policy
     COMMAND
       ${Python3_EXECUTABLE} ${PSXPORT_DIR}/tools/check_cpp_style.py

@@ -6,15 +6,16 @@
 // about THIS executable and THIS disc, so the framework ships none of them and every game supplies its
 // own file. JSON with `//` comments; every key is optional.
 //
-// IT IS EMPTY BECAUSE NOTHING HAS BEEN REVERSE-ENGINEERED (docs/re-frontier.md RE-01, RE-02, RE-03).
+// IT IS EMPTY BECAUSE RE-02 seed discovery cannot start until RE-03 proves the overlay map. RE-01's
+// crt0 group is complete, but a verified gameMain address is not a generated substrate.
 //
 // Two rules, both learned the hard way elsewhere in this workspace:
 //
 //   * NEVER copy another game's seed list. A foreign seed that lands inside your text SPLITS a real
 //     function at an arbitrary offset — the emit SUCCEEDS and the recomp is silently corrupt. And note
 //     that unlike the sibling ports there is no decomp of this game to lift a seed out of even if the
-//     rule allowed it: every address here will come out of Ghidra on SLUS_008.93, or out of a
-//     `[recomp-MISS] 0x800xxxxx` fail-fast on a booting port.
+//     rule allowed it: every address here must come from reproducible binary evidence on SLUS_008.93
+//     or from a `[recomp-MISS] 0x800xxxxx` fail-fast on a booting port.
 //   * NEVER guess an overlay base. An overlay is keyed BY its load address, so a wrong base emits a
 //     whole module of correctly-decoded instructions at wrong addresses, and every jal target, pointer
 //     test and router lookup is then silently wrong. A missing base is a HARD ERROR in emit.py,

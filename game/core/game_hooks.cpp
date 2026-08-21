@@ -17,10 +17,9 @@
 //               stub would let a half-wired path look like it worked, which is
 //               the fake-green the porting doc warns about.
 //
-// bootInit is the ONE hook with real work, and even that work is one line:
-// dispatch the guest's own main() and let the substrate run the game. It cannot
-// do that yet — GameConfig::gameMain is 0 because RE-01 has not been done — so
-// it refuses rather than dispatching address zero.
+// bootInit is the ONE hook with real work: dispatch the RE-01-verified guest
+// main() once a substrate exists. The guard prevents a future config regression
+// from turning into a dispatch to address zero.
 #include "cfg.h"
 #include "core.h"
 #include "game_iface.h"
@@ -31,10 +30,9 @@
 static void ts2_bootInit(Core *c) {
   if (!c->cfg->gameMain) {
     cfg_loge("boot",
-             "GameConfig::gameMain is 0 — this port's crt0/boot RE (RE-01 in "
-             "docs/re-frontier.md) has not been done, so there is no guest "
-             "main() to "
-             "dispatch. Refusing to dispatch address 0.");
+             "GameConfig::gameMain is 0, contradicting the RE-01 verifier and "
+             "shipping boot group. Refusing to dispatch address 0; run "
+             "tools/verify_crt0.py --check.");
     abort();
   }
   cfg_logi("boot", "dispatching guest main() 0x%08X on the recompiled substrate", c->cfg->gameMain);

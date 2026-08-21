@@ -4,9 +4,8 @@
 //
 // READ THIS BEFORE FILLING ANYTHING IN.
 //
-// **Every guest address in this file is ZERO, because none has been
-// reverse-engineered in this repo.** Zero is the honest value and it is
-// deliberate: psxport fails fast on a zero it needs, whereas a
+// **Only the RE-01 crt0 group is filled.** Every other un-RE'd guest address is
+// still zero deliberately: psxport fails fast on a zero it needs, whereas a
 // plausible-looking WRONG address does not fail cleanly — it breaks boot or
 // diverges the byte-compare in a way that reads as a framework bug. Each group
 // names the open step in docs/re-frontier.md.
@@ -17,12 +16,10 @@
 // temptation to resist and a rule ("a borrowed address is a hypothesis") aimed
 // at it.
 // **There is no decomp of Toy Story 2** (docs/references.md) — no symbol map,
-// no function boundaries, no matching build. Every address that ever appears in
-// this file will have come out of Ghidra on SLUS_008.93 in this repo. When you
-// fill one, paste the disassembly line that justifies it, the way
-// spider1/game/core/game_config.cpp does; that citation is what makes the value
-// reviewable a year from now, and here it is the ONLY provenance a value can
-// have.
+// no function boundaries, no matching build. Every address that appears here
+// must come from reproducible binary evidence on SLUS_008.93 in this repo. When you
+// fill one, gate it against the executable bytes and cite that verifier; here
+// binary evidence is the only provenance a value can have.
 #include "game_iface.h"
 
 // MEASURED, from the PS-EXE header of the extracted SLUS_008.93
@@ -44,10 +41,9 @@
 // NOTE THE TWO STACK VALUES, because they look like a contradiction and one of
 // them is going to matter: the header's s_addr is 0x801FFFF0 and SYSTEM.CNF's
 // STACK is 0x801FFF00. SYSTEM.CNF wins at boot — the BIOS shell applies it
-// before jumping to pc0. Which of the two (if either) this game's crt0 then
-// overwrites is RE-01's job to measure; in the two sibling ports crt0 computed
-// sp itself and ignored both. Do NOT resolve the discrepancy by picking one
-// here.
+// before jumping to pc0. The verified crt0 overwrites both: it reads the inline
+// word at 0x80082E10 (0x00200000) and ORs KSEG0 into it, producing
+// sp=fp=0x80200000. Neither header/CNF stack value is the final guest stack.
 static constexpr uint32_t kPsExeEntry = 0x80082D60u;     // header pc0
 static constexpr uint32_t kPsExeTextAddr = 0x80010000u;  // header t_addr
 static constexpr uint32_t kPsExeTextSize = 0x00091800u;  // header t_size (595,968 B)
@@ -62,6 +58,31 @@ static_assert(kSystemCnfStack < kPsExeSpHeader,
               "(SYSTEM.CNF 0x801FFF00 vs header "
               "0x801FFFF0); if this ever fires, one of them was re-read and "
               "RE-01's note is stale");
+
+// RE-01, measured from the verified executable by tools/verify_crt0.py. The
+// verifier symbolically follows entry 0x80082D60 through the InitHeap return,
+// second jal and terminating break. It prints every instruction chain and
+// compares these constants back to this shipping file; --selftest mutates both
+// sides, rejects malformed inputs and accepts a real second executable only as
+// a cross-binary negative.
+static constexpr uint32_t kCrt0BssZeroLo = 0x800A1070u;     // sw zero @ 0x80082D70
+static constexpr uint32_t kCrt0BssZeroHi = 0x800D12C0u;     // sltu bound @ 0x80082D78
+static constexpr uint32_t kCrt0StackTopBase = 0x80082E10u;  // lw v0 @ 0x80082DA4
+static constexpr uint32_t kCrt0StackTopBase2 = 0x800A0764u; // lw v1 @ 0x80082DC4
+static constexpr uint32_t kCrt0HeapBase = 0x800D12C0u;      // sll/srl mask @ 0x80082DB8
+// A complete walk reaches InitHeap after exactly one absolute non-BSS store,
+// `sw ra,4208(at)`. No store writes the computed heap size or base, so zero is
+// the measured meaning ABSENT for these optional framework fields.
+static constexpr uint32_t kCrt0HeapSizePtr = 0u;
+static constexpr uint32_t kCrt0HeapBasePtr = 0u;
+static constexpr uint32_t kCrt0Gp = 0x800A0CD8u;       // addiu gp @ 0x80082DE4
+static constexpr uint32_t kCrt0LibcInit = 0x80089344u; // jal @ 0x80082DEC; A(39h) thunk
+static constexpr uint32_t kCrt0GameMain = 0x8007A9E8u; // second jal @ 0x80082E00
+static constexpr uint32_t kCrt0Entry = kPsExeEntry;
+static constexpr int32_t kCrt0StackBias = 0; // no bias instruction between lw and or sp
+static_assert(kCrt0BssZeroHi == kCrt0HeapBase, "this crt0 starts its heap exactly at the proven BSS upper bound");
+static_assert(kCrt0StackTopBase >= kPsExeTextAddr && kCrt0StackTopBase < kPsExeTextAddr + kPsExeTextSize,
+              "the stack-top word must be readable from the loaded executable image");
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // THE OVERLAY WINDOW, MEASURED — and it is the one guest address in this file's
@@ -114,28 +135,21 @@ static_assert(kFittedOverlayBase > kPsExeTextAddr + kPsExeTextSize,
 // want. C++20 requires designators in declaration order; keep them so when
 // adding one.
 static const GameConfig g_ts2_cfg = {
-    // --- crt0 / boot
-    // ------------------------------------------------------------- RE-01, NOT
-    // DONE --
-    // The header facts above are NOT this group. crt0_setup consumes these
-    // eleven fields together and
-    // derives sp, gp, the BSS clear and the heap from them; writing the two or
-    // three that a header
-    // hands you and zeroing the rest is how a port runs a wrong crt0 instead of
-    // refusing to run one.
-    // Nobody has executed or decompiled this game's entry function at
-    // 0x80082D60.
-    .bssZeroLo = 0,
-    .bssZeroHi = 0,
-    .stackTopBase = 0,
-    .stackTopBase2 = 0,
-    .heapBase = 0,
-    .heapSizePtr = 0,
-    .heapBasePtr = 0,
-    .gp = 0,
-    .libcInit = 0,
-    .gameMain = 0,
-    .crt0 = 0,
+    // --- crt0 / boot ---------------------------------------- RE-01 re-verified --
+    // This is one measured group, never a partial header-derived fill. Re-run
+    // `python3 tools/verify_crt0.py --check` to diff every value against the
+    // instruction stream that ships on the verified executable.
+    .bssZeroLo = kCrt0BssZeroLo,
+    .bssZeroHi = kCrt0BssZeroHi,
+    .stackTopBase = kCrt0StackTopBase,
+    .stackTopBase2 = kCrt0StackTopBase2,
+    .heapBase = kCrt0HeapBase,
+    .heapSizePtr = kCrt0HeapSizePtr,
+    .heapBasePtr = kCrt0HeapBasePtr,
+    .gp = kCrt0Gp,
+    .libcInit = kCrt0LibcInit,
+    .gameMain = kCrt0GameMain,
+    .crt0 = kCrt0Entry,
 
     // --- recompiled MAIN .text range (physical)
     // ---------------------------------- RE-02, NOT DONE --
@@ -213,7 +227,7 @@ static const GameConfig g_ts2_cfg = {
 
     // --- overlay router slots
     // ---------------------------------------------------- RE-03, NOT DONE --
-    // THIS GAME HAS 22 CODE OVERLAYS and this is the field they will eventually
+    // THIS GAME HAS 21 CODE OVERLAYS and this is the field they will eventually
     // be routed through. It
     // stays zero for the two reasons spelled out in the block above
     // kFittedOverlayBase: the loader's
@@ -320,13 +334,9 @@ static const GameConfig g_ts2_cfg = {
     .paceQuota = 1,
 
     .windowTitle = "Toy Story 2 (psxport)",
-    // crt0 stack-top bias, MEASURED by psxport tools/crt0_extract over this
-    // game's own boot
-    // executable (SLUS_008.93, entry 0x80082D60). `declared = 1` is mandatory:
-    // crt0_plan REFUSES a boot when it is 0,
-    // because this game's measured bias IS 0 — it has no `addi v0,v0,N` at all,
-    // like Mega Man X4.
-    .stackBias = {1, 0},
+    // Zero is a measured value, not an unset default. `declared = 1` tells
+    // crt0_plan that tools/verify_crt0.py proved no bias instruction exists.
+    .stackBias = {1, kCrt0StackBias},
 };
 
 const GameConfig *ts2_game_config() {

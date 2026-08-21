@@ -15,9 +15,9 @@
 #   toystory2_port     the game binary. Configured ONLY when generated/rec_sources.cmake exists, i.e.
 #                      once the recompiled substrate has been emitted. It has NOT been: emit.py needs
 #                      this game's seeds (RE-02) and its OVERLAY LOAD BASES (RE-03 — this game has 21
-#                      code overlays), and RE-01 has not produced a boot group. A loud STATUS message
-#                      says so at configure time rather than a cryptic missing-file error, and rather
-#                      than a stub binary that looks like a port.
+#                      code overlays). RE-01's boot group is complete, but that cannot substitute for
+#                      missing generated code. A loud STATUS message says so at configure time rather
+#                      than a cryptic missing-file error or a stub binary that looks like a port.
 
 option(PSXPORT_BUILD_PORT "Build the Toy Story 2 native port binary (needs generated/)" ON)
 
@@ -48,8 +48,9 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/generated/rec_sources.cmake)
   message(STATUS
     "toystory2_port: NOT configured — generated/rec_sources.cmake is absent, i.e. the recompiled "
     "substrate has never been emitted for this game. That is the honest state of this port, not a "
-    "build problem: see docs/re-frontier.md (RE-01 crt0/GameConfig, RE-02 seeds, RE-03 the 21 code "
-    "overlays' load bases — emit.py treats a missing overlay base as a hard error, deliberately). "
+    "build problem: RE-01 crt0/GameConfig is verified; see docs/re-frontier.md for RE-02 seeds and "
+    "RE-03, the 21 code "
+    "overlays' load bases — emit.py treats a missing overlay base as a hard error, deliberately. "
     "`--target toystory2_seam` is the gate that DOES run today.")
   return()
 endif()

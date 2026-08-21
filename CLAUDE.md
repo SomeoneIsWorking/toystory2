@@ -23,7 +23,7 @@ temptation: "a borrowed address is a hypothesis until measured."
 **Toy Story 2 has neither.** No decomp exists on decomp.dev or anywhere a GitHub + decomp.dev search
 reached — no symbol map, no function boundaries, no matching build for `SLUS_008.93`. There is no
 `external/<decomp>` submodule in this tree because there is nothing to put in one. Every guest address
-this port ever holds will come out of Ghidra on this executable
+this port ever holds must come from reproducible binary evidence on this executable
 (`external/psxport/tools/decomp.sh` — RE-first: never hand-walk disassembly a decompiler will do, and
 never black-box debug).
 
@@ -51,22 +51,20 @@ engine-family layer. If a second Traveller's Tales title is ever ported, measure
 — the lineage claim that all 7 TT PSX games share one engine rests on one person's README and **could
 not be measured**, because no other TT disc is available on this machine.
 
-## THE STATE OF THIS PORT: the RE supply works; no game subsystem does
+## THE STATE OF THIS PORT: RE-00 and RE-01 work; there is still no substrate
 
-There is **no recompiled substrate, no port binary, and no wired guest address.** RE-00 is the one
-completed RE step: a fresh Ghidra 12 import over the measured executable passes the independent xref
-gate and emits C for entry `0x80082D60` (`docs/info/claims/008-*`). That proves the decompiler supply,
-not crt0, the overlay loader, or boot. `game/core/game_config.cpp` remains all zeros with each field
-pointing at its open step in `docs/re-frontier.md`. If something here looks like a running port, check
-`docs/codemap.md` — the honest inventory is provisioning, a compiling seam, five instruments, and the
-registries.
+There is **no recompiled substrate or port binary.** RE-00 supplies Ghidra; RE-01's symbolic verifier
+now proves and wires the complete crt0 group from entry `0x80082D60` through InitHeap, gameMain and the
+terminating break (`docs/info/claims/009-*`). Every non-boot guest address remains zero. If something
+here looks like a running port, check `docs/codemap.md`: RE-02 is still blocked on RE-03's overlay
+loader, so a verified gameMain address is not executable without generated code.
 
 What DOES build today, and is the gate for a change to the seam:
 
 ```sh
 python3 tools/psxport_sync.py --auto                                    # resolve external/psxport (symlink to the shared clone, or a private clone at psxport.pin)
 cmake -S . -B build && cmake --build build --target toystory2_seam -j$(nproc)
-ctest --test-dir build --output-on-failure                              # shared format/tidy policy over this repo
+ctest --test-dir build --output-on-failure                              # launcher, RE-01, format and tidy gates
 ```
 
 `run.sh` is the stable launcher interface and delegates all provisioning/build policy to `tools/run.py`.
@@ -124,8 +122,8 @@ This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequenc
   `0x80022F84`..`0x80022FA8` — a 12-byte-stride table holding `level1.bin` at `0x80022F84`, `level2.bin`
   at `0x80022F90`, `level3.bin` at `0x80022F9C` and **`level.bin` itself at `0x80022FA8`**. Xref both
   ends; `0x80022F84` is the table base, NOT the `level.bin` literal. A decompiler job, per the RE-first
-  rule — not a grep job and not more statistics. RE-01 (the entry/crt0 group) is independently ready;
-  `python3 tools/re_frontier.py next` is the authority when choosing between them.
+  rule — not a grep job and not more statistics. RE-01 is complete; `python3 tools/re_frontier.py next`
+  is the authority and now names RE-03 as the boot-spine dependency.
 
 ## The rules that bite hardest here
 

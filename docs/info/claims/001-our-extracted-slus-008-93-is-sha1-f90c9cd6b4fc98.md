@@ -5,6 +5,8 @@ status: holds
 created: 2026-08-12
 tags: identity,boot
 depends: tools/extract_exe.py, docs/info/exe-identity.txt
+reconfirmed: 2026-08-21 03:02:39
+verified_at: 2026-08-21 03:02:39
 ---
 
 ## Claim
@@ -18,3 +20,7 @@ MEASURED 2026-08-12. Extracted from /mnt-mounted USA retail CHD (path in the git
 ## What would falsify it
 
 any disc yielding a different sha1 for SLUS_008.93 (a different region or revision, or a bad rip) — in which case every measured number in docs/ describes the OTHER image and must be remeasured, not adjusted; also falsified if the workspace corpus file psxport/scratch/lineage2/exes/TOYSTORY2.exe is ever replaced by a different image, since the recorded 8.2%/6.2% similarity figures are keyed to this one
+
+## Re-confirmed 2026-08-21 03:02:39
+
+2026-08-21: real zero-argument launcher revalidated SLUS_008.93 SHA-1 f90c9cd6b4fc9845adfe34e306b7df393bf9154c and size 598016 through the updated extractor before the clean Clang seam build; verify_crt0 then passed 16/16 and its cross-binary selftest passed 9/9.
