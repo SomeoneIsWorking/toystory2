@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-21
 tags: recomp,boot,overlays
 depends: tools/recomp_substrate.py#measure, tools/compare_recomp_boundary.py#check, game/recomp_seeds.json, game/core/recomp_register.cpp#kTs2Recomp, tests/toystory2_recomp_boundary.cpp#capture_boundary
-reconfirmed: 2026-08-21 11:45:09
-verified_at: 2026-08-21 11:45:09
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 11:46:28
 ---
 
 ## Claim
@@ -32,3 +32,7 @@ Pinned psxport 692b9b20 and final Clang build: substrate stayed 321 resident roo
 ## Re-confirmed 2026-08-21 11:45:09
 
 Definitive final-SHA gate: psxport.pin records 692b9b20e3d4a6194452522060fd2657c2235f40 and CMake resolved the clean shared external/psxport checkout at that exact commit with Clang 22.1.8. Substrate remained 321 roots -> 864 resident functions and 176 roots -> 243 functions across 21 overlays/72 TUs; independent oracle agreed 34/34 and its forced register mutation produced one named mismatch; CTest passed 6/6. Zero-argument ./run.sh resolved shared @692b9b20, opened the CHD with no A0:0x15 fatal or recomp miss, and reached generated stock-libcd command/completion poll 0x80091DE4 with active disc_read_raw/CHD decompression.
+
+## Re-confirmed 2026-08-21
+
+Post-landing Clang CTest passed 6/6; emission stayed 321 roots to 864 resident functions plus 176 roots to 243 overlay functions across 21 overlays and 72 TUs, oracle agreed 34/34, and the default route reached 0x80091DE4 with no BIOS fatal or recompilation miss.

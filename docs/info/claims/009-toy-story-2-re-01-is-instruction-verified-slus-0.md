@@ -6,7 +6,7 @@ created: 2026-08-21
 tags:
 depends: tools/verify_crt0.py#analyze, game/core/game_config.cpp#g_ts2_cfg
 reconfirmed: 2026-08-21
-verified_at: 2026-08-21 03:46:38
+verified_at: 2026-08-21 11:46:27
 ---
 
 ## Claim
@@ -24,3 +24,7 @@ Any verified SLUS_008.93 instruction measurement disagrees with one of these fie
 ## Re-confirmed 2026-08-21
 
 Post-landing verify_crt0 matched all 16 shipping constants and the complete measured startup plan.
+
+## Re-confirmed 2026-08-21
+
+Post-landing Clang CTest passed 6/6; verify_crt0 shipping comparison remained 16/16 and generated/oracle first-call state agreed 34/34.

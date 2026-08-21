@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-12
 tags: identity,boot
 depends: tools/extract_exe.py, docs/info/exe-identity.txt
-reconfirmed: 2026-08-21 03:02:39
-verified_at: 2026-08-21 03:02:39
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 11:46:27
 ---
 
 ## Claim
@@ -24,3 +24,7 @@ any disc yielding a different sha1 for SLUS_008.93 (a different region or revisi
 ## Re-confirmed 2026-08-21 03:02:39
 
 2026-08-21: real zero-argument launcher revalidated SLUS_008.93 SHA-1 f90c9cd6b4fc9845adfe34e306b7df393bf9154c and size 598016 through the updated extractor before the clean Clang seam build; verify_crt0 then passed 16/16 and its cross-binary selftest passed 9/9.
+
+## Re-confirmed 2026-08-21
+
+Post-landing zero-argument launcher re-provisioned the exact SLUS_008.93 target and the substrate gate rechecked its 598016-byte identity and SHA-1 before emission.
