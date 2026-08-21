@@ -6,7 +6,7 @@ created: 2026-08-21
 tags:
 depends: tools/verify_crt0.py#analyze, game/core/game_config.cpp#g_ts2_cfg
 reconfirmed: 2026-08-21
-verified_at: 2026-08-21 11:46:27
+verified_at: 2026-08-21 14:20:34
 ---
 
 ## Claim
@@ -28,3 +28,7 @@ Post-landing verify_crt0 matched all 16 shipping constants and the complete meas
 ## Re-confirmed 2026-08-21
 
 Post-landing Clang CTest passed 6/6; verify_crt0 shipping comparison remained 16/16 and generated/oracle first-call state agreed 34/34.
+
+## Re-confirmed 2026-08-21
+
+Post-landing Clang CTest 7/7, crt0 verifier, oracle boundary 34/34, and forced-mutation opposite answer passed against psxport 3418a79b.

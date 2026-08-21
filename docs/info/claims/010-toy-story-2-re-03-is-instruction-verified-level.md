@@ -6,7 +6,7 @@ created: 2026-08-21
 tags: overlays,memory-map,loader
 depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg
 reconfirmed: 2026-08-21
-verified_at: 2026-08-21 11:46:28
+verified_at: 2026-08-21 14:20:34
 ---
 
 ## Claim
@@ -36,3 +36,7 @@ Post-landing overlay_map shipping check passed and selftest passed 10/10, includ
 ## Re-confirmed 2026-08-21
 
 Post-landing Clang CTest passed 6/6; overlay_map shipping gate and selftest remained green for the LEVEL and MEMORY slots while exactly 21 modules were emitted.
+
+## Re-confirmed 2026-08-21
+
+Post-landing Clang CTest 7/7 and overlay_map shipping/selftest gates passed; the game configuration change was documentation-only for the independently verified stock-libcd path.
