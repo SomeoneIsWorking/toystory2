@@ -5,6 +5,8 @@ status: holds
 created: 2026-08-20
 tags: ghidra,re-supply,reproducibility
 depends: tools/ram_image.py, tools/ghidra_xref.py, tools/re_xref.py
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 03:46:38
 ---
 
 ## Claim
@@ -18,3 +20,7 @@ Verified 2026-08-20 from the tracked workflow, not inherited scratch residue. SH
 ## What would falsify it
 
 a fresh import from the tracked ram-image workflow failing analysis, the cross-method selftest failing either answer class, the entry decompile producing no function, or the executable identity changing
+
+## Re-confirmed 2026-08-21
+
+Post-landing ram_image selftest passed its positive placement checks and all six refusal classes.

@@ -5,6 +5,8 @@ status: holds
 created: 2026-08-12
 tags: overlays,structure
 depends: tools/code_scan.py, tools/base_fit.py
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 03:46:38
 ---
 
 ## Claim
@@ -18,3 +20,7 @@ MEASURED 2026-08-12, FOUR independent signals, each with its denominator; the co
 ## What would falsify it
 
 a Ghidra decompile of the loader showing the LEVEL*.BIN files are interpreted data rather than executed code; or FMV/FMV.BIN (510,960 B, 68 jr-ra, class UNRESOLVED per RE-04) turning out to be a 22nd code overlay, which would change both the set and the 245,148 B total; or a census of the 26 unscanned TOY2FMV files (525 MB) finding plain code in them; or any LEVEL*.BIN turning out to be a relocated module rather than absolutely linked, which would change what the j/jal-into-.text signal means
+
+## Re-confirmed 2026-08-21
+
+Post-landing base_fit selftest re-derived the 21-overlay code corpus and rejected all 155 asset/decoy files.

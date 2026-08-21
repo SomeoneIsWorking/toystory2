@@ -5,6 +5,8 @@ status: holds
 created: 2026-08-21
 tags:
 depends: tools/verify_crt0.py#analyze, game/core/game_config.cpp#g_ts2_cfg
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 03:46:38
 ---
 
 ## Claim
@@ -18,3 +20,7 @@ I008 / `tools/verify_crt0.py --check` walked 43 instructions from header pc0 0x8
 ## What would falsify it
 
 Any verified SLUS_008.93 instruction measurement disagrees with one of these fields, the executable identity changes, or tools/verify_crt0.py fails a mutation/malformed/cross-binary case.
+
+## Re-confirmed 2026-08-21
+
+Post-landing verify_crt0 matched all 16 shipping constants and the complete measured startup plan.

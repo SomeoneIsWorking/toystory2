@@ -5,6 +5,8 @@ status: holds
 created: 2026-08-12
 tags: overlays,memory-map
 depends: tools/base_fit.py
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 03:46:38
 ---
 
 ## Claim
@@ -18,3 +20,7 @@ MEASURED 2026-08-12 by tools/base_fit.py: slide a candidate base over all of RAM
 ## What would falsify it
 
 a decompile of the overlay loader (the function referencing the overlay-name string group at VA 0x80022F84..0x80022FA8 — level1.bin at 0x80022F84, level.bin itself at 0x80022FA8; xref BOTH) showing it computes a different base — which is entirely possible, because the constant is materialised NOWHERE in the boot exe, so the resident base could differ from the fitted one and would still fit; also falsified if any module turns out to be relocated rather than absolutely linked
+
+## Re-confirmed 2026-08-21
+
+Post-landing base_fit selftest re-derived the historical 0x800D1000 coarse fit with argmax and decoy controls; C010 remains the exact load-address authority.

@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
 depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg
-reconfirmed: 2026-08-21 03:41:57
-verified_at: 2026-08-21 03:41:57
+reconfirmed: 2026-08-21
+verified_at: 2026-08-21 03:46:39
 ---
 
 ## Claim
@@ -28,3 +28,7 @@ Re-verified 2026-08-21: overlay_map.py --check and 10/10 selftest pass against r
 ## Re-confirmed 2026-08-21 03:41:57
 
 Re-verified after strengthening the verifier: exact retail CdSearchFile/CdlFILE.size return chain, retry propagation, sector-tail copy arguments, and arena mask/bias ALU sequence pass; overlay_map 10/10, shipping --check, clean Clang 22 build, CTest 4/4, and real launcher RC3 remain green.
+
+## Re-confirmed 2026-08-21
+
+Post-landing overlay_map shipping check passed and selftest passed 10/10, including the forced co-resident-possible opposite.
