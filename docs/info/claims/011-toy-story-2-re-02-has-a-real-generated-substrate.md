@@ -6,16 +6,16 @@ created: 2026-08-21
 tags: recomp,boot,overlays
 depends: tools/recomp_substrate.py#measure, tools/compare_recomp_boundary.py#check, game/recomp_seeds.json, game/core/recomp_register.cpp#kTs2Recomp, tests/toystory2_recomp_boundary.cpp#capture_boundary
 reconfirmed: 2026-08-21
-verified_at: 2026-08-21 11:46:28
+verified_at: 2026-08-21 14:16:16
 ---
 
 ## Claim
 
-Toy Story 2 RE-02 has a real generated substrate through the current CD-completion boundary: the verified executable and exactly 21 measured code overlays emit 864 resident and 243 overlay functions, generated crt0 agrees 34/34 with the independent CPU oracle at first call 0x80089344, and live boot handles the binary-classified IRQ resume 0x80088A2C before reaching stock-libcd command/completion poll 0x80091DE4.
+Toy Story 2 RE-02 has a real generated substrate through the current MEMORY-overlay boundary: the verified executable and exactly 21 measured code overlays emit 864 resident and 243 overlay functions, generated crt0 agrees 34/34 with the independent CPU oracle at first call 0x80089344, and live boot handles the binary-classified IRQ resume 0x80088A2C plus stock-libcd before reaching emitted BITS/MEMORY code.
 
 ## Evidence
 
-I010: tools/recomp_substrate.py --selftest passed 5/5 and the shipping emitter produced 321 resident roots -> 864 functions plus 176 roots -> 243 functions across 21 overlays and 72 TUs. Its generated-output digest changes when one emitted source byte changes. I011: tools/compare_recomp_boundary.py --selftest passed 2/2 at instruction-derived first jal 0x80089344, including a forced a0 mismatch. Live ./run.sh fail-fast exposed guest pointer 0x80088A2C from RAM[0x8009ECD0]; exact instructions and Ghidra show no prologue, live-v0 use, and a shared stack epilogue. With pinned psxport 692b9b20 it is recorded solely as `main_reentry`, which emits its dispatchable wrapper/body while preserving the containing function's fall-through. The same framework revision owns generic BIOS A0:0x15 (`strcat`); live default boot returns through both `.vh`/`.vb` path compositions and reaches generated stock-libcd command/completion poll 0x80091DE4, with active CHD decompression visible in the watchdog stack.
+I010: tools/recomp_substrate.py --selftest passed 5/5 and the shipping emitter produced 321 resident roots -> 864 functions plus 176 roots -> 243 functions across 21 overlays and 72 TUs. Its generated-output digest changes when one emitted source byte changes. I011: tools/compare_recomp_boundary.py --selftest passed 2/2 at instruction-derived first jal 0x80089344, including a forced a0 mismatch. Live ./run.sh fail-fast exposed guest pointer 0x80088A2C from RAM[0x8009ECD0]; exact instructions and Ghidra show no prologue, live-v0 use, and a shared stack epilogue. Pinned psxport `3418a79b` records it solely as `main_reentry`, emitting its dispatchable wrapper/body while preserving the containing function's fall-through. The same framework owns generic BIOS A0:0x15 (`strcat`) and deterministic CD pacing; the live default route returns through both `.vh`/`.vb` path compositions, services stock libcd, and reaches emitted BITS/MEMORY functions 0x800D9704/0x800D95C4 with no recompilation miss.
 
 ## What would falsify it
 
@@ -36,3 +36,14 @@ Definitive final-SHA gate: psxport.pin records 692b9b20e3d4a6194452522060fd2657c
 ## Re-confirmed 2026-08-21
 
 Post-landing Clang CTest passed 6/6; emission stayed 321 roots to 864 resident functions plus 176 roots to 243 overlay functions across 21 overlays and 72 TUs, oracle agreed 34/34, and the default route reached 0x80091DE4 with no BIOS fatal or recompilation miss.
+
+## Re-confirmed 2026-08-21 14:16:16
+
+Exact final-SHA gate: `psxport.pin` and the clean shared framework both resolve
+`3418a79b624765614f3f198dc1e89632e1e650f0`. Fresh Clang regeneration emits guest-instruction accounting
+in 46 translation units. Direct and zero-argument runs both service 358 sectors across eleven ReadN
+phases, return first-INT1 status `0x22`, preserve stock acknowledgement/DMA, and report no
+`[recomp-MISS]`; both watchdog stacks reach emitted BITS/MEMORY functions
+`0x800D9704`/`0x800D95C4` through resident caller `0x8003FA68`. No Toy DMA requires controller-zero
+fill. CTest passes 7/7, including the 5/5 substrate selftest, 2/2 generated/oracle compare, 6/6 CD verifier,
+Clang format and clang-tidy policy gates.

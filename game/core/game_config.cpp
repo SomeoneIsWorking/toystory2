@@ -224,10 +224,12 @@ static const GameConfig g_ts2_cfg = {
     // --- CD chokepoints ------------------------------------------- RE-04 partial --
     // RE-03 identifies the game-level synchronous path loader at 0x80082508 and
     // its stock-libcd chain (CdSearchFile 0x80092AE8, CdRead 0x80093AF0,
-    // CdReadSync 0x80093BF4). They remain zero here: psxport's cdFileLoad field
-    // has the incompatible (dest,lba,size) ABI, while this routine takes
-    // (path,dest). RE-04 must choose the correct stock-libcd seams rather than
-    // mis-registering a verified address under the wrong contract.
+    // CdReadSync 0x80093BF4). RE-04 additionally proves CdControl 0x80091DE4,
+    // CdSync 0x80091898 and the INT1..INT5 service state machine 0x80091310.
+    // They remain zero because the verified shipping path uses the raw controller;
+    // arming an HLE would bypass that path. Independently, psxport's
+    // cdFileLoad field has the incompatible (dest,lba,size) ABI, while this
+    // game's loader takes (path,dest); never register it under the wrong contract.
     .cdInit = 0,
     .cdCommand = 0,
     .cdSync = 0,

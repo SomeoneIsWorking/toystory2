@@ -9,15 +9,19 @@ A PC-native port of **Disney/Pixar Toy Story 2: Buzz Lightyear to the Rescue!** 
 
 The real `toystory2_port` binary now contains the identity-checked executable plus all 21 measured code
 modules. Generated crt0 matches the independent CPU oracle in all 34 state fields at its first call;
-live boot registers the interrupt chain, opens the CHD, and then waits for RE-04's not-yet-wired CD
-completion seam. What exists:
+live boot registers the interrupt chain, opens the CHD, and services stock-libcd command and sector
+results. RE-04's first missing state was measured and fixed generically: pinned psxport `3418a79b`
+paces each following sector in deterministic guest cycles instead of exposing it immediately. The
+default route advances through eleven real ReadN phases into the emitted BITS/MEMORY overlay path.
+What exists:
 
 - disc → executable provisioning from **your own** disc image (nothing game-derived is in this repo),
 - the framework seam (`GameConfig` / `GameHooks` / generated registry) compiling against psxport, with the
   complete RE-01 boot group and RE-03's two instruction-verified overlay slots wired while every
   un-RE'd callable guest address remains honestly `0`,
 - the symbolic crt0 verifier plus the code/overlay census, exact overlay-loader verifier, `.RAW` container
-  probe, disc extractor, and two-method Ghidra xref gate, each validated in both directions,
+  probe, disc extractor, stock-libcd command/trace verifier, and two-method Ghidra xref gate, each
+  validated in both directions,
 - the project registries (`docs/re-frontier.md`, `docs/codemap.md`, `docs/references.md`, `docs/info/`,
 `docs/issues/`), plus a forced-negative generated/oracle boundary gate.
 
@@ -49,12 +53,13 @@ external/psxport/tools/decomp.sh import scratch/ghidra/ram-boot.bin ts2boot
 python3 tools/re_xref.py --selftest                 # prove Ghidra and the independent fold both answer
 python3 tools/verify_crt0.py --check                # re-derive all shipping RE-01 fields from instructions
 python3 tools/overlay_map.py --check                # re-derive both shipping RE-03 slots from instructions
+python3 tools/verify_cd_command.py --selftest       # derive libcd ABI; force bounded/runaway answers
 cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 cmake --build build --target toystory2_port toystory2_recomp_boundary -j"$(nproc)"
 python3 tools/compare_recomp_boundary.py --selftest \
   --oracle build/psxport_build/tools/oracle/oracle_trace \
   --runner scratch/bin/toystory2_recomp_boundary
-ctest --test-dir build --output-on-failure         # launcher, RE-01, RE-03, format, and tidy gates
+ctest --test-dir build --output-on-failure         # launcher, RE-01/03/04, oracle, format, tidy
 python3 tools/re_frontier.py next                   # what to work on
 ```
 

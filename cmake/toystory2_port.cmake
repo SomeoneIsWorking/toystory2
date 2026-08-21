@@ -104,6 +104,10 @@ target_compile_options(
   toystory2_recomp_boundary PRIVATE -O1 -foptimize-sibling-calls -fno-strict-aliasing -fwrapv
 )
 target_link_libraries(toystory2_recomp_boundary PRIVATE psxport)
+# The boundary executable is only half of this gate. A clean documented build must also produce the
+# independent oracle consumed by CTest; relying on a binary left by an older build made clean CTest
+# refuse while incremental trees passed.
+add_dependencies(toystory2_recomp_boundary oracle_trace)
 set_target_properties(
   toystory2_recomp_boundary
   PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON

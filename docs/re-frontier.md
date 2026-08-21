@@ -28,9 +28,13 @@ emits the executable plus all 21 measured modules, links the real port, and matc
 oracle at the executable's first call in all 34 state fields. The first live dispatch miss identified
 the IRQ resume at `0x80088A2C`; its binary shape proves it is a mid-function re-entry, and the landed
 emitter now discovers and dispatches that seed class directly. Boot advances through interrupt
-registration and disc opening. The honest boundary is
-now RE-04: the guest reaches stock-libcd command/completion poll `0x80091DE4` because no ABI-verified CD seam is
-wired. RE-02 remains partial because later indirect entries cannot be observed until that boundary moves.
+registration, disc opening and serviced stock-libcd results. RE-04 now instruction-verifies
+`0x80091DE4(cmd,param,result,async)`, its sync loop `0x80091898` and interrupt-result service
+`0x80091310`. The honest boundary was one layer lower: psxport's CDC made the following-sector INT1
+available immediately rather than at the mode-selected drive rate. Pinned psxport `3418a79b` removes
+that race without game HLE: both direct and default routes advance through eleven real ReadN phases
+into the emitted BITS/MEMORY overlay path. RE-02 remains partial because no later computed-entry miss
+has surfaced yet.
 
 **What IS otherwise measured is the DISC, not a game implementation.** The executable's identity, the
 existence and byte count of 21 code overlays, the old coarse fitted base, the PSY-Q cohort, and the
@@ -44,8 +48,9 @@ longer blocks the first code RE. The sibling ports could locate a value in a ref
 it; this port must find it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
 `rood-reverse`, ~62% matched) or `megamanx4` (AGPL `sozud/mmx4`, byte-identical target).
 
-The next concrete target is RE-04: map the stock libcd command/interrupt seam by ABI and let the real
-guest CD path advance. Any later `[recomp-MISS]` continues to grow RE-02 empirically.
+The next concrete target is to instruction-classify the BITS/MEMORY overlay path at
+`0x800D9704`/`0x800D95C4` through resident caller `0x8003FA68`.
+Any later `[recomp-MISS]` continues to grow RE-02 empirically.
 
 ## tooling
 
@@ -70,9 +75,9 @@ guest CD path advance. Any later `[recomp-MISS]` continues to grow RE-02 empiric
 ### RE-02 — recompiler seed set for SLUS_008.93
 - status: re-partial
 - deps: RE-01, RE-03
-- evidence: C011, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 245,148 bytes: 321 binary-rooted resident seeds -> 864 functions and 176 roots -> 243 functions across exactly 21 overlay modules / 72 generated TUs. tools/compare_recomp_boundary.py then executes generated crt0 and the independent Mednafen CPU oracle to the first actual jal 0x80089344: 34/34 state fields agree; a forced a0 mutation produces one named mismatch. Default live boot surfaced [recomp-MISS] 0x80088A2C from irqPoll with guest RAM[0x8009ECD0] holding the target. Exact words and Ghidra show no prologue, live-v0 use and a shared stack epilogue, so it is recorded solely in main_reentry. The pinned psxport 692b9b20 makes that class a discovery root and emits its wrapper/body/dispatch directly; regeneration still declares and dispatches func_80088A2C without a duplicate main seed.
+- evidence: C011, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 245,148 bytes: 321 binary-rooted resident seeds -> 864 functions and 176 roots -> 243 functions across exactly 21 overlay modules / 72 generated TUs. tools/compare_recomp_boundary.py then executes generated crt0 and the independent Mednafen CPU oracle to the first actual jal 0x80089344: 34/34 state fields agree; a forced a0 mutation produces one named mismatch. Default live boot surfaced [recomp-MISS] 0x80088A2C from irqPoll with guest RAM[0x8009ECD0] holding the target. Exact words and Ghidra show no prologue, live-v0 use and a shared stack epilogue, so it is recorded solely in main_reentry. Pinned psxport `3418a79b` makes that class a discovery root and emits its wrapper/body/dispatch directly; regeneration still declares and dispatches func_80088A2C without a duplicate main seed.
 - where: tools/recomp_substrate.py; tools/compare_recomp_boundary.py; tests/toystory2_recomp_boundary.cpp; game/recomp_seeds.json; game/core/recomp_register.cpp; generated/ is gitignored
-- gap: Seed completeness past the current boot boundary is unmeasured. With generic BIOS `A0:0x15` (`strcat`) present, the default run appends both measured `.vh`/`.vb` suffixes and reaches stock-libcd command/completion poll 0x80091DE4. Pinned psxport 692b9b20's continuous-read CDC model is active there (the watchdog capture includes `disc_read_raw`/CHD decompression), but this game still has no ABI-verified CD seam; RE-04 must map that contract before later computed entries can be called complete. Continue adding only addresses surfaced by a real `[recomp-MISS]`, with entry-vs-reentry classification from exact bytes.
+- gap: Seed completeness past the current boot boundary is unmeasured. With generic BIOS `A0:0x15` (`strcat`) present, the default run appends both measured `.vh`/`.vb` suffixes and reaches the instruction-verified stock-libcd command/result path. The old `692b9b20` baseline delivered 21,164 contiguous sectors in a 23-second denominator instead of at most 3,451. Pinned `3418a79b` yields the opposite answer on direct and default routes: 358 total sectors across eleven serviced ReadN phases (longest: 209 sectors from LBA12506), followed by the emitted BITS/MEMORY overlay path at `0x800D9704`/`0x800D95C4` through resident caller `0x8003FA68`, with no `[recomp-MISS]`. Continue adding only addresses surfaced by a real `[recomp-MISS]`, with entry-vs-reentry classification from exact bytes.
 - notes: Never copy another game's seeds. A foreign address can split a real function at an arbitrary offset while emission still succeeds. Reproduce the committed evidence with `python3 tools/recomp_substrate.py --selftest`, build `toystory2_recomp_boundary`, then run `python3 tools/compare_recomp_boundary.py --selftest --oracle build/psxport_build/tools/oracle/oracle_trace --runner scratch/bin/toystory2_recomp_boundary`.
 
 ## overlays
@@ -90,10 +95,10 @@ guest CD path advance. Any later `[recomp-MISS]` continues to grow RE-02 empiric
 ### RE-04 — CD load chokepoints and the loader's contract
 - status: re-partial
 - deps: RE-01
-- evidence: C010/I009 locate the game-level synchronous path loader FUN_80082508(path,dest) and its inner contract FUN_80082608. Ghidra decompile plus exact calls identify stock CdSearchFile 0x80092AE8 (also self-identifies through its embedded `CdSearchFile` diagnostics), CdRead 0x80093AF0 and CdReadSync 0x80093BF4. FUN_80082608 reads ceil(size/2048) sectors but saves/restores the rounded tail and returns the exact CdlFILE size. Four call sites load `bits\memory.bin` or `fmv\fmv.bin` to the same 0x800D5D20 buffer.
-- where: game/core/game_config.cpp (cdInit, cdCommand, cdSync, cdReadPrim, cdFileLoad, cdAsyncRead, …)
-- gap: The located game loader cannot be wired to psxport's `cdFileLoad`: that field expects `(dest,lba,size)`, while Toy Story 2's routine is `(path,dest)`. The correct stock-libcd overrides and the remaining initialization/command/callback fields still need their ABI-checked mapping before any address is armed. FMV/FMV.BIN remains class-unresolved despite sharing the MEMORY destination; destination alone does not make it code.
-- notes: FMV/FMV.BIN (510,960 B) is the one file whose class is UNRESOLVED and it is recorded as unresolved rather than assumed: 3.2% code-plausible and no base fit (data), but 68 `jr $ra` words at 0.53/1k, which a pure data file normally has none of, and its out-of-.text jal targets pile 54% into one bucket at 0x8FFC0000 — a nonsense address, which is the tell for accidental opcodes. The lean is "an FMV index", not asserted. 510 KB is large enough that being wrong would matter.
+- evidence: C010/I009 locate the game-level synchronous path loader FUN_80082508(path,dest) and its inner contract FUN_80082608. Ghidra decompile plus exact calls identify stock CdSearchFile 0x80092AE8, CdRead 0x80093AF0 and CdReadSync 0x80093BF4. C012/I012 instruction-derive CdControl/CdCommand 0x80091DE4(cmd,param,result,async), pre-command/CdSync 0x80091898 and the common interrupt-result service 0x80091310. The service maps INT1 to ready state 0x800A0AE5/result 0x800A1978/callback 0x800A0808 and INT2/3/5 to sync state 0x800A0AE4/result 0x800A1970/callback 0x800A0804. Live mode-0xA0 ReadN derives LBA16 from Setloc, acknowledges INT3 then INT1, and DMA3 moves data, proving the command result is serviced. The same trace then delivers 21,164 contiguous sectors against a conservative physical upper bound of 3,451 in its 23-second watchdog denominator.
+- where: tools/verify_cd_command.py; game/core/game_config.cpp (CD fields intentionally zero during the raw-controller A/B); framework CDC fix coordinated outside this repo
+- gap: The first missing service state was generic following-sector drive timing, not a Toy-specific callback or loader: old psxport `692b9b20` announced another INT1 from each BFRD request immediately. Pinned `3418a79b` schedules the first and following sectors in deterministic guest cycles (225,792 cycles at mode `0xA0`); direct and default routes retain stock interrupt acknowledgement and DMA, return first-INT1 status `0x22`, bound the longest phase to 209 sectors, and advance through eleven ReadN phases into the emitted MEMORY overlay. RE-04 remains partial at that later loader boundary. The located game loader still cannot be wired to psxport's `cdFileLoad`: that field expects `(dest,lba,size)`, while Toy Story 2's routine is `(path,dest)`. FMV/FMV.BIN remains class-unresolved despite sharing the MEMORY destination; destination alone does not make it code.
+- notes: Reproduce the static/opposite evidence with `python3 tools/verify_cd_command.py --selftest`. Capture the landed answer with `PSXPORT_DEBUG=cdc,cdcw,cdcr,irq PSXPORT_NOAUDIO=1 PSXPORT_NOWINDOW=1 PSXPORT_WATCHDOG=3 PSXPORT_WATCHDOG_BOOT=20 ./run.sh`, then classify it with `python3 tools/verify_cd_command.py --trace <log> --expect bounded --expect-int1-status 0x22`. The exact serviced phase sequence is `16x1, 18x1, 12717x1, 12505x1, 12715x2, 12506x209, 316x1, 317x31, 317x31, 1746x1, 1748x79`. `scratch/logs/re04-cdc-3418-live.log` and `scratch/logs/re04-cdc-3418-default.log` are the local final captures; the old runaway baseline is `scratch/logs/re04-cdc-irq-live.log`. Resolved issue #9 owns the symptom and root cause. FMV/FMV.BIN (510,960 B) remains honestly unresolved: 3.2% code-plausible/no base fit leans data, but 68 `jr $ra` words prevent a pure-data claim.
 
 ## frame
 

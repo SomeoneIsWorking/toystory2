@@ -1,4 +1,5 @@
 #include "core.h"
+#include "game.h"
 
 #include <array>
 #include <charconv>
@@ -63,10 +64,11 @@ int main(int argc, char **argv) {
     std::fprintf(stderr, "REFUSED: substrate omits entry 0x%08X or boundary 0x%08X\n", entry, boundary);
     return 2;
   }
-  auto core = std::make_unique<Core>();
-  load_exe(argv[1], core.get());
+  auto game = std::make_unique<Game>();
+  Core *core = &game->core;
+  load_exe(argv[1], core);
   shard_set_override(boundary, capture_boundary);
-  main_dispatch(core.get(), entry);
+  main_dispatch(core, entry);
   std::fprintf(stderr, "FAIL: entry 0x%08X returned before boundary 0x%08X\n", entry, boundary);
   return 1;
 }

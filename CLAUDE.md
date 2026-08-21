@@ -57,8 +57,15 @@ RE-00 supplies Ghidra; RE-01 proves crt0 and RE-03 proves the LEVEL/MEMORY slots
 identity-checked executable and all 21 measured modules, links the real port, and matches the independent
 CPU oracle 34/34 at first call `0x80089344`. The first live miss proved IRQ resume `0x80088A2C`; it is
 wired solely as a mid-function re-entry, which the framework emits and dispatches directly. Boot now
-opens the disc and reaches stock-libcd command/completion poll `0x80091DE4`. Callable CD addresses remain zero until RE-04 proves their ABI;
-that is the honest next boot boundary, not a framework hang.
+opens the disc and reaches stock-libcd command/completion sender `0x80091DE4`. RE-04 now proves its
+four-argument ABI and the `0x80091310` interrupt-result state machine. Pinned psxport receives and DMA
+services sectors but exposed 21,164 contiguous sectors where mode `0xA0` permits at most 3,451 during
+the conservative watchdog window. Pinned psxport `3418a79b` supplies deterministic guest-cycle
+pacing and gives the real opposite answer on both direct and default routes: eleven ReadN phases, 358 total sectors and a
+209-sector longest phase, then the BITS/MEMORY overlay path at `0x800D9704`/`0x800D95C4` through
+resident caller `0x8003FA68`. Its first INT1 returns measured Read|Standby status `0x22`; no recompilation miss
+occurs. Callable CD addresses remain zero because the raw controller is the path under test; the
+incompatible `(path,dest)` loader is still not wired to a `(dest,lba,size)` seam.
 
 What DOES build today, and is the gate for a change to the seam:
 
@@ -121,8 +128,9 @@ This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequenc
   caller advances the arena to `0x800E54F8`. Reproduce all shipping comparisons and the forced
   opposite answer with `python3 tools/overlay_map.py --check` and `--selftest`.
 - **`0x800D1000` remains only the old 4 KiB fit.** It is useful corroboration but is not wired. The
-  exact instruction-derived slot is authoritative. RE-02 has now consumed it; the current live
-  boundary is RE-04's stock-libcd completion seam.
+  exact instruction-derived slot is authoritative. RE-02 has now consumed it; pinned psxport
+  `3418a79b` advances through the resolved CDC pacing dependency to the later
+  BITS/MEMORY loader/memory-store boundary.
 
 ## The rules that bite hardest here
 

@@ -100,6 +100,10 @@ if(BUILD_TESTING)
     NAME overlay_map_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/overlay_map.py --selftest
   )
+  add_test(
+    NAME verify_cd_command_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_cd_command.py --selftest
+  )
   if(TARGET toystory2_recomp_boundary)
     add_test(
       NAME recomp_substrate_selftest

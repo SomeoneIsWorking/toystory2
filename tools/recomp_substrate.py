@@ -201,6 +201,10 @@ def verify_maps() -> None:
     checks = (
         ("crt0", [sys.executable, "-B", str(TOOLS / "verify_crt0.py"), "--check"]),
         (
+            "stock libcd command ABI",
+            [sys.executable, "-B", str(TOOLS / "verify_cd_command.py")],
+        ),
+        (
             "overlay map",
             [sys.executable, "-B", str(TOOLS / "overlay_map.py"), "--check"],
         ),
@@ -212,7 +216,8 @@ def verify_maps() -> None:
                 f"shipping {name} verifier exited {result.returncode}:\n{result.stdout.rstrip()}"
             )
     print(
-        "[recomp] verified executable identity, crt0 group, and LEVEL/MEMORY slot map"
+        "[recomp] verified executable identity, crt0 group, stock-libcd command ABI, "
+        "and LEVEL/MEMORY slot map"
     )
 
 
