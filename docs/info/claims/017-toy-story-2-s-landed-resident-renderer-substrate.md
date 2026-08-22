@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,recomp,boot
 depends: tools/verify_render_reentry.py#check_generated, game/recomp_seeds.json, psxport.pin
-reconfirmed: 2026-08-22 19:10:49
-verified_at: 2026-08-22 19:10:49
+reconfirmed: 2026-08-22 19:15:01
+verified_at: 2026-08-22 19:15:01
 ---
 
 ## Claim
@@ -24,3 +24,7 @@ The retail table construction or 32-slot set changes, generated output gains a m
 ## Re-confirmed 2026-08-22 19:10:49
 
 Pinned/build-checked psxport 57a17a14; the shipping generated verifier passes all 10 classes with exactly 32 ordered internal slots and no renderer seed, while the bounded retail log has neither former dispatch miss and reaches RenderQueue capture capacity.
+
+## Re-confirmed 2026-08-22 19:15:01
+
+Post-commit 3b17154 exact generated-switch check finds the ordered 32/32 retail slots with no game seed; 10/10 controls pass and the live route crosses 0x8001040C and 0x800104E4 without a miss before RenderQueue capacity; CTest 9/9 passes.

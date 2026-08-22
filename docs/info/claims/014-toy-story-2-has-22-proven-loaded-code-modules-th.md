@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: recomp,overlays,fmv,boot
 depends: tools/recomp_substrate.py#measure, tools/overlay_map.py#loader_contract, game/recomp_seeds.json
-reconfirmed: 2026-08-22 19:10:49
-verified_at: 2026-08-22 19:10:49
+reconfirmed: 2026-08-22 19:15:01
+verified_at: 2026-08-22 19:15:01
 ---
 
 ## Claim
@@ -28,3 +28,7 @@ After removing the obsolete resident diagnostic reentry seed, recomp_substrate s
 ## Re-confirmed 2026-08-22 19:10:49
 
 Pinned/build-checked psxport 57a17a14; recomp_substrate retained the exact 365-to-889 resident and 222-to-308 overlay denominators across 22 modules/75 TUs, and the bounded retail route executes FMV through A0:0x25 and the resident renderer table to RenderQueue capacity.
+
+## Re-confirmed 2026-08-22 19:15:01
+
+Post-commit 3b17154 fresh emission still covers 365 resident roots and 222 roots across 22 modules; authoritative CTest passes 9/9.

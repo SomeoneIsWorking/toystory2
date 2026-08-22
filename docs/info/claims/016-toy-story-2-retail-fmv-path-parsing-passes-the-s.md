@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: boot,fmv,bios,recomp
 depends: tools/verify_fmv_boundary.py#analyze, psxport.pin
-reconfirmed: 2026-08-22 19:10:06
-verified_at: 2026-08-22 19:10:06
+reconfirmed: 2026-08-22 19:15:01
+verified_at: 2026-08-22 19:15:01
 ---
 
 ## Claim
@@ -24,3 +24,7 @@ The verified SLUS/FMV call chain changes, the pinned framework lacks A0:0x25, a 
 ## Re-confirmed 2026-08-22 19:10:06
 
 Pinned/build-checked psxport 57a17a14; bounded retail gate again observed the exact 15 normalized first-path bytes and 62 same-caller A0:0x25 calls, then the exact renderer verifier found neither former miss before the later RenderQueue boundary; Clang consumer CTest passed 9/9.
+
+## Re-confirmed 2026-08-22 19:15:01
+
+Post-commit 3b17154 live FMV gate on pinned psxport 57a17a14 observes the exact 15 normalized path bytes and 62 same-caller A0:25 calls before reaching the later renderer boundary.

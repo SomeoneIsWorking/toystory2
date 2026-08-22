@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
 depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg, game/recomp_seeds.json
-reconfirmed: 2026-08-22 18:46:27
-verified_at: 2026-08-22 18:46:27
+reconfirmed: 2026-08-22 19:15:00
+verified_at: 2026-08-22 19:15:00
 ---
 
 ## Claim
@@ -52,3 +52,7 @@ Post-landing Clang CTest 7/7 and overlay_map shipping/selftest gates passed; the
 ## Re-confirmed 2026-08-22 18:46:27
 
 After removing the obsolete resident diagnostic reentry seed, overlay_map shipping/selftest re-derived the two-slot contract and passed 10/10 including the forced co-residence opposite; Toy Story Clang consumer CTest passed 9/9.
+
+## Re-confirmed 2026-08-22 19:15:00
+
+Post-commit 3b17154 authoritative Clang CTest passes 9/9; recomp substrate selftest passes with the renderer split seed removed and the existing 22-module overlay model unchanged.
