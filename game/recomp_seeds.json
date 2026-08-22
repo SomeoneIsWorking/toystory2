@@ -50,14 +50,7 @@
     // direct-call discovery cannot see the runtime resume target. psxport 692b9b20 makes
     // main_reentry an authoritative discovery root and emits its wrapper/body/dispatch directly;
     // duplicating it in main would create two apparent authorities for one measured entry class.
-    "0x80088A2C",
-    // Default live boot after the FMV parser completed its first retail path reached 0x8001040C
-    // from caller return 0x80026568. This is slot four of the 32-way renderer table beginning at
-    // 0x800103EC inside function 0x800100E4: 0x800103E4 performs `jr t1` (not jalr), every table
-    // slot is a `j`+nop trampoline, and this slot jumps to the existing body label 0x80014838 while
-    // preserving the outer caller's ra. tools/verify_render_reentry.py rejects a function prologue,
-    // jalr function-pointer dispatch, or a non-table slot before this seed can pass.
-    "0x8001040C"
+    "0x80088A2C"
   ],
   "overlay_bases": {
     "BITS__MEMORY": "0x800D5D20",

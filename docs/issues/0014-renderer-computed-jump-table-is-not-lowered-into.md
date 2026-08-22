@@ -1,7 +1,7 @@
 ---
 id: 14
 title: Renderer computed jump table is not lowered into dispatchable re-entries
-status: investigating
+status: resolved
 symptom: Retail boot reaches computed renderer target 0x8001040C; a single re-entry seed advances once then misses sibling slot 0x800104E4 because emitted jump-table entries have no labels
 tags: render,recompiler,jump-table,framework,boot
 created: 2026-08-22
@@ -17,12 +17,18 @@ internal labels.
 
 ## Evidence
 
-`tools/verify_render_reentry.py` exact-checks the table construction and all 32 entries, with negative
-controls for jalr/function-pointer dispatch, a function prologue, and a non-table slot. A live seed for
-observed slot 0x8001040C reaches its body, loops to the same dispatcher, and then fail-fasts on slot
-0x800104E4.
+`tools/verify_render_reentry.py` exact-checks the table construction and all 32 retail entries. It
+also parses the actual emitted resident switch, requires the same ordered 32-slot set, and has
+negative controls for a missing sibling, an extra adjacent body, jalr/function-pointer dispatch, a
+function prologue, and a non-table slot. A live seed for observed slot 0x8001040C reaches its body,
+loops to the same dispatcher, and then fail-fasts on slot 0x800104E4 under the pre-fix emitter.
 
 ## Resolution
 
-Pending a generic framework computed-jump-table lowering fix. Do not seed all slots or add a Toy
-Story renderer workaround.
+The generic fix landed in psxport `57a17a14`. It folds both `lui+addiu` and `lui+ori` immediate
+bases, derives the exact case count from a contiguous low-bit index mask, rejects unaligned targets,
+and emits all 32 targets as local labels. Toy Story 2 now pins and builds that commit. With the
+diagnostic seed removed, the shipping verifier finds exactly the 32 retail slots, its 10/10 positive
+and negative controls pass, and a bounded real-disc run has no miss at either 0x8001040C or
+0x800104E4 before reaching the independent RenderQueue capture-capacity boundary. No game renderer
+workaround or per-slot seeds remain.

@@ -19,12 +19,13 @@ return, so the fail-fast occurred on the first lowercase `t`.
 
 ## Resolution
 
-The shared implementation landed in psxport `ad5cf802`. This repo pins that commit, and a rebuilt
-bounded retail trace passes all 15 normalized inputs for `toy2fmv\acti.str`, records 62 calls from the
-exact parser return site, and reaches independent renderer issue #14.
+The shared implementation first landed in psxport `ad5cf802` and remains in the repo's current pinned
+framework `57a17a14`. A rebuilt bounded retail trace passes all 15 normalized inputs for
+`toy2fmv\acti.str`, records 62 calls from the exact parser return site, and passes the independently
+resolved renderer table to the later RenderQueue boundary.
 
 ### Note (2026-08-22)
 Fresh shared-HEAD build (psxport 0f808dc9) reproduces the fail-fast. Exact retail bytes: FMV 0x800D8E48 jal 0x80082E5C, delay slot advances s1, return 0x800D8E50 stores v0 as one byte. Executable leaf 0x80082E5C selects t2=0xA0 and t1=0x25. Fresh Ghidra project ts2fmv_re11 decompiles 0x800D8D9C as an ISO-9660 path parser calling that leaf for each input character. The first live input is lowercase t. A0:0x25 is shared BIOS toupper; game-local HLE is rejected. tools/verify_fmv_boundary.py proves the static chain and requires the complete 15-byte retail sequence, not merely disappearance of the fatal.
 
 ### Resolution (2026-08-22)
-psxport ad5cf802 landed shared BIOS A0:0x25 toupper. Toy Story 2 pinned that commit, rebuilt with Clang, and the bounded retail gate observed the exact first 15 normalized path bytes plus 62 calls before the independent renderer boundary.
+psxport ad5cf802 landed shared BIOS A0:0x25 toupper. Toy Story 2's current pinned framework 57a17a14 retains it; the Clang-built bounded retail gate observed the exact first 15 normalized path bytes plus 62 calls before passing the independently resolved renderer boundary.
