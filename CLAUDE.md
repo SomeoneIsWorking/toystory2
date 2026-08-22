@@ -67,6 +67,12 @@ and ESRB frames at presents 30, 120 and 900. It then loads `FMV/FMV.BIN` at `0x8
 unimplemented BIOS `A0:0x25`. The per-frame OT/packet-pool layout remains unmeasured; visible boot cards
 do not imply gameplay rendering is complete.
 
+`game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives
+`LegacyGameRuntimeAdapter` only because generic psxport algorithms still consume the measured
+`GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Boot dispatch and RE-10 field-clock
+installation are runtime overrides; do not add new title behavior to either legacy table. Remove each
+legacy field or callback when a narrow typed runtime interface replaces its last framework reader.
+
 What DOES build today, and is the gate for a change to the seam:
 
 ```sh
@@ -137,7 +143,7 @@ This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequenc
 
 ## The rules that bite hardest here
 
-**Never guess a guest address or an overlay load base.** An un-RE'd `GameConfig` field stays `0` with a
+**Never guess a guest address or an overlay load base.** An un-RE'd legacy `GameConfig` fact stays `0` with a
 TODO naming the frontier step. Zero is honest and psxport fails fast on it; a plausible wrong value
 breaks boot in a way that reads as a framework bug. An overlay is keyed BY its load address, so a wrong
 base emits a whole module of correctly-decoded instructions at wrong addresses — and the emit SUCCEEDS.

@@ -1,18 +1,19 @@
 // main.cpp — the Toy Story 2 port's process entry point.
 //
-// Installs the game seam (GameConfig + GameHooks + RecompRegistry), brings up
+// Installs ToyStory2Runtime + RecompRegistry, brings up
 // the framework's PSX hardware backends, loads the retail executable, and
 // enters the native boot. After the install nothing here names anything but
 // framework symbols.
 //
-// RE-02 now supplies the generated registry and this is the shipping launcher.
-// The game behavior remains guest code; current boot reaches RE-04's honest CD
-// completion boundary rather than substituting a native game implementation.
+// RE-02 supplies the generated registry and this is the shipping launcher. Game behavior remains
+// guest code; the host runtime restores only the measured field boundary, and current boot enters
+// emitted FMV before stopping at the honest shared BIOS A0:0x25 boundary.
 #include "cfg.h"
 #include "core.h"
 #include "disc.h"
 #include "fs_util.h"
 #include "game.h"
+#include "toystory2_runtime.h"
 #include <stdio.h>
 
 extern "C" {
@@ -26,8 +27,7 @@ void native_boot_run(Core *c);            // runtime/recomp/native_boot.cpp (fra
 void gte_init(void);
 int selftest_run(const char *path); // runtime/recomp/selftest.cpp (framework harness)
 
-extern void ts2_install_game_config(); // game/core/game_config.cpp (installs cfg + hooks)
-extern void ts2_install_recomp();      // game/core/recomp_register.cpp
+extern void ts2_install_recomp(); // game/core/recomp_register.cpp
 
 // The retail US executable, as it is named on the disc. SYSTEM.CNF boots it
 // directly
@@ -44,9 +44,9 @@ static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
 static const char *kDiscExePath = "\\SLUS_008.93";
 
 int main(int argc, char **argv) {
-  // Must precede the first Core: Core's ctor snapshots
-  // psxport_game_config()/psxport_game_hooks().
-  ts2_install_game_config();
+  // Process-lifetime derived owner. Installation must precede the first Core, which snapshots it.
+  static ts2::ToyStory2Runtime runtime;
+  psxport_install_game(runtime);
   ts2_install_recomp();
 
   const char *path = argc > 1 ? argv[1] : kDefaultExe;
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
   c->r[4] = 1;
   c->r[5] = 0; // a0/a1 as the BIOS leaves them
 
-  c->hooks->registerOverrides(game); // nothing to install yet, but keep the wiring honest
+  c->runtime->registerOverrides(*game);
   native_boot_run(c);
   cfg_logi("boot", "native boot returned");
   return 0;

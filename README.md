@@ -5,20 +5,18 @@ A PC-native port of **Disney/Pixar Toy Story 2: Buzz Lightyear to the Rescue!** 
 [psxport](https://github.com/SomeoneIsWorking/psxport) static-recompilation framework, vendored here as
 `external/psxport`.
 
-## Status: generated boot reaches the CD boundary
+## Status: generated boot renders boot cards and enters FMV
 
-The real `toystory2_port` binary now contains the identity-checked executable plus all 21 measured code
-modules. Generated crt0 matches the independent CPU oracle in all 34 state fields at its first call;
-live boot registers the interrupt chain, opens the CHD, and services stock-libcd command and sector
-results. RE-04's first missing state was measured and fixed generically: pinned psxport `3418a79b`
-paces each following sector in deterministic guest cycles instead of exposing it immediately. The
-default route advances through eleven real ReadN phases into the emitted BITS/MEMORY overlay path.
+The real `toystory2_port` binary contains the identity-checked executable plus all 22 proven loaded code
+modules. Generated crt0 matches the independent CPU oracle in all 34 state fields at its first call.
+Live boot services stock libcd, renders the legal and ESRB cards through the guest picture, enters emitted
+`FMV/FMV.BIN` code, then stops honestly at the next shared-runtime boundary: BIOS `A0:0x25`.
 What exists:
 
 - disc → executable provisioning from **your own** disc image (nothing game-derived is in this repo),
-- the framework seam (`GameConfig` / `GameHooks` / generated registry) compiling against psxport, with the
-  complete RE-01 boot group and RE-03's two instruction-verified overlay slots wired while every
-  un-RE'd callable guest address remains honestly `0`,
+- a process-lifetime `ToyStory2Runtime` derived owner plus the generated registry, with immutable
+  RE-01/RE-03 facts and unresolved compatibility callbacks temporarily bounded behind
+  `LegacyGameRuntimeAdapter`,
 - the symbolic crt0 verifier plus the code/overlay census, exact overlay-loader verifier, `.RAW` container
   probe, disc extractor, stock-libcd command/trace verifier, and two-method Ghidra xref gate, each
   validated in both directions,

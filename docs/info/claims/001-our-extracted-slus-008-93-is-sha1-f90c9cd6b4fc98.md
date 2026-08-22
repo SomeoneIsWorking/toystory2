@@ -4,9 +4,9 @@ kind: claim
 status: holds
 created: 2026-08-12
 tags: identity,boot
-depends: tools/extract_exe.py, docs/info/exe-identity.txt
-reconfirmed: 2026-08-21
-verified_at: 2026-08-21 11:46:27
+depends: tools/extract_exe.py
+reconfirmed: 2026-08-22 14:20:44
+verified_at: 2026-08-22 14:20:44
 ---
 
 ## Claim
@@ -28,3 +28,7 @@ any disc yielding a different sha1 for SLUS_008.93 (a different region or revisi
 ## Re-confirmed 2026-08-21
 
 Post-landing zero-argument launcher re-provisioned the exact SLUS_008.93 target and the substrate gate rechecked its 598016-byte identity and SHA-1 before emission.
+
+## Re-confirmed 2026-08-22 14:20:44
+
+2026-08-22 re-extracted the retail executable after the extractor change: 598,016 bytes, SHA-1 f90c9cd6b4fc9845adfe34e306b7df393bf9154c, and the PS-EXE header all matched docs/info/exe-identity.txt.

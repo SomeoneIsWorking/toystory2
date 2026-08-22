@@ -1,6 +1,8 @@
-// game_config.cpp — the Toy Story 2 (SLUS_008.93, USA) GameConfig: the
-// guest-address literals the PSX-generic framework reads through
-// `c->cfg->field`.
+// game_config.cpp — measured Toy Story 2 (SLUS_008.93, USA) compatibility facts.
+//
+// ToyStory2Runtime is the title's ownership seam. This legacy GameConfig remains only because
+// generic psxport algorithms still read `c->cfg->field`; each typed framework extraction must
+// delete its corresponding fields here rather than growing this bag.
 //
 // READ THIS BEFORE FILLING ANYTHING IN.
 //
@@ -21,6 +23,7 @@
 // fill one, gate it against the executable bytes and cite that verifier; here
 // binary evidence is the only provenance a value can have.
 #include "game_iface.h"
+#include "legacy_game_interface.h"
 
 #ifdef TS2_HAVE_SUBSTRATE
 #include "overlay_table.h"
@@ -323,14 +326,4 @@ static const GameConfig g_ts2_cfg = {
     .stackBias = {1, kCrt0StackBias},
 };
 
-const GameConfig *ts2_game_config() {
-  return &g_ts2_cfg;
-}
-
-// Installs BOTH halves of the seam, because a Core's ctor snapshots them
-// together — installing a config without its hooks leaves a Core holding a
-// half-seam.
-void ts2_install_game_config() {
-  extern const GameHooks *ts2_game_hooks(); // game/core/game_hooks.cpp
-  psxport_install_game(&g_ts2_cfg, ts2_game_hooks());
-}
+const GameConfig &ts2::legacy::measuredConfig = g_ts2_cfg;

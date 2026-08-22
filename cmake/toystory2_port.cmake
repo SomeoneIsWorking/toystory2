@@ -7,9 +7,9 @@
 #                      nothing game-specific present. (psxport_smoke, the framework's agnosticism proof,
 #                      CANNOT be built from a consumer tree — docs/issues/0001. Leave
 #                      -DPSXPORT_BUILD_SMOKE at its OFF default.)
-#   toystory2_seam     AN OBJECT LIBRARY over the four game/core TUs. It COMPILES but does not link,
-#                      which proves this port's GameConfig/GameHooks/RecompRegistry seam still
-#                      satisfies the framework without game-derived bytes. The registry's explicit
+#   toystory2_seam     AN OBJECT LIBRARY over the game-owned runtime seam. It COMPILES but does not
+#                      link, which proves ToyStory2Runtime and its bounded legacy facts still satisfy
+#                      the framework without game-derived bytes. The registry's explicit
 #                      no-substrate branch is what this target checks.
 #   toystory2_port     the game binary. Configured ONLY when generated/rec_sources.cmake exists, i.e.
 #                      once tools/recomp_substrate.py has emitted the identity-checked substrate. A
@@ -28,6 +28,7 @@ set(SEAM_SRC
   game/core/game_hooks.cpp
   game/core/main.cpp
   game/core/recomp_register.cpp
+  game/core/toystory2_runtime.cpp
   game/sync/field_clock.cpp
 )
 add_library(toystory2_seam OBJECT ${SEAM_SRC})

@@ -1,6 +1,4 @@
-// game_hooks.cpp — the Toy Story 2 GameHooks vtable: the behaviour the
-// PSX-generic framework calls into. This port owns only the measured field-clock
-// lifecycle natively, so the table remains deliberately tiny.
+// game_hooks.cpp — bounded compatibility callbacks not yet migrated into ToyStory2Runtime.
 //
 // There are exactly two kinds of member here, and the distinction is the point
 // (the shape is taken from spider1/game/core/game_hooks.cpp, which learned it
@@ -17,35 +15,16 @@
 //               stub would let a half-wired path look like it worked, which is
 //               the fake-green the porting doc warns about.
 //
-// bootInit dispatches the RE-01-verified guest main() once a substrate exists;
-// registerOverrides installs RE-10's field clock. The guard prevents a future
-// config regression from turning into a dispatch to address zero.
 #include "cfg.h"
 #include "core.h"
 #include "game_iface.h"
-#include "sync/field_clock.h"
+#include "legacy_game_interface.h"
 #include <stdlib.h>
 
-// ── boot
+// Legacy compatibility callbacks.
 // ────────────────────────────────────────────────────────────────────────────────────────
-static void ts2_bootInit(Core *c) {
-  if (!c->cfg->gameMain) {
-    cfg_loge("boot",
-             "GameConfig::gameMain is 0, contradicting the RE-01 verifier and "
-             "shipping boot group. Refusing to dispatch address 0; run "
-             "tools/verify_crt0.py --check.");
-    abort();
-  }
-  cfg_logi("boot", "dispatching guest main() 0x%08X on the recompiled substrate", c->cfg->gameMain);
-  rec_dispatch(c, c->cfg->gameMain);
-}
-
 // ── neutral
 // ─────────────────────────────────────────────────────────────────────────────────────
-static void ts2_registerOverrides(Game *) {
-  ts2_field_clock_install();
-}
-
 static void ts2_renderFadeState(Core *, FadeState *out) {
   out->mode = 0; // 0 == no fade; the present path leaves pixels untouched
   out->r = out->g = out->b = 0;
@@ -108,10 +87,8 @@ static void ts2_devWarp(Core *, int, int) {
 static const GameHooks g_ts2_hooks = {
     .frameUpdate = ts2_frameUpdate,
     .drawOTag = ts2_drawOTag,
-    .bootInit = ts2_bootInit,
     .schedFreshEntry = ts2_schedFreshEntry,
     .hasNativeHandlerForEntry = ts2_hasNativeHandlerForEntry,
-    .registerOverrides = ts2_registerOverrides,
     .renderFadeState = ts2_renderFadeState,
     .renderBbFrameReset = ts2_renderBbFrameReset,
     .devWarp = ts2_devWarp,
@@ -121,6 +98,4 @@ static const GameHooks g_ts2_hooks = {
     .schedStageBody = ts2_schedStageBody,
 };
 
-const GameHooks *ts2_game_hooks() {
-  return &g_ts2_hooks;
-}
+const GameHooks &ts2::legacy::compatibilityHooks = g_ts2_hooks;

@@ -134,9 +134,9 @@ RE-05's OT/packet-pool layout remains independently TODO; visible boot cards do 
 - status: re-verified
 - deps: RE-01
 - evidence: C013 and I013. Exact Ghidra/decompile chain identifies graphics init 0x8003A650 registering VBlank handler 0x80039D60; that handler increments gp+0x7FC and routes deferred display work through 0x80021028, while 0x8003FA68 waits on both states. A live A/B over the same retail input changed a 30-second no-present watchdog in 0x8003FA68 into non-black legal/ESRB frames at presents 30, 120 and 900, then reached emitted FMV code.
-- where: game/sync/field_clock.h; game/sync/field_clock.cpp; game/core/game_hooks.cpp (installation only)
+- where: game/sync/field_clock.h; game/sync/field_clock.cpp; game/core/toystory2_runtime.cpp (installation only)
 - gap: Complete for host field delivery: the game-local runtime arms the field clock only after the guest performs its exact graphics init, then samples pad, invokes the exact registered guest callback, advances SPU and presents once per GPU field. This does not identify RE-05's OT/packet-pool layout or assert gameplay rendering is complete.
-- notes: The derived runtime responsibility is field scheduling and callback delivery, not a GameConfig data field. A future shared GameRuntime refactor should own this lifecycle seam without moving Toy-specific callback identity into shared psxport.
+- notes: `ToyStory2Runtime` owns field-clock installation through inheritance; the reusable clock mechanism stays in `game/sync/`, while Toy-specific callback identity remains out of shared psxport. The legacy config/hooks tables contain compatibility facts and fail-fast behavior only.
 
 ## assets
 
