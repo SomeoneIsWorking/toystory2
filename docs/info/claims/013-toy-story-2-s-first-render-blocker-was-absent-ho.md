@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,vblank,host-turn,recomp
 depends: game/core/toystory2_runtime.cpp#ToyStory2Runtime, game/sync/field_clock.cpp#ts2_field_clock_install, tools/overlay_map.py#loader_contract
-reconfirmed: 2026-08-22 14:18:14
-verified_at: 2026-08-22 14:18:14
+reconfirmed: 2026-08-22 17:53:35
+verified_at: 2026-08-22 17:53:35
 ---
 
 ## Claim
@@ -24,3 +24,7 @@ an independent reference trace shows the title does not invoke 0x80039D60 once p
 ## Re-confirmed 2026-08-22 14:18:14
 
 2026-08-22 runtime-inheritance migration: the direct shipping binary logged ToyStory2Runtime boot dispatch, armed ts2-field after graphics init, then reached the same emitted FMV call stack and honest BIOS A0:0x25 boundary; full Clang CTest was 7/7.
+
+## Re-confirmed 2026-08-22 17:53:35
+
+Reverified after ToyStory2Runtime inheritance move: current Clang build passes cpp_policy and the bounded retail headless route advances through visible-card field delivery, emitted FMV, all 15 first-path A0:0x25 parser calls and into the renderer boundary at 0x800104E4; this is impossible on the old zero-host-turn path.

@@ -37,8 +37,9 @@ VBlank `0x80039D60`, but the seam delivered no host field turns, so wait `0x8003
 observe its counter or deferred-work flag advance. The game-local field clock now invokes the exact
 registered callback at the GPU rate. Live headless A/B changes zero presents plus a 30-second watchdog
 into non-black legal/ESRB frames at presents 30, 120 and 900. Boot then loads FMV/FMV.BIN at
-`0x800D5D20`, calls file+`0x908` (`0x800D6628`) and executes emitted FMV code to the next honest
-boundary, shared BIOS `A0:0x25`.
+`0x800D5D20`, calls file+`0x908` (`0x800D6628`) and executes emitted FMV code. Pinned psxport
+`ad5cf802` carries A0:0x25 and the retail parser completes its first path; the next boundary is generic
+lowering of the resident renderer's internal 32-way computed jump table.
 
 **What IS otherwise measured is the DISC, not a game implementation.** The executable's identity, the
 existence and byte count of the original 21 plain overlays, the now-proven 22nd FMV code module, the old coarse fitted base, the PSY-Q cohort, and the
@@ -52,8 +53,9 @@ longer blocks the first code RE. The sibling ports could locate a value in a ref
 it; this port must find it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
 `rood-reverse`, ~62% matched) or `megamanx4` (AGPL `sozud/mmx4`, byte-identical target).
 
-The next concrete boundary is shared BIOS `A0:0x25`, called from emitted FMV with `ra=0x800D8E50`.
-It belongs in the shared runtime's libc BIOS implementation rather than a Toy-specific fake return.
+The next concrete boundary is generic computed-jump-table lowering. Exact retail bytes classify live
+target `0x8001040C` as an internal trampoline inside function `0x800100E4`; one measured re-entry
+advances until sibling slot `0x800104E4`. This is not a Toy-specific renderer workaround.
 RE-05's OT/packet-pool layout remains independently TODO; visible boot cards do not close it.
 
 ## tooling
@@ -79,10 +81,26 @@ RE-05's OT/packet-pool layout remains independently TODO; visible boot cards do 
 ### RE-02 — recompiler seed set for SLUS_008.93
 - status: re-partial
 - deps: RE-01, RE-03
-- evidence: C014, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 22 proven modules / 756,108 file bytes: 365 binary-rooted resident seeds -> 889 functions and 222 roots -> 308 functions across 22 modules / 75 generated TUs. The old C011 denominator is falsified, not silently edited. tools/compare_recomp_boundary.py executes generated crt0 and the independent Mednafen CPU oracle to first jal 0x80089344: 34/34 state fields agree with a forced named mismatch. IRQ resume 0x80088A2C remains solely main_reentry. FMV entry 0x800D6628 is an overlay seed backed by exact post-load call flow and a live generated stack.
+- evidence: C014, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 22 proven modules / 756,108 file bytes: 366 binary-rooted resident seeds -> 890 functions and 222 roots -> 308 functions across 22 modules / 75 generated TUs. The old C011 denominator is falsified, not silently edited. tools/compare_recomp_boundary.py executes generated crt0 and the independent Mednafen CPU oracle to first jal 0x80089344: 34/34 state fields agree with a forced named mismatch. IRQ resume 0x80088A2C remains solely main_reentry. FMV entry 0x800D6628 is an overlay seed backed by exact post-load call flow and a live generated stack. Renderer slot 0x8001040C is retained solely as issue #14's exact shipping reproducer, not as a completion claim.
 - where: tools/recomp_substrate.py; tools/compare_recomp_boundary.py; tests/toystory2_recomp_boundary.cpp; game/recomp_seeds.json; game/core/recomp_register.cpp; generated/ is gitignored
-- gap: Seed completeness remains empirical, but the substrate now executes through BITS/MEMORY and FMV. Live headless boot reaches emitted FMV functions `0x800D6628`, `0x800D7088`, `0x800D8FB0` and `0x800D8D9C` before the shared HLE fail-fast for BIOS `A0:0x25`; there is no recompilation miss at the old boundaries. Continue adding only addresses surfaced by a real `[recomp-MISS]`, with entry-vs-reentry classification from exact bytes.
+- gap: Seed completeness remains empirical. Pinned psxport ad5cf802 passes the FMV parser into the resident renderer. One exact internal-table re-entry advances to sibling slot 0x800104E4 and proves the emitter defect; do not seed all 32 slots.
 - notes: Never copy another game's seeds. A foreign address can split a real function at an arbitrary offset while emission still succeeds. Reproduce the committed evidence with `python3 tools/recomp_substrate.py --selftest`, build `toystory2_recomp_boundary`, then run `python3 tools/compare_recomp_boundary.py --selftest --oracle build/psxport_build/tools/oracle/oracle_trace --runner scratch/bin/toystory2_recomp_boundary`.
+
+### RE-11 — FMV ISO-9660 path parser and shared BIOS toupper
+- status: re-verified
+- deps: RE-02, RE-03, RE-10
+- evidence: C016, resolved issue #13 and scratch/decomp/re11-fmv-parser.c: retail FMV 0x800D8E48 calls executable Sony leaf 0x80082E5C; that leaf selects A0:0x25, and return 0x800D8E50 stores v0 as the normalized path byte. Pinned psxport ad5cf802 implements shared toupper. A clean Clang rebuild and bounded retail gate observe the exact 15 normalized bytes of `toy2fmv\acti.str` plus 62 same-caller calls, then reach issue #14's exact 0x800104E4 boundary.
+- where: tools/verify_fmv_boundary.py; shared implementation belongs in psxport bios_libc_string, not this repo
+- gap: Complete for the retail FMV parser boundary. A different executable leaf/table selector, changed path-parser return site, or failure of the landed real-disc gate reopens it.
+- notes: FMV and MEMORY remain alternative contents of RE-03 one arena. The fresh ts2fmv_re11 Ghidra image injects FMV only at the already-proven shared base; it is evidence for this call chain, not a second resident slot.
+
+### RE-12 — resident renderer computed jump table
+- status: in-progress
+- deps: RE-02, RE-11
+- evidence: Issue #14. Exact retail words build table base 0x800103EC, mask the selector with 31, scale by eight and `jr` (not `jalr`) into 32 consecutive `j`+nop trampolines inside function 0x800100E4. Observed slot 0x8001040C jumps to body label 0x80014838 while preserving outer ra=0x80026568. `tools/verify_render_reentry.py --selftest` passes 6/6 classes and rejects a jalr function-pointer call, function prologue, non-table slot and the old first-slot live boundary. Its landed-framework trace gate proves the single-slot reproducer reaches sibling 0x800104E4 from pc=0x80014D3C.
+- where: tools/verify_render_reentry.py; game/recomp_seeds.json (single observed reproducer only); generic fix belongs in psxport's emitter
+- gap: The emitter emits dynamic `rec_dispatch` but does not discover/lower the 32 internal targets. Do not seed all slots and do not add a game renderer workaround. Reverify after generic framework lowering lands.
+- notes: Absence of a stored RAM pointer was not classification evidence; executable table construction and control-transfer opcodes decide the class.
 
 ## overlays
 

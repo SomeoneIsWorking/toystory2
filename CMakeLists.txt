@@ -104,6 +104,14 @@ if(BUILD_TESTING)
     NAME verify_cd_command_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_cd_command.py --selftest
   )
+  add_test(
+    NAME verify_fmv_boundary_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_fmv_boundary.py --selftest
+  )
+  add_test(
+    NAME verify_render_reentry_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_render_reentry.py --selftest
+  )
   if(TARGET toystory2_recomp_boundary)
     add_test(
       NAME recomp_substrate_selftest
