@@ -19,12 +19,12 @@ intended behaviour of the real target being reproduced.
 Statuses: ✅ re-verified · 🟡 re-partial (honest gap) · 🔬 in-progress · ⛔ hack (debt, must remove) ·
 ⬜ todo · ➖ skip-by-design · ⏸ blocked (computed).
 
-## THE STATE OF THIS PORT, 2026-08-21: a measured substrate reaches the CD-completion boundary
+## THE STATE OF THIS PORT, 2026-08-22: headless boot renders through ESRB and enters FMV
 
 **RE-00 supplies Ghidra and RE-01 proves the complete crt0 group.** `tools/verify_crt0.py` resolves the
 entry decompiler's bad-data truncation from the instruction stream and gates every shipped boot field.
 RE-03 proves the two resident overlay slots and wires every known code module's load base. RE-02 now
-emits the executable plus all 21 measured modules, links the real port, and matches the independent CPU
+emits the executable plus all 22 proven modules, links the real port, and matches the independent CPU
 oracle at the executable's first call in all 34 state fields. The first live dispatch miss identified
 the IRQ resume at `0x80088A2C`; its binary shape proves it is a mid-function re-entry, and the landed
 emitter now discovers and dispatches that seed class directly. Boot advances through interrupt
@@ -32,12 +32,16 @@ registration, disc opening and serviced stock-libcd results. RE-04 now instructi
 `0x80091DE4(cmd,param,result,async)`, its sync loop `0x80091898` and interrupt-result service
 `0x80091310`. The honest boundary was one layer lower: psxport's CDC made the following-sector INT1
 available immediately rather than at the mode-selected drive rate. Pinned psxport `3418a79b` removes
-that race without game HLE: both direct and default routes advance through eleven real ReadN phases
-into the emitted BITS/MEMORY overlay path. RE-02 remains partial because no later computed-entry miss
-has surfaced yet.
+that race without game HLE. RE-10 then names the first render blocker: graphics init registers guest
+VBlank `0x80039D60`, but the seam delivered no host field turns, so wait `0x8003FA68` could never
+observe its counter or deferred-work flag advance. The game-local field clock now invokes the exact
+registered callback at the GPU rate. Live headless A/B changes zero presents plus a 30-second watchdog
+into non-black legal/ESRB frames at presents 30, 120 and 900. Boot then loads FMV/FMV.BIN at
+`0x800D5D20`, calls file+`0x908` (`0x800D6628`) and executes emitted FMV code to the next honest
+boundary, shared BIOS `A0:0x25`.
 
 **What IS otherwise measured is the DISC, not a game implementation.** The executable's identity, the
-existence and byte count of 21 code overlays, the old coarse fitted base, the PSY-Q cohort, and the
+existence and byte count of the original 21 plain overlays, the now-proven 22nd FMV code module, the old coarse fitted base, the PSY-Q cohort, and the
 `.RAW` container's framing — all in `docs/info/claims/`, each with its falsifier. C009 fills the crt0
 group and C010 fills the overlay map; the remaining disc measurements do not fill shipping fields.
 
@@ -48,9 +52,9 @@ longer blocks the first code RE. The sibling ports could locate a value in a ref
 it; this port must find it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
 `rood-reverse`, ~62% matched) or `megamanx4` (AGPL `sozud/mmx4`, byte-identical target).
 
-The next concrete target is to instruction-classify the BITS/MEMORY overlay path at
-`0x800D9704`/`0x800D95C4` through resident caller `0x8003FA68`.
-Any later `[recomp-MISS]` continues to grow RE-02 empirically.
+The next concrete boundary is shared BIOS `A0:0x25`, called from emitted FMV with `ra=0x800D8E50`.
+It belongs in the shared runtime's libc BIOS implementation rather than a Toy-specific fake return.
+RE-05's OT/packet-pool layout remains independently TODO; visible boot cards do not close it.
 
 ## tooling
 
@@ -69,15 +73,15 @@ Any later `[recomp-MISS]` continues to grow RE-02 empirically.
 - deps: RE-00
 - evidence: C009 and I008. tools/verify_crt0.py --check over verified SLUS_008.93 sha1 f90c9cd6b4fc9845adfe34e306b7df393bf9154c walked 43 instructions: BSS [0x800A1070,0x800D12C0), stack word at post-break data 0x80082E10 -> sp/fp 0x80200000 with bias 0, reserve word 0x800A0764, heap base 0x800D12C0 and size 0x126D40, gp 0x800A0CD8, A(39h) InitHeap thunk 0x80089344, gameMain 0x8007A9E8, optional heap globals absent. Shipping comparison passed 16/16. --selftest --cross ../Tomba2Engine/scratch/bin/tomba2/MAIN.EXE passed 9/9.
 - where: tools/verify_crt0.py; game/core/game_config.cpp (complete measured boot group)
-- gap: Complete. The crt0 group is not the substrate; RE-02 is now ready because RE-03 has supplied the 21 streamed modules' verified resident bases.
+- gap: Complete. The crt0 group is not the substrate; RE-02 is now ready because RE-03 has supplied the streamed modules' verified resident bases.
 - notes: Reproduce the portable gate with python3 tools/verify_crt0.py --check and python3 tools/verify_crt0.py --selftest. In the shared workspace, add --cross ../Tomba2Engine/scratch/bin/tomba2/MAIN.EXE for the genuine second-binary negative. The verifier resolves Ghidra truncation by proving break 0x80082E08 ends control before the referenced inline word 0x80082E10.
 
 ### RE-02 — recompiler seed set for SLUS_008.93
 - status: re-partial
 - deps: RE-01, RE-03
-- evidence: C011, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 245,148 bytes: 321 binary-rooted resident seeds -> 864 functions and 176 roots -> 243 functions across exactly 21 overlay modules / 72 generated TUs. tools/compare_recomp_boundary.py then executes generated crt0 and the independent Mednafen CPU oracle to the first actual jal 0x80089344: 34/34 state fields agree; a forced a0 mutation produces one named mismatch. Default live boot surfaced [recomp-MISS] 0x80088A2C from irqPoll with guest RAM[0x8009ECD0] holding the target. Exact words and Ghidra show no prologue, live-v0 use and a shared stack epilogue, so it is recorded solely in main_reentry. Pinned psxport `3418a79b` makes that class a discovery root and emits its wrapper/body/dispatch directly; regeneration still declares and dispatches func_80088A2C without a duplicate main seed.
+- evidence: C014, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 22 proven modules / 756,108 file bytes: 365 binary-rooted resident seeds -> 889 functions and 222 roots -> 308 functions across 22 modules / 75 generated TUs. The old C011 denominator is falsified, not silently edited. tools/compare_recomp_boundary.py executes generated crt0 and the independent Mednafen CPU oracle to first jal 0x80089344: 34/34 state fields agree with a forced named mismatch. IRQ resume 0x80088A2C remains solely main_reentry. FMV entry 0x800D6628 is an overlay seed backed by exact post-load call flow and a live generated stack.
 - where: tools/recomp_substrate.py; tools/compare_recomp_boundary.py; tests/toystory2_recomp_boundary.cpp; game/recomp_seeds.json; game/core/recomp_register.cpp; generated/ is gitignored
-- gap: Seed completeness past the current boot boundary is unmeasured. With generic BIOS `A0:0x15` (`strcat`) present, the default run appends both measured `.vh`/`.vb` suffixes and reaches the instruction-verified stock-libcd command/result path. The old `692b9b20` baseline delivered 21,164 contiguous sectors in a 23-second denominator instead of at most 3,451. Pinned `3418a79b` yields the opposite answer on direct and default routes: 358 total sectors across eleven serviced ReadN phases (longest: 209 sectors from LBA12506), followed by the emitted BITS/MEMORY overlay path at `0x800D9704`/`0x800D95C4` through resident caller `0x8003FA68`, with no `[recomp-MISS]`. Continue adding only addresses surfaced by a real `[recomp-MISS]`, with entry-vs-reentry classification from exact bytes.
+- gap: Seed completeness remains empirical, but the substrate now executes through BITS/MEMORY and FMV. Live headless boot reaches emitted FMV functions `0x800D6628`, `0x800D7088`, `0x800D8FB0` and `0x800D8D9C` before the shared HLE fail-fast for BIOS `A0:0x25`; there is no recompilation miss at the old boundaries. Continue adding only addresses surfaced by a real `[recomp-MISS]`, with entry-vs-reentry classification from exact bytes.
 - notes: Never copy another game's seeds. A foreign address can split a real function at an arbitrary offset while emission still succeeds. Reproduce the committed evidence with `python3 tools/recomp_substrate.py --selftest`, build `toystory2_recomp_boundary`, then run `python3 tools/compare_recomp_boundary.py --selftest --oracle build/psxport_build/tools/oracle/oracle_trace --runner scratch/bin/toystory2_recomp_boundary`.
 
 ## overlays
@@ -85,9 +89,9 @@ Any later `[recomp-MISS]` continues to grow RE-02 empirically.
 ### RE-03 — the overlay loader: how the load base is computed, and how many slots are resident
 - status: re-verified
 - deps: RE-00
-- evidence: C010 and I009, built on C002/C003 rather than replacing their stated denominators. Ghidra xrefs locate all four level-name literals only in path builder FUN_80082870. Decompile and exact instruction checks show FUN_8003D88C selects one name, calls that builder once, then calls fixed-slot wrapper FUN_8003DE9C once; the wrapper forms a1=0x800D12C0 and calls file loader FUN_80082508. On a compatible path the same caller first loads `bits\memory.bin` to 0x800D5D20. The 19,040-byte interval equals the largest LEVEL module, while 5/10 LEVEL+LEVEL1 pairs exceed it, proving alternative contents of one slot. All 496 out-of-main jal targets were rescored at exact call-site destinations: 487 land in the level slot and zero in every other fixed destination; four modules score strictly better at 0x800D12C0 than at the old 4 KiB floor 0x800D1000, none worse. MEMORY.BIN is 63,312 bytes at [0x800D5D20,0x800E5470); its first 11 absolute address words map inside this placement, the loader preserves sector-rounded tail bytes, and the caller computes next frontier 0x800E54F8. `--selftest` passes 10/10, including an in-memory mutation of all four MEMORY/FMV destination pairs to 0x800D9D20 that forces the opposite `co-resident-possible` answer.
-- where: tools/overlay_map.py; game/core/game_config.cpp (LEVEL and MEMORY overlaySlots); game/recomp_seeds.json (LEVEL pattern and BITS__MEMORY base)
-- gap: Complete for the 21 measured code overlays. FMV/FMV.BIN shares 0x800D5D20 on other call paths but remains class-unresolved under RE-04 and is not emitted as code. A relocated module or a second level load on one invocation would falsify C010 and reopen this step.
+- evidence: C010, C014 and I009. The established LEVEL/MEMORY contract remains: LEVEL alternatives at 0x800D12C0 and BITS/MEMORY at 0x800D5D20. Exact retail words now additionally prove 0x8003EEAC loads `fmv\fmv.bin` to the same 0x800D5D20 slot and 0x8003EEC4 immediately calls 0x800D6628. That address is file+0x908 inside the 510,960-byte retail module and begins exact prologue word 0x27BDFF10. A live boot independently reaches the same entry with FMV bytes resident. `--selftest` remains 10/10 including the forced opposite slot answer.
+- where: tools/overlay_map.py; game/core/game_config.cpp (physical LEVEL and MEMORY/FMV slots only); game/recomp_seeds.json (22 module placements and FMV entry)
+- gap: Complete for the proven 22-module placement. FMV and MEMORY are mutually exclusive contents of the same physical slot; no duplicate GameConfig slot was added. A relocated module or a second level load on one invocation would reopen this step.
 - notes: Reproduce with `python3 tools/overlay_map.py --check` and `python3 tools/overlay_map.py --selftest`. Ghidra evidence: `python3 tools/re_xref.py --project ts2boot_re00 scratch/decomp/re03-xrefs.txt 80022F84..80022FAC 80021E08 800D12C0 800D5D20`; decompile 0x8003D88C, 0x8003DE9C, 0x80082508, 0x80082728 and 0x80082870 through the framework decompiler. The old 0x800D1000 value remains a useful coarse fit and is not a resident address.
 
 ## cd
@@ -97,8 +101,8 @@ Any later `[recomp-MISS]` continues to grow RE-02 empirically.
 - deps: RE-01
 - evidence: C010/I009 locate the game-level synchronous path loader FUN_80082508(path,dest) and its inner contract FUN_80082608. Ghidra decompile plus exact calls identify stock CdSearchFile 0x80092AE8, CdRead 0x80093AF0 and CdReadSync 0x80093BF4. C012/I012 instruction-derive CdControl/CdCommand 0x80091DE4(cmd,param,result,async), pre-command/CdSync 0x80091898 and the common interrupt-result service 0x80091310. The service maps INT1 to ready state 0x800A0AE5/result 0x800A1978/callback 0x800A0808 and INT2/3/5 to sync state 0x800A0AE4/result 0x800A1970/callback 0x800A0804. Live mode-0xA0 ReadN derives LBA16 from Setloc, acknowledges INT3 then INT1, and DMA3 moves data, proving the command result is serviced. The same trace then delivers 21,164 contiguous sectors against a conservative physical upper bound of 3,451 in its 23-second watchdog denominator.
 - where: tools/verify_cd_command.py; game/core/game_config.cpp (CD fields intentionally zero during the raw-controller A/B); framework CDC fix coordinated outside this repo
-- gap: The first missing service state was generic following-sector drive timing, not a Toy-specific callback or loader: old psxport `692b9b20` announced another INT1 from each BFRD request immediately. Pinned `3418a79b` schedules the first and following sectors in deterministic guest cycles (225,792 cycles at mode `0xA0`); direct and default routes retain stock interrupt acknowledgement and DMA, return first-INT1 status `0x22`, bound the longest phase to 209 sectors, and advance through eleven ReadN phases into the emitted MEMORY overlay. RE-04 remains partial at that later loader boundary. The located game loader still cannot be wired to psxport's `cdFileLoad`: that field expects `(dest,lba,size)`, while Toy Story 2's routine is `(path,dest)`. FMV/FMV.BIN remains class-unresolved despite sharing the MEMORY destination; destination alone does not make it code.
-- notes: Reproduce the static/opposite evidence with `python3 tools/verify_cd_command.py --selftest`. Capture the landed answer with `PSXPORT_DEBUG=cdc,cdcw,cdcr,irq PSXPORT_NOAUDIO=1 PSXPORT_NOWINDOW=1 PSXPORT_WATCHDOG=3 PSXPORT_WATCHDOG_BOOT=20 ./run.sh`, then classify it with `python3 tools/verify_cd_command.py --trace <log> --expect bounded --expect-int1-status 0x22`. The exact serviced phase sequence is `16x1, 18x1, 12717x1, 12505x1, 12715x2, 12506x209, 316x1, 317x31, 317x31, 1746x1, 1748x79`. `scratch/logs/re04-cdc-3418-live.log` and `scratch/logs/re04-cdc-3418-default.log` are the local final captures; the old runaway baseline is `scratch/logs/re04-cdc-irq-live.log`. Resolved issue #9 owns the symptom and root cause. FMV/FMV.BIN (510,960 B) remains honestly unresolved: 3.2% code-plausible/no base fit leans data, but 68 `jr $ra` words prevent a pure-data claim.
+- gap: The generic following-sector timing defect is resolved and FMV's class is now proven by post-load execution, not destination alone. RE-04 remains partial because the located game loader still cannot be wired to psxport's incompatible `cdFileLoad` field: Toy Story 2 uses `(path,dest)`, while that seam expects `(dest,lba,size)`. The current live boundary is no longer CD; it is shared BIOS `A0:0x25` inside FMV.
+- notes: Reproduce the static/opposite CD evidence with `python3 tools/verify_cd_command.py --selftest`. The exact serviced phase sequence remains `16x1, 18x1, 12717x1, 12505x1, 12715x2, 12506x209, 316x1, 317x31, 317x31, 1746x1, 1748x79`; issue #9 owns that resolved timing defect. Reproduce FMV placement/class evidence with `python3 tools/overlay_map.py --check --selftest` and the direct headless port route. Do not special-case BIOS `A0:0x25` in this game.
 
 ## frame
 
@@ -125,6 +129,14 @@ Any later `[recomp-MISS]` continues to grow RE-02 empirically.
 - where: game/core/game_config.cpp (.hle)
 - gap: Nothing located. ZERO MEANS "not RE'd, install nothing": initBuiltins() then registers no handler and says so, and a run that needs one hangs in the guest's real spin loop — the honest signal that the RE is outstanding. The windows are zero too, so register_() refuses everything, because this game has not stated its memory map yet and a window guessed from another game's map is how a handler lands on an unrelated function.
 - notes: Kept as its own step rather than folded into RE-01: in the sibling tree leaving the HLE windows under the crt0 step made a done crt0 imply a done HLE.
+
+### RE-10 — guest VBlank callback and host field delivery
+- status: re-verified
+- deps: RE-01
+- evidence: C013 and I013. Exact Ghidra/decompile chain identifies graphics init 0x8003A650 registering VBlank handler 0x80039D60; that handler increments gp+0x7FC and routes deferred display work through 0x80021028, while 0x8003FA68 waits on both states. A live A/B over the same retail input changed a 30-second no-present watchdog in 0x8003FA68 into non-black legal/ESRB frames at presents 30, 120 and 900, then reached emitted FMV code.
+- where: game/sync/field_clock.h; game/sync/field_clock.cpp; game/core/game_hooks.cpp (installation only)
+- gap: Complete for host field delivery: the game-local runtime arms the field clock only after the guest performs its exact graphics init, then samples pad, invokes the exact registered guest callback, advances SPU and presents once per GPU field. This does not identify RE-05's OT/packet-pool layout or assert gameplay rendering is complete.
+- notes: The derived runtime responsibility is field scheduling and callback delivery, not a GameConfig data field. A future shared GameRuntime refactor should own this lifecycle seam without moving Toy-specific callback identity into shared psxport.
 
 ## assets
 

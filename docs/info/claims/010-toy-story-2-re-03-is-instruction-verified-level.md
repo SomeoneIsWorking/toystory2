@@ -4,9 +4,9 @@ kind: claim
 status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
-depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg
-reconfirmed: 2026-08-21
-verified_at: 2026-08-21 14:20:34
+depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg, game/recomp_seeds.json
+reconfirmed: 2026-08-22 12:40:38
+verified_at: 2026-08-22 12:40:38
 ---
 
 ## Claim
@@ -40,3 +40,7 @@ Post-landing Clang CTest passed 6/6; overlay_map shipping gate and selftest rema
 ## Re-confirmed 2026-08-21
 
 Post-landing Clang CTest 7/7 and overlay_map shipping/selftest gates passed; the game configuration change was documentation-only for the independently verified stock-libcd path.
+
+## Re-confirmed 2026-08-22 12:40:38
+
+2026-08-22 overlay_map.py --check and 10/10 selftest remain green; the strengthened contract additionally exact-verifies FMV load/entry at the same physical slot without changing the established LEVEL/MEMORY placement.

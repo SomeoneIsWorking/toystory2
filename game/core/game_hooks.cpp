@@ -1,6 +1,6 @@
 // game_hooks.cpp — the Toy Story 2 GameHooks vtable: the behaviour the
-// PSX-generic framework calls into. This port owns NO game behaviour natively,
-// so the table is deliberately tiny.
+// PSX-generic framework calls into. This port owns only the measured field-clock
+// lifecycle natively, so the table remains deliberately tiny.
 //
 // There are exactly two kinds of member here, and the distinction is the point
 // (the shape is taken from spider1/game/core/game_hooks.cpp, which learned it
@@ -17,12 +17,13 @@
 //               stub would let a half-wired path look like it worked, which is
 //               the fake-green the porting doc warns about.
 //
-// bootInit is the ONE hook with real work: dispatch the RE-01-verified guest
-// main() once a substrate exists. The guard prevents a future config regression
-// from turning into a dispatch to address zero.
+// bootInit dispatches the RE-01-verified guest main() once a substrate exists;
+// registerOverrides installs RE-10's field clock. The guard prevents a future
+// config regression from turning into a dispatch to address zero.
 #include "cfg.h"
 #include "core.h"
 #include "game_iface.h"
+#include "sync/field_clock.h"
 #include <stdlib.h>
 
 // ── boot
@@ -42,10 +43,7 @@ static void ts2_bootInit(Core *c) {
 // ── neutral
 // ─────────────────────────────────────────────────────────────────────────────────────
 static void ts2_registerOverrides(Game *) {
-  // No native override exists — this port owns no guest function. Nothing to
-  // install is the truthful state, and keeping the hook wired means the wiring
-  // is exercised from the first commit rather than stood up later on top of an
-  // untested seam.
+  ts2_field_clock_install();
 }
 
 static void ts2_renderFadeState(Core *, FadeState *out) {

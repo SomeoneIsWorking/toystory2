@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit and verify Toy Story 2's executable plus its 21 measured code overlays.
+"""Emit and verify Toy Story 2's executable plus its 22 proven code modules.
 
 The executable identity, crt0 group, and overlay destinations are checked by their existing
 production instruments before the shipping psxport emitter runs. Generated code is gitignored and
@@ -38,11 +38,12 @@ CONFIG = ROOT / "game/core/game_config.cpp"
 MEASUREMENT = GENERATED / ".recomp.measurement.json"
 HASH_FILE = GENERATED / ".recomp.hash"
 
-OVERLAY_STEMS = ("BITS__MEMORY",) + tuple(
+OVERLAY_STEMS = ("BITS__MEMORY", "FMV__FMV") + tuple(
     f"LEVEL{level:02d}__LEVEL{part}" for level in range(1, 11) for part in ("", "1")
 )
 OVERLAY_PATHS = {
     "BITS__MEMORY": "BITS/MEMORY.BIN",
+    "FMV__FMV": "FMV/FMV.BIN",
     **{
         f"LEVEL{level:02d}__LEVEL{part}": f"LEVEL{level:02d}/LEVEL{part}.BIN"
         for level in range(1, 11)
@@ -190,9 +191,9 @@ def require_overlays(directory: Path = FLAT) -> tuple[Path, ...]:
             f"missing {', '.join(missing)}"
         )
     total = sum(path.stat().st_size for path in paths)
-    if total != 245_148:
+    if total != 756_108:
         raise Mismatch(
-            f"21-module overlay corpus totals {total} bytes, expected measured 245148"
+            f"22-module corpus totals {total} bytes, expected measured 756108"
         )
     return paths
 
@@ -217,7 +218,7 @@ def verify_maps() -> None:
             )
     print(
         "[recomp] verified executable identity, crt0 group, stock-libcd command ABI, "
-        "and LEVEL/MEMORY slot map"
+        "and LEVEL/MEMORY/FMV slot map"
     )
 
 
@@ -360,7 +361,9 @@ def measure(directory: Path, output: str) -> Outcome:
             f"generated resident range is not [0x{physical_lo:08X},0x{physical_hi:08X})"
         )
     if f"const int g_rec_overlay_count = {len(OVERLAY_STEMS)};" not in table:
-        raise Mismatch("generated overlay table does not contain exactly 21 modules")
+        raise Mismatch(
+            f"generated overlay table does not contain exactly {len(OVERLAY_STEMS)} modules"
+        )
     missing_overlays = [stem for stem in OVERLAY_STEMS if f'"{stem}"' not in table]
     if missing_overlays:
         raise Mismatch("generated overlay table omits " + ", ".join(missing_overlays))
@@ -560,7 +563,7 @@ def selftest() -> bool:
         except Refused:
             passed += 1
             print(
-                "PASS negative: the 21-module denominator detects one omitted overlay"
+                "PASS negative: the 22-module denominator detects one omitted module"
             )
     print(f"SELFTEST {passed}/5")
     return passed == 5

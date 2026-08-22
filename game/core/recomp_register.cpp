@@ -5,7 +5,7 @@
 //
 // Its explicit no-substrate branch compiles in the seam-check target. The real
 // branch is built only after tools/recomp_substrate.py has identity-checked and
-// emitted the executable plus all 21 RE-03-verified code modules.
+// emitted the executable plus all 22 RE-03-verified code modules.
 //
 // When the substrate lands, this becomes the shape
 // spider1/game/core/recomp_register.cpp has: a designated-initialiser

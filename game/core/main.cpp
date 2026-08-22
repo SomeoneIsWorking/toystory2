@@ -36,10 +36,10 @@ extern void ts2_install_recomp();      // game/core/recomp_register.cpp
 // hand-off does; the framework's stub stage is unused.
 //
 // THE ENGINE IS NOT ALL IN THIS FILE, WHICH IS THIS PORT'S DEFINING STRUCTURAL
-// FACT: 21 code overlays on the disc hold 29.1% of the game's code-bearing
-// bytes (docs/info/claims/002-*). RE-03 proves their slots; emitting them and
-// the resident executable and 21 modules are emitted by RE-02, not this file — but do not read "load the boot exe and
-// go" as "the boot exe is the game".
+// FACT: the original 21 plain overlays hold 29.1% of the measured code-bearing
+// bytes, and FMV/FMV.BIN is a 22nd entered code module (C014). RE-03 proves
+// their two physical slots; RE-02 emits the resident executable and all 22
+// modules. Do not read "load the boot exe and go" as "the boot exe is the game".
 static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
 static const char *kDiscExePath = "\\SLUS_008.93";
 

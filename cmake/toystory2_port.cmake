@@ -28,6 +28,7 @@ set(SEAM_SRC
   game/core/game_hooks.cpp
   game/core/main.cpp
   game/core/recomp_register.cpp
+  game/sync/field_clock.cpp
 )
 add_library(toystory2_seam OBJECT ${SEAM_SRC})
 set_target_properties(toystory2_seam PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)

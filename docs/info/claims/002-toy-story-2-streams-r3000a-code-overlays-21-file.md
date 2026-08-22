@@ -1,12 +1,13 @@
 ---
 id: C002
 kind: claim
-status: holds
+status: falsified
 created: 2026-08-12
 tags: overlays,structure
 depends: tools/code_scan.py, tools/base_fit.py
 reconfirmed: 2026-08-21
 verified_at: 2026-08-21 03:46:38
+falsified_on: 2026-08-22
 ---
 
 ## Claim
@@ -24,3 +25,9 @@ a Ghidra decompile of the loader showing the LEVEL*.BIN files are interpreted da
 ## Re-confirmed 2026-08-21
 
 Post-landing base_fit selftest re-derived the 21-overlay code corpus and rejected all 155 asset/decoy files.
+
+## FALSIFIED 2026-08-22
+
+Retail call flow proves FMV/FMV.BIN is a 22nd entered code module: 0x8003EEAC loads it at 0x800D5D20 and 0x8003EEC4 immediately calls 0x800D6628=file+0x908; live boot reached that entry with FMV bytes resident.
+
+> Anything that cited this claim as proof must be re-checked. Grep the repo for it.

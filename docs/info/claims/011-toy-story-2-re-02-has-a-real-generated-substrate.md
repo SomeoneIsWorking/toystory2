@@ -1,12 +1,13 @@
 ---
 id: C011
 kind: claim
-status: holds
+status: falsified
 created: 2026-08-21
 tags: recomp,boot,overlays
 depends: tools/recomp_substrate.py#measure, tools/compare_recomp_boundary.py#check, game/recomp_seeds.json, game/core/recomp_register.cpp#kTs2Recomp, tests/toystory2_recomp_boundary.cpp#capture_boundary
 reconfirmed: 2026-08-21
 verified_at: 2026-08-21 14:16:16
+falsified_on: 2026-08-22
 ---
 
 ## Claim
@@ -47,3 +48,9 @@ phases, return first-INT1 status `0x22`, preserve stock acknowledgement/DMA, and
 `0x800D9704`/`0x800D95C4` through resident caller `0x8003FA68`. No Toy DMA requires controller-zero
 fill. CTest passes 7/7, including the 5/5 substrate selftest, 2/2 generated/oracle compare, 6/6 CD verifier,
 Clang format and clang-tidy policy gates.
+
+## FALSIFIED 2026-08-22
+
+The current substrate denominator is now 22 modules, not 21: FMV/FMV.BIN is emitted with live-proven entry 0x800D6628 and the boot proceeds beyond the former MEMORY wait to BIOS A0:0x25 inside FMV code.
+
+> Anything that cited this claim as proof must be re-checked. Grep the repo for it.

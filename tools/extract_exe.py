@@ -17,7 +17,7 @@ which of the two images is the right one.
 
 There is deliberately NO recompilation step here: extraction has one responsibility. The authoritative
 consumer is tools/recomp_substrate.py, which rechecks this identity, RE-01 and RE-03 before driving the
-shipping emitter over the exact 21-module corpus.
+shipping emitter over the exact 22-module corpus.
 
 WHAT THE HEADER PRINT IS FOR: entry pc0 / t_addr / t_size / initial sp / gp0 are independently checked
 by tools/verify_crt0.py against game/core/game_config.cpp. They are printed here too because this tool's

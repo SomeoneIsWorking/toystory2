@@ -51,21 +51,21 @@ engine-family layer. If a second Traveller's Tales title is ever ported, measure
 — the lineage claim that all 7 TT PSX games share one engine rests on one person's README and **could
 not be measured**, because no other TT disc is available on this machine.
 
-## THE STATE OF THIS PORT: the generated substrate reaches the CD boundary
+## THE STATE OF THIS PORT: headless boot renders through the ESRB card and enters FMV
 
-RE-00 supplies Ghidra; RE-01 proves crt0 and RE-03 proves the LEVEL/MEMORY slots. RE-02 now emits the
-identity-checked executable and all 21 measured modules, links the real port, and matches the independent
+RE-00 supplies Ghidra; RE-01 proves crt0 and RE-03 proves the LEVEL/MEMORY/FMV slots. RE-02 now emits the
+identity-checked executable and all 22 proven modules, links the real port, and matches the independent
 CPU oracle 34/34 at first call `0x80089344`. The first live miss proved IRQ resume `0x80088A2C`; it is
-wired solely as a mid-function re-entry, which the framework emits and dispatches directly. Boot now
-opens the disc and reaches stock-libcd command/completion sender `0x80091DE4`. RE-04 now proves its
-four-argument ABI and the `0x80091310` interrupt-result state machine. Pinned psxport receives and DMA
-services sectors but exposed 21,164 contiguous sectors where mode `0xA0` permits at most 3,451 during
-the conservative watchdog window. Pinned psxport `3418a79b` supplies deterministic guest-cycle
-pacing and gives the real opposite answer on both direct and default routes: eleven ReadN phases, 358 total sectors and a
-209-sector longest phase, then the BITS/MEMORY overlay path at `0x800D9704`/`0x800D95C4` through
-resident caller `0x8003FA68`. Its first INT1 returns measured Read|Standby status `0x22`; no recompilation miss
-occurs. Callable CD addresses remain zero because the raw controller is the path under test; the
-incompatible `(path,dest)` loader is still not wired to a `(dest,lba,size)` seam.
+wired solely as a mid-function re-entry. RE-04 proves the stock-libcd command/result path and deterministic
+CDC pacing. The next blocker was not geometry: the guest registered VBlank callback `0x80039D60`, but
+the game seam never delivered a host field, leaving wait `0x8003FA68` permanently dependent on a
+counter that could not advance. RE-10's game-local field clock now arms after exact graphics init
+`0x8003A650`, invokes the registered callback at the GPU field rate, advances pad/audio and presents.
+The same retail headless route changed from zero presents and a 30-second watchdog to non-black legal
+and ESRB frames at presents 30, 120 and 900. It then loads `FMV/FMV.BIN` at `0x800D5D20`, enters
+`0x800D6628` (file+`0x908`) and executes emitted FMV code until the next honest shared-runtime boundary:
+unimplemented BIOS `A0:0x25`. The per-frame OT/packet-pool layout remains unmeasured; visible boot cards
+do not imply gameplay rendering is complete.
 
 What DOES build today, and is the gate for a change to the seam:
 
@@ -77,7 +77,7 @@ ctest --test-dir build --output-on-failure                              # launch
 ```
 
 `run.sh` is the stable launcher interface and delegates all provisioning/build policy to `tools/run.py`.
-Its zero-argument route provisions the 21-module corpus, refreshes generated code only when inputs
+Its zero-argument route provisions the 22-module corpus, refreshes generated code only when inputs
 change, builds with Clang, and launches `toystory2_port`.
 
 **`external/psxport` is NOT a submodule any more (2026-08-16)** — it is a symlink to the workspace's
@@ -105,12 +105,15 @@ you disproved, and any tool you caught lying. `tools/re_frontier.py` is a SHIM o
 
 ## THE DEFINING STRUCTURAL FACT: this game STREAMS CODE OVERLAYS
 
-**Measured 2026-08-12, four independent signals** (`docs/info/claims/002-*`, `003-*`). **21 files** hold
+**Measured 2026-08-12, four independent signals** (`docs/info/claims/002-*`, `003-*`). **21 plain
+overlay files** hold
 245,148 bytes of R3000A code = **29.1% of the game's code-bearing bytes** — `LEVEL01..LEVEL10/LEVEL.BIN`
 and `LEVEL1.BIN` (20), plus `BITS/MEMORY.BIN`. (A 22nd overlay-NAMED file, `LEVEL00/LEVEL.BIN`, is a
 4-byte placeholder holding no code — not scannable, not counted.) Of 274 disc files scanned, exactly 23
-contain a `jr $ra`: those 21, the boot executable, and **`FMV/FMV.BIN` (68 of them) — whose class is
-UNRESOLVED** (`docs/re-frontier.md` RE-04) and which is therefore **not** part of the overlay set. Every
+contain a `jr $ra`: those 21, the boot executable, and `FMV/FMV.BIN` (68 of them). Later instruction
+and live evidence resolved the last file: the executable loads it at `0x800D5D20` and immediately calls
+`0x800D6628`, offset `0x908` into the freshly loaded bytes. It is therefore a 22nd loaded code module,
+although its mixed 510,960-byte file must not be folded wholesale into the old code-byte percentage. Every
 file other than those 23 has zero. 67.9–83.4% of each `LEVEL*.BIN` module's `j`/`jal` targets land inside
 the boot exe's `.text` (the boot exe's own figure is 91.5%), so these modules are statically linked
 against the engine and call into it — that range covers the 16 `LEVEL*.BIN` files with any `j`/`jal`; the

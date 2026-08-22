@@ -62,6 +62,7 @@ EXE = os.environ.get("TS2_EXE") or os.path.join(
 CONFIG = os.path.join(ROOT, "game", "core", "game_config.cpp")
 SEEDS = os.path.join(ROOT, "game", "recomp_seeds.json")
 MEMORY = os.path.join(FLAT, "BITS__MEMORY.BIN")
+FMV = os.path.join(FLAT, "FMV__FMV.BIN")
 
 # The RE'd anchor. NOT derived — see the module docstring.
 LOADER = 0x80082508
@@ -73,6 +74,9 @@ LEVEL_PATH_CALL = 0x8003DCC0
 LEVEL_WRAPPER_CALL = 0x8003DCCC
 LEVEL_LOADER_CALL = 0x8003DEAC
 MEMORY_LOADER_CALL = 0x8003DB50
+FMV_LOADER_CALL = 0x8003EEAC
+FMV_ENTRY_CALL = 0x8003EEC4
+FMV_ENTRY = 0x800D6628
 LEVEL_PATTERN = r"LEVEL(?:0[1-9]|10)__LEVEL[0-3]?"
 WINDOW = 24  # instructions before the call that the fold looks back over
 A0, A1, SP, GP = 4, 5, 29, 28
@@ -371,7 +375,7 @@ def memory_prefix_pointers(data):
 
 
 def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
-    """Prove the fixed-slot call chain and MEMORY.BIN placement contract from retail bytes."""
+    """Prove the fixed-slot, MEMORY.BIN, and FMV.BIN contracts from retail bytes."""
     evidence = []
     evidence.append(
         require_call(exe, LEVEL_PATH_CALL, LEVEL_PATH_BUILDER, "level path selection")
@@ -383,6 +387,8 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         require_call(exe, LEVEL_LOADER_CALL, LOADER, "fixed-destination level load")
     )
     evidence.append(require_call(exe, MEMORY_LOADER_CALL, LOADER, "MEMORY.BIN load"))
+    evidence.append(require_call(exe, FMV_LOADER_CALL, LOADER, "FMV.BIN load"))
+    evidence.append(require_call(exe, FMV_ENTRY_CALL, FMV_ENTRY, "FMV.BIN entry"))
     if count_calls(exe, LEVEL_CALLER, LEVEL_CALLER_END, LEVEL_PATH_BUILDER) != 1:
         raise ValueError("level caller does not invoke the path builder exactly once")
     if count_calls(exe, LEVEL_CALLER, LEVEL_CALLER_END, LEVEL_LOAD_WRAPPER) != 1:
@@ -410,6 +416,7 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
 
     overlay_rows = [row for row in rows if row[0] == LEVEL_LOADER_CALL]
     memory_rows = [row for row in rows if row[0] == MEMORY_LOADER_CALL]
+    fmv_rows = [row for row in rows if row[0] == FMV_LOADER_CALL]
     if len(overlay_rows) != 1 or overlay_rows[0][3] != slot:
         raise ValueError(
             "fixed-slot wrapper did not pass the derived level slot to the loader"
@@ -422,6 +429,12 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         raise ValueError(
             "MEMORY.BIN call did not pass the derived next slot to the loader"
         )
+    if (
+        len(fmv_rows) != 1
+        or fmv_rows[0][2] != "fmv\\fmv.bin"
+        or fmv_rows[0][3] != next_base
+    ):
+        raise ValueError("FMV.BIN call did not pass the shared slot to the loader")
 
     # There is a real path through both loads: DAT_800A16A8 == 0 takes the MEMORY branch, and flags
     # == 0 falls through the independent bit-1 test into the one level load. Exact words are checked
@@ -444,6 +457,21 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         )
     memory_size = len(memory_data)
     memory_end = next_base + memory_size
+
+    fmv_data = open(FMV, "rb").read() if os.path.isfile(FMV) else None
+    if fmv_data is None:
+        raise SystemExit(
+            f"REFUSED: no {FMV}; extract the retail corpus before verifying FMV.BIN"
+        )
+    fmv_size = len(fmv_data)
+    fmv_entry_offset = FMV_ENTRY - next_base
+    if not (0 <= fmv_entry_offset <= fmv_size - 4):
+        raise ValueError("FMV entry does not land inside the loader-derived file placement")
+    fmv_entry_word = struct.unpack_from("<I", fmv_data, fmv_entry_offset)[0]
+    if fmv_entry_word != 0x27BDFF10:  # addiu sp,sp,-0xf0
+        raise ValueError(
+            f"FMV entry word changed: 0x{fmv_entry_word:08X} != 0x27BDFF10"
+        )
 
     # The arena update is decoded, not fitted: s0 starts at 0x800D5D28, the return value is masked by
     # a materialised 0x000FFFFC, and addiu v1,s0,0x80 forms the bias. The exact ALU words prove which
@@ -570,6 +598,11 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         % len(pointers),
         file=out,
     )
+    print(
+        "   FMV.BIN slot     [0x%08X,0x%08X)  %d retail bytes; entry 0x%08X = file+0x%X"
+        % (next_base, next_base + fmv_size, fmv_size, FMV_ENTRY, fmv_entry_offset),
+        file=out,
+    )
     return {
         "level_base": slot,
         "memory_base": next_base,
@@ -579,6 +612,10 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         "memory_size_mask": memory_size_mask,
         "memory_frontier_bias": memory_frontier_bias,
         "memory_prefix_pointers": pointers,
+        "fmv_size": fmv_size,
+        "fmv_entry": FMV_ENTRY,
+        "fmv_entry_offset": fmv_entry_offset,
+        "fmv_entry_word": fmv_entry_word,
         "selectors": selected,
     }
 
@@ -936,7 +973,10 @@ def shipping_comparison(measured, out=sys.stdout):
     )
     checks.append(("game_config overlaySlots LEVEL+MEMORY", 1 if slots_ok else 0, 1))
 
-    expected_bases = {"BITS__MEMORY": "0x{:08X}".format(measured["memory_base"])}
+    expected_bases = {
+        "BITS__MEMORY": "0x{:08X}".format(measured["memory_base"]),
+        "FMV__FMV": "0x{:08X}".format(measured["memory_base"]),
+    }
     expected_patterns = [[LEVEL_PATTERN, "0x{:08X}".format(measured["level_base"])]]
     checks.append(
         ("recomp_seeds overlay_bases", seeds.get("overlay_bases"), expected_bases)
@@ -971,8 +1011,8 @@ GATE_NEXT = (
     0x800D5D20  # the destination bounding the slot from above, from site 0x8003DB50
 )
 # MEASURED, and not what a first reading expects: FOUR sites load 0x800D5D20 and they name TWO files —
-# BITS/MEMORY.BIN and FMV/FMV.BIN share this buffer. That is evidence about FMV.BIN's class (RE-04), so
-# it is anchored here rather than smoothed into "the MEMORY.BIN destination".
+# BITS/MEMORY.BIN and FMV/FMV.BIN share this buffer. The post-load call to file+0x908 proves FMV.BIN
+# contains entered code; it is anchored here rather than smoothed into "the MEMORY.BIN destination".
 GATE_NEXT_SITES = 4
 GATE_NEXT_PATHS = ["bits\\memory.bin", "fmv\\fmv.bin"]
 GATE_SITES = 13  # call sites of 0x80082508
@@ -1096,19 +1136,26 @@ def selftest():
 
     contract = loader_contract(exe, rows, slot, nxt, io.StringIO())
     ck(
-        "POSITIVE: retail call flow and MEMORY.BIN bytes prove the complete two-slot contract",
+        "POSITIVE: retail call flow and module bytes prove the complete two-slot contract",
         contract["level_base"] == GATE_SLOT
         and contract["memory_base"] == GATE_NEXT
         and contract["memory_size"] == 63312
         and contract["memory_frontier"] == 0x800E54F8
-        and len(contract["memory_prefix_pointers"]) == 11,
-        "LEVEL 0x%08X; MEMORY [0x%08X,0x%08X), frontier 0x%08X; %d absolute prefix words"
+        and len(contract["memory_prefix_pointers"]) == 11
+        and contract["fmv_size"] == 510960
+        and contract["fmv_entry"] == FMV_ENTRY
+        and contract["fmv_entry_offset"] == 0x908
+        and contract["fmv_entry_word"] == 0x27BDFF10,
+        "LEVEL 0x%08X; MEMORY [0x%08X,0x%08X), frontier 0x%08X; %d absolute prefix words; "
+        "FMV entry 0x%08X=file+0x%X"
         % (
             contract["level_base"],
             contract["memory_base"],
             contract["memory_end"],
             contract["memory_frontier"],
             len(contract["memory_prefix_pointers"]),
+            contract["fmv_entry"],
+            contract["fmv_entry_offset"],
         ),
     )
 

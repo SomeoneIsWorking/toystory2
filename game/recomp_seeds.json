@@ -7,7 +7,7 @@
 // own file. JSON with `//` comments; every key is optional.
 //
 // RE-03 now proves the overlay map. RE-02's executable seed lists remain empty because they grow from
-// real runtime dispatch misses, but the recompiler can place all 21 known code overlays without a
+// real runtime dispatch misses, but the recompiler can place all 22 known code modules without a
 // guessed base.
 //
 // Two rules, both learned the hard way elsewhere in this workspace:
@@ -22,16 +22,18 @@
 //     test and router lookup is then silently wrong. A missing base is a HARD ERROR in emit.py,
 //     deliberately — that refusal is the feature.
 //
-// THIS GAME HAS 21 CODE OVERLAYS (docs/info/claims/002-*): LEVEL01..LEVEL10/{LEVEL,LEVEL1}.BIN (20)
-// plus BITS/MEMORY.BIN, 245,148 bytes = 29.1% of the game's code-bearing bytes. LEVEL00/LEVEL.BIN bears
-// an overlay name but is a 4-byte placeholder holding no code, and FMV/FMV.BIN — the only other file on
-// the disc with a `jr $ra` — is class-UNRESOLVED (RE-04), NOT a known overlay. The earlier 0x800D1000
-// result was a 4 KiB-granular FIT, not a load address. RE-03 follows the actual caller: every LEVEL
-// filename goes through one wrapper that passes 0x800D12C0, while BITS/MEMORY.BIN is loaded earlier in
-// the same function at 0x800D5D20. The 19,040-byte gap between those co-resident slots equals the
-// largest LEVEL module, and five LEVEL+LEVEL1 pairs exceed it, proving the four level names select
-// alternative contents of ONE slot. `python3 tools/overlay_map.py --check` re-derives and gates both
-// this file and game/core/game_config.cpp.
+// THIS GAME HAS 22 PROVEN CODE MODULES: LEVEL01..LEVEL10/{LEVEL,LEVEL1}.BIN (20), BITS/MEMORY.BIN,
+// and FMV/FMV.BIN. The original plain-overlay census measured 245,148 bytes across the first 21;
+// FMV/FMV.BIN is 510,960 bytes and mixes code/data, so its whole size is not folded into that old
+// code-byte percentage. LEVEL00/LEVEL.BIN is a 4-byte placeholder holding no code. The earlier
+// 0x800D1000 result was a 4 KiB-granular FIT, not a load address. RE-03 follows the actual callers:
+// every LEVEL filename goes through one wrapper that passes 0x800D12C0; BITS/MEMORY.BIN and
+// FMV/FMV.BIN are mutually exclusive contents loaded at 0x800D5D20. The FMV loader at 0x8003EEAC is
+// followed immediately by a call to 0x800D6628, offset 0x908 inside those freshly loaded retail
+// bytes. A live boot independently reached that exact target after the ESRB card. The 19,040-byte gap
+// between the LEVEL and MEMORY/FMV slots equals the largest LEVEL module, and five LEVEL+LEVEL1 pairs
+// exceed it, proving the four level names select alternative contents of ONE slot.
+// `python3 tools/overlay_map.py --check` re-derives and gates this file and the physical slot map.
 //
 // Grow the main list empirically: boot, and when the substrate fail-fasts with `[recomp-MISS]
 // 0x800xxxxx`, add that address WITH a note on how it is reached. An address with no rationale is
@@ -51,10 +53,16 @@
     "0x80088A2C"
   ],
   "overlay_bases": {
-    "BITS__MEMORY": "0x800D5D20"
+    "BITS__MEMORY": "0x800D5D20",
+    "FMV__FMV": "0x800D5D20"
   },
   "overlay_base_patterns": [
     ["LEVEL(?:0[1-9]|10)__LEVEL[0-3]?", "0x800D12C0"]
   ],
-  "overlay_seeds": {}
+  "overlay_seeds": {
+    // FUN_8003EE4C loads fmv\\fmv.bin at 0x800D5D20, then its jal at 0x8003EEC4 enters
+    // 0x800D6628. The live port reached the same target with FMV bytes resident after present 900.
+    // This computed overlay entry is invisible to the emitter's per-module direct-call scan.
+    "FMV__FMV": ["0x800D6628"]
+  }
 }
