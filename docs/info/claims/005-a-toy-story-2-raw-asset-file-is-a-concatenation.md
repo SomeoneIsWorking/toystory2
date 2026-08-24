@@ -1,10 +1,14 @@
 ---
 id: C005
 kind: claim
-status: holds
+status: falsified
 created: 2026-08-12
 tags: assets,formats
 depends: tools/raw_probe.py
+reconfirmed: 2026-08-12
+verified_at: 2026-08-12
+falsified_on: 2026-08-24
+superseded_by: C019
 ---
 
 ## Claim
@@ -18,3 +22,7 @@ MEASURED 2026-08-12 by tools/raw_probe.py. THE HYPOTHESIS was formed by combinin
 ## What would falsify it
 
 any TS2 .RAW file producing a packed-CRC mismatch under this layout; or an attempted decompression failing under BOTH RNC method 1 and method 2, which would mean the header identification is coincidental and the codec is something else; or the unpacked CRC failing once a decompressor exists
+
+## FALSIFIED 2026-08-24 — exactly by the third listed falsifier
+
+The framing half SURVIVES (14-byte header layout, sentinel, packedCRC@0x0A — re-verified since inside C019's 813/813 sweep), but the CODEC half is dead: attempted decompression per this claim's own falsifier shows RNC fails (new AND old variants, both methods; see C019 for the full measurement) and the payloads decode with TT's own `DecompressRAW` LZ scheme instead. The CONSEQUENCE line above ("any standard RNC decompressor works after synthesising the magic") was wrong, and juanmv94's "RNC PRO-PACK" attribution — one of the two sources this hypothesis was built from — does not describe this container. Superseded by `docs/info/claims/019-*`.

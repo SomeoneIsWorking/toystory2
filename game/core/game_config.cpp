@@ -280,17 +280,14 @@ static const GameConfig g_ts2_cfg = {
     // an unrelated function.
     .hle = {},
 
-    // --- rendering policy ------------------------------------------------- 1
-    // while the guest draws --
-    // The renderer clears to black on the principle "show ONLY what a native
-    // producer submitted". That
-    // is right for a port whose native renderer owns the frame and WRONG for
-    // one still running the
-    // guest's drawing code, where an upload into the display area IS visible on
-    // real hardware: logo
-    // screens, FMV stills and menus that are uploads with no primitives render
-    // black. This port owns no
-    // drawing at all, so the guest's uploads must survive.
+    // --- adapter input: guest VRAM owns the picture throughout the verified route --
+    // The renderer no longer reads this compatibility field. ToyStory2Runtime is legacy-backed,
+    // so LegacyGameRuntimeAdapter projects it through the required per-Game
+    // GameRuntime::guestVramIsPicture policy. The current port has no native producer: its measured
+    // field loop invokes the guest VBlank callback and presents guest DrawOTag/VRAM output, including
+    // upload-only screens. Therefore the one verified answer is true. If native picture ownership is
+    // added later, migrate the title to a derived dynamic policy rather than changing this static
+    // adapter input or adding a second copy of the same rule.
     .preserveVramBackdrop = 1,
 
     // --- memory card ------------------------------------------------------

@@ -4,6 +4,9 @@ kind: claim
 status: holds
 created: 2026-08-12
 tags: prior-art,supply
+reconfirmed: 2026-08-24 20:18:50
+verified_at: 2026-08-24 20:18:50
+depends: docs/references.md
 ---
 
 ## Claim
@@ -17,3 +20,7 @@ SEARCHED 2026-08-12, and the method is recorded so the next session does not rep
 ## What would falsify it
 
 any decomp of SLUS_008.93 surfacing anywhere — a private tree, a non-GitHub host, or a project named after something nobody guessed. The negative cannot see those by construction, so it must always be reported as not found and never as does not exist
+
+## Re-confirmed 2026-08-24 20:18:50
+
+Search refreshed 2026-08-24 across GitHub, decomp indexes, exact SLUS_008.93, and PlayStation-specific terms: no public PSX-executable decomp was found. The newly found 0danny/toy2-decomp explicitly targets PC and supplies no PSX symbols or matching build. This remains a dated search negative.

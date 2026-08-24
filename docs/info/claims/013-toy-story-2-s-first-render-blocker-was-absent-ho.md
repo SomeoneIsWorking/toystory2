@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,vblank,host-turn,recomp
 depends: game/core/toystory2_runtime.cpp#ToyStory2Runtime, game/sync/field_clock.cpp#ts2_field_clock_install, tools/overlay_map.py#loader_contract
-reconfirmed: 2026-08-22 17:53:35
-verified_at: 2026-08-22 17:53:35
+reconfirmed: 2026-08-22 19:46:56
+verified_at: 2026-08-22 19:46:56
 ---
 
 ## Claim
@@ -28,3 +28,13 @@ an independent reference trace shows the title does not invoke 0x80039D60 once p
 ## Re-confirmed 2026-08-22 17:53:35
 
 Reverified after ToyStory2Runtime inheritance move: current Clang build passes cpp_policy and the bounded retail headless route advances through visible-card field delivery, emitted FMV, all 15 first-path A0:0x25 parser calls and into the renderer boundary at 0x800104E4; this is impossible on the old zero-host-turn path.
+
+## Re-confirmed 2026-08-22 19:25:14
+
+After replacing Toy Story 2's lower-level field presenter with the neutral shared presentation fence,
+the same exact graphics-init/VBlank seam still delivered 3,210 retail fields, rendered legal/ESRB and
+the stable title, and reached 0x800D12C4; the field mechanism remains the proven prerequisite.
+
+## Re-confirmed 2026-08-22 19:46:56
+
+Pinned d2266f4b Clang build and bounded retail run deliver the exact registered field callback through the neutral presentation fence for 3,210 commits, render stable title captures at presents 2,100/2,400, and reach 0x800D12C4; CTest passes 10/10.

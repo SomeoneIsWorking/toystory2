@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: recomp,overlays,fmv,boot
 depends: tools/recomp_substrate.py#measure, tools/overlay_map.py#loader_contract, game/recomp_seeds.json
-reconfirmed: 2026-08-22 19:15:01
-verified_at: 2026-08-22 19:15:01
+reconfirmed: 2026-08-22 19:46:56
+verified_at: 2026-08-22 19:46:56
 ---
 
 ## Claim
@@ -15,7 +15,7 @@ Toy Story 2 has 22 proven loaded code modules: the original 21-module 245,148-by
 
 ## Evidence
 
-overlay_map.py --check exact-calls 0x8003EEAC->0x80082508 and 0x8003EEC4->0x800D6628, verifies retail FMV file+0x908 begins 0x27BDFF10, and passes 10/10 selftest. recomp_substrate emits 365 roots->889 resident functions and 222 roots->308 functions across 22 modules/75 TUs. A bounded retail run executes generated FMV functions, completes the A0:0x25 path parser and reaches the resident renderer before the later RenderQueue boundary.
+overlay_map.py --check exact-calls 0x8003EEAC->0x80082508 and 0x8003EEC4->0x800D6628, verifies retail FMV file+0x908 begins 0x27BDFF10, and passes 10/10 selftest. recomp_substrate emits 365 roots->889 resident functions and 22 modules->309 functions across 75 TUs after the proven LEVEL01 entry was added. A bounded retail run executes generated FMV functions, completes the A0:0x25 path parser, renders the stable title, executes LEVEL01 entry 0x800D12C4 and reaches the later model-pointer boundary in C021.
 
 ## What would falsify it
 
@@ -32,3 +32,20 @@ Pinned/build-checked psxport 57a17a14; recomp_substrate retained the exact 365-t
 ## Re-confirmed 2026-08-22 19:15:01
 
 Post-commit 3b17154 fresh emission still covers 365 resident roots and 222 roots across 22 modules; authoritative CTest passes 9/9.
+
+## Re-confirmed 2026-08-22 19:27:36
+
+The current 22-module substrate retains exact 365-to-889 resident and 222-to-308 overlay denominators; the bounded retail route executes FMV, renders the stable title, loads LEVEL01 in the proven arena and reaches target 0x800D12C4.
+
+## Re-confirmed 2026-08-22 19:46:56
+
+Pinned d2266f4b recomp_substrate selftest retains the exact 365-to-889 resident and 222-to-308 overlay denominators across 22 modules/75 TUs; bounded retail executes FMV, renders the title, loads LEVEL01 and reaches 0x800D12C4; CTest passes 10/10.
+
+## Re-confirmed 2026-08-24 after the proven LEVEL01 entry seed
+
+The shipping substrate selftest passes 5/5 and emits 365 resident roots to 889 functions plus 22
+modules to 309 functions. The one-function module increase is the classified `0x800D12C4` entry in
+C020, not a changed module census. The Clang build and complete 11/11 CTest gate pass.
+
+Current recorded framework pin bc8c8897 retains the same 22-module / 309-function emission under an
+explicit Clang build and complete 11/11 CTest gate; no runtime launch was used for the pin migration.

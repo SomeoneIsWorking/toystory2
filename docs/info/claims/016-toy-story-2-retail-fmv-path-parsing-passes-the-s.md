@@ -5,17 +5,20 @@ status: holds
 created: 2026-08-22
 tags: boot,fmv,bios,recomp
 depends: tools/verify_fmv_boundary.py#analyze, psxport.pin
-reconfirmed: 2026-08-22 19:15:01
-verified_at: 2026-08-22 19:15:01
+reconfirmed: 2026-08-22 19:46:56
+verified_at: 2026-08-22 19:46:56
 ---
 
 ## Claim
 
-Toy Story 2 retail FMV path parsing passes the shared BIOS A0:0x25 boundary on pinned psxport 57a17a14
+Toy Story 2 retail FMV path parsing passes the shared BIOS A0:0x25 boundary; current pin bc8c8897 retains that shared implementation
 
 ## Evidence
 
-Exact SLUS/FMV words prove 0x800D8E48 -> Sony leaf 0x80082E5C -> A0:0x25 and byte store at 0x800D8E50. tools/verify_fmv_boundary.py mutation controls reject changed call/leaf/store classes. A clean Clang build against pinned 57a17a14 produced a bounded real-disc trace with the exact 15 normalized bytes of toy2fmv\\acti.str and 62 same-caller calls, no old unimplemented fatal, then passed the independently classified renderer table to the RenderQueue boundary.
+Exact SLUS/FMV words prove 0x800D8E48 -> Sony leaf 0x80082E5C -> A0:0x25 and byte store at
+0x800D8E50. tools/verify_fmv_boundary.py mutation controls reject changed call/leaf/store classes. A
+the last clean Clang/runtime gate against d2266f4b produced a bounded real-disc trace with the exact 15
+normalized bytes of toy2fmv\\acti.str and 62 same-caller calls, with no old unimplemented fatal.
 
 ## What would falsify it
 
@@ -28,3 +31,13 @@ Pinned/build-checked psxport 57a17a14; bounded retail gate again observed the ex
 ## Re-confirmed 2026-08-22 19:15:01
 
 Post-commit 3b17154 live FMV gate on pinned psxport 57a17a14 observes the exact 15 normalized path bytes and 62 same-caller A0:25 calls before reaching the later renderer boundary.
+
+## Re-confirmed 2026-08-22 19:46:56
+
+Pinned d2266f4b live FMV gate observes the exact 15 normalized first-path bytes and 62 same-caller BIOS A0:0x25 calls; the final Clang consumer CTest passes 10/10.
+
+## Re-confirmed 2026-08-24 at current pin bc8c8897
+
+The shared toupper implementation remains present; an explicit Clang port/oracle build and complete
+11/11 CTest gate pass. No runtime launch was performed for this pin migration, so the exact live path
+sequence remains evidence from d2266f4b rather than being relabelled as a bc8c8897 observation.

@@ -63,6 +63,23 @@
     // FUN_8003EE4C loads fmv\\fmv.bin at 0x800D5D20, then its jal at 0x8003EEC4 enters
     // 0x800D6628. The live port reached the same target with FMV bytes resident after present 900.
     // This computed overlay entry is invisible to the emitter's per-module direct-call scan.
-    "FMV__FMV": ["0x800D6628"]
+    "FMV__FMV": ["0x800D6628"],
+    // RE-14, classified 2026-08-24: TRUE OVERLAY FUNCTION ENTRY, not a re-entry or a corrupted
+    // pointer. The live fail-fast reached rec_dispatch(0x800D12C4) while LEVEL01__LEVEL was
+    // resident at 0x800D12C0. Evidence for the class, all reproducible:
+    //   * every LEVEL module's first word is a small sequential module ID (LEVEL01..LEVEL10 ->
+    //     4..13, the LEVEL1 variants -> 0x14..0x22), so +4 is where module content starts;
+    //   * LEVEL01/LEVEL.BIN offset +4 is a genuine MIPS entry prologue: addiu sp,sp,-0x18
+    //     (27BDFFE8), sw ra,0x14(sp), sw s0,0x10(sp), lw s0,0(a0);
+    //   * the miss RAM dump holds the loaded file BYTE-IDENTICAL at 0x800D12C0 for its first
+    //     13,336 of 13,868 bytes — the pointer is not corrupted;
+    //   * five 0x98-byte RAM descriptors (0x800C30F8..0x800C3358) store 0x800D12C4 as their
+    //     entry value, and the boot text carries a DIRECT jal 0x800D12C4 guarded by a state
+    //     compare (emitted shard_3.c L_80029FB0 path);
+    //   * a mid-function/coroutine re-entry would sit at a body-interior resume address, not
+    //     at image start + one header word, and would not be a direct static jal target.
+    // Like FMV__FMV above, the entry is invisible to the emitter's per-module direct-call scan
+    // because the jal lives in the boot exe and all LEVEL modules share the one slot.
+    "LEVEL01__LEVEL": ["0x800D12C4"]
   }
 }

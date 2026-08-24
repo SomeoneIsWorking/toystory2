@@ -38,10 +38,14 @@ void field_turn(Core *core) {
   // field accumulator and performs deferred buffer work when requested.
   rec_dispatch(core, kGuestVBlankHandler);
 
-  // This port still runs the guest-owned frame loop, so its field boundary is
-  // also responsible for advancing the audio sink and presenting guest VRAM.
+  // This port still runs the guest-owned frame loop, so this is also its frame
+  // fence. DrawOTag flushes capture into the shared presenter until commit
+  // presents and rotates that capture; calling the lower-level gpu_present
+  // here left every field in one unbounded capture. One callback is one
+  // measured display field. Toy Story 2 does not opt into temporal decoration.
   core->game->spu_audio.frame();
-  gpu_present(core);
+  core->game->presentation.commit(core, 1);
+  lucent::debug("ts2-field", "committed captured guest field");
 }
 
 void graphics_init(Core *core) {

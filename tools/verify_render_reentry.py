@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import overlay_map
+import verify_frame_fence
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EXE = Path(overlay_map.EXE)
@@ -111,7 +112,9 @@ def generated_table_cases(sources: list[str]) -> list[int]:
         )
     if candidates[0] != EXPECTED_SLOTS:
         got = ", ".join(f"0x{address:08X}" for address in candidates[0])
-        raise Refused(f"generated resident switch is not the exact 32-slot table: {got}")
+        raise Refused(
+            f"generated resident switch is not the exact 32-slot table: {got}"
+        )
     return candidates[0]
 
 
@@ -144,13 +147,26 @@ def check_fixed_log(log: str) -> None:
             raise Refused(f"trace still misses internal table slot 0x{target:08X}")
     if "unimplemented BIOS A0:0x25" in log:
         raise Refused("trace still contains the retired shared BIOS A0:0x25 boundary")
-    if "Fps60::rq_capture OVERFLOW" not in log:
+    if "Fps60::rq_capture OVERFLOW" in log:
+        raise Refused("trace regressed to the retired uncommitted-frame overflow")
+    if verify_frame_fence.RETIRED_MISS in log:
         raise Refused(
-            "trace has no post-renderer boundary proving the table path advanced"
+            "trace regressed to the retired LEVEL01-entry miss — the seeded overlay "
+            "entry did not execute"
+        )
+    if verify_frame_fence.NEXT_BOUNDARY_EVIDENCE not in log:
+        raise Refused(
+            "trace has no post-renderer boundary proving the table path and the "
+            f"seeded entry advanced (expected '{verify_frame_fence.NEXT_BOUNDARY_EVIDENCE}')"
+        )
+    if verify_frame_fence.NEXT_BOUNDARY_FUNCTION not in log:
+        raise Refused(
+            "trace reaches the current address without the classified model-pointer "
+            "consumer"
         )
     print(
         "[render-reentry] live route passed observed and sibling slots without a recomp miss; "
-        "next boundary is RenderQueue capture capacity"
+        f"next boundary evidence '{verify_frame_fence.NEXT_BOUNDARY_EVIDENCE}'"
     )
 
 
@@ -162,9 +178,7 @@ def selftest(exe_path: Path, generated_dir: Path) -> int:
         check(exe_path, DEFAULT_SEEDS, generated_dir)
         tests.append(("positive exact generated table without a split seed", True))
     except (OSError, Refused, json.JSONDecodeError):
-        tests.append(
-            ("positive exact generated table without a split seed", False)
-        )
+        tests.append(("positive exact generated table without a split seed", False))
 
     exact_generated = (
         "switch (c->r[9]) { "
@@ -217,12 +231,23 @@ def selftest(exe_path: Path, generated_dir: Path) -> int:
     struct.pack_into("<I", mutated, PAYLOAD + REENTRY + 4 - EXE_BASE, 0xAFBF001C)
     expect("negative non-table delay slot", bytes(mutated), False)
 
-    exact_log = "[fps60:error] Fps60::rq_capture OVERFLOW: bounded control\n"
+    exact_log = (
+        f"{verify_frame_fence.NEXT_BOUNDARY_FUNCTION}\n"
+        f"{verify_frame_fence.NEXT_BOUNDARY_EVIDENCE}\n"
+    )
     try:
         check_fixed_log(exact_log)
         tests.append(("positive post-table live boundary", True))
     except Refused:
         tests.append(("positive post-table live boundary", False))
+    try:
+        check_fixed_log(
+            exact_log
+            + "[hle:warn] [recomp-MISS 0] no recompiled fn for 0x800D12C4\n"
+        )
+        tests.append(("negative retired LEVEL01-entry miss", False))
+    except Refused:
+        tests.append(("negative retired LEVEL01-entry miss", True))
     for target, name in (
         (REENTRY, "negative old first-slot miss"),
         (SIBLING_REENTRY, "negative sibling-slot miss"),
@@ -235,6 +260,22 @@ def selftest(exe_path: Path, generated_dir: Path) -> int:
             tests.append((name, False))
         except Refused:
             tests.append((name, True))
+    try:
+        check_fixed_log(
+            exact_log + "[fps60:error] Fps60::rq_capture OVERFLOW: bounded control\n"
+        )
+        tests.append(("negative uncommitted-frame overflow", False))
+    except Refused:
+        tests.append(("negative uncommitted-frame overflow", True))
+    try:
+        check_fixed_log(
+            exact_log.replace(
+                "last-fn-entered=0x800426E0", "last-fn-entered=0x800426DC"
+            )
+        )
+        tests.append(("negative current fault through wrong consumer", False))
+    except Refused:
+        tests.append(("negative current fault through wrong consumer", True))
 
     for name, passed in tests:
         print(f"[selftest] {'PASS' if passed else 'FAIL'} {name}")

@@ -4,7 +4,7 @@ kind: claim
 status: holds
 created: 2026-08-22
 tags: architecture,runtime
-depends: game/core/toystory2_runtime.cpp#ToyStory2Runtime, game/core/main.cpp#main
+depends: game/core/toystory2_runtime.cpp#ToyStory2Runtime, game/core/toystory2_runtime.h#ToyStory2Runtime, game/core/game_config.cpp#legacy::measuredConfig, game/core/main.cpp#main
 ---
 
 ## Claim
@@ -17,4 +17,14 @@ Clang build compiled seam, port and oracle boundary against psxport 7f5d3f13; CT
 
 ## What would falsify it
 
-a shipping path invokes legacy GameHooks bootInit/registerOverrides again, Core lacks the installed derived runtime, or the same retail boot no longer reaches the established FMV boundary
+a shipping path invokes legacy GameHooks bootInit/registerOverrides again, Core lacks the installed derived runtime, the title is treated as a direct runtime while it still derives `LegacyGameRuntimeAdapter`, guest-VRAM ownership bypasses that adapter without a measured second ownership state, or the same retail boot no longer reaches the established FMV boundary
+
+## Re-confirmed 2026-08-24 against psxport bc8c8897
+
+Toy Story 2 is explicitly LEGACY-BACKED, not direct: `ToyStory2Runtime final` derives
+`LegacyGameRuntimeAdapter`, whose new required `guestVramIsPicture(const Game&)` implementation is the
+sole projection of `measuredConfig.preserveVramBackdrop`. The verified route has one ownership answer:
+true, because the title still has no native producer and its field loop presents guest VBlank,
+DrawOTag and upload-only VRAM content. No redundant title override was added. An explicit Clang build
+of the port and oracle boundary plus the complete 11/11 CTest gate passed against fetchable framework
+commit `bc8c8897`; no runtime launch was used for this API migration.

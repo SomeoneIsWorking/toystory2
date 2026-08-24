@@ -28,7 +28,8 @@ loops to the same dispatcher, and then fail-fasts on slot 0x800104E4 under the p
 The generic fix landed in psxport `57a17a14`. It folds both `lui+addiu` and `lui+ori` immediate
 bases, derives the exact case count from a contiguous low-bit index mask, rejects unaligned targets,
 and emits all 32 targets as local labels. Toy Story 2 now pins and builds that commit. With the
-diagnostic seed removed, the shipping verifier finds exactly the 32 retail slots, its 10/10 positive
-and negative controls pass, and a bounded real-disc run has no miss at either 0x8001040C or
-0x800104E4 before reaching the independent RenderQueue capture-capacity boundary. No game renderer
-workaround or per-slot seeds remain.
+diagnostic seed removed, the shipping verifier finds exactly the 32 retail slots, its current 13/13
+positive and negative controls pass, and a bounded real-disc run has no miss at either 0x8001040C or
+0x800104E4 before passing the resolved frame fence and LEVEL01 entry to C021's model-pointer
+boundary. No game
+renderer workaround or per-slot seeds remain.

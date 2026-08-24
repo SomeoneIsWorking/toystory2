@@ -19,7 +19,7 @@ intended behaviour of the real target being reproduced.
 Statuses: ✅ re-verified · 🟡 re-partial (honest gap) · 🔬 in-progress · ⛔ hack (debt, must remove) ·
 ⬜ todo · ➖ skip-by-design · ⏸ blocked (computed).
 
-## THE STATE OF THIS PORT, 2026-08-22: headless boot renders through ESRB and enters FMV
+## THE STATE OF THIS PORT, 2026-08-24: headless boot renders the stable retail title
 
 **RE-00 supplies Ghidra and RE-01 proves the complete crt0 group.** `tools/verify_crt0.py` resolves the
 entry decompiler's bad-data truncation from the instruction stream and gates every shipped boot field.
@@ -38,13 +38,16 @@ observe its counter or deferred-work flag advance. The game-local field clock no
 registered callback at the GPU rate. Live headless A/B changes zero presents plus a 30-second watchdog
 into non-black legal/ESRB frames at presents 30, 120 and 900. Boot then loads FMV/FMV.BIN at
 `0x800D5D20`, calls file+`0x908` (`0x800D6628`) and executes emitted FMV code. Pinned psxport
-`57a17a14` carries A0:0x25 and generic lowering of the resident renderer's internal 32-way computed
-jump table. The retail parser completes its first path, both formerly missing renderer slots execute,
-and the next measured boundary is RenderQueue capture capacity.
+`d2266f4b` first carried A0:0x25 and generic lowering of the resident renderer's internal 32-way
+computed jump table; current pin `bc8c8897` retains both under the full Clang/static gate. The last
+live retail trace completes its first path, both formerly missing renderer slots execute,
+and RE-13 closes the title-owned frame fence: the field callback commits the shared captured queue
+once per display field instead of bypassing it through the lower-level presenter. RE-14 proves and
+seeds LEVEL01 entry `0x800D12C4`; the real route now reaches RE-16's invalid model-pointer consumer.
 
 **What IS otherwise measured is the DISC, not a game implementation.** The executable's identity, the
 existence and byte count of the original 21 plain overlays, the now-proven 22nd FMV code module, the old coarse fitted base, the PSY-Q cohort, and the
-`.RAW` container's framing — all in `docs/info/claims/`, each with its falsifier. C009 fills the crt0
+`.RAW` container's framing and codec — all in `docs/info/claims/`, each with its falsifier. C009 fills the crt0
 group and C010 fills the overlay map; the remaining disc measurements do not fill shipping fields.
 
 **RE-00 now stands up Ghidra on `SLUS_008.93`.** This game still has **no
@@ -54,10 +57,11 @@ longer blocks the first code RE. The sibling ports could locate a value in a ref
 it; this port must find it first. Budget accordingly: this is a materially harder starting position than `vagrant` (CC0
 `rood-reverse`, ~62% matched) or `megamanx4` (AGPL `sozud/mmx4`, byte-identical target).
 
-The next concrete boundary is RenderQueue capture capacity. Exact retail bytes classify targets
-`0x8001040C` and `0x800104E4` as internal trampolines inside function `0x800100E4`, and the landed
-generic lowering executes both without a Toy-specific renderer workaround. RE-05's OT/packet-pool
-layout remains independently TODO; visible boot cards do not close it.
+RE-14 classified and seeded `0x800D12C4` as LEVEL01's true entry. The live route now reaches RE-16:
+resident model consumer `0x800426E0` dereferences `0xEDA4F893`, a value formed from payload halfwords
+selected through the model-package table. The access is not hardware; the still-open question is
+which producer left the slot stale, overwritten, unrelocated, or indexed incorrectly. RE-05's
+OT/packet-pool layout remains independently TODO; visible boot/title frames do not close it.
 
 ## tooling
 
@@ -82,15 +86,15 @@ layout remains independently TODO; visible boot cards do not close it.
 ### RE-02 — recompiler seed set for SLUS_008.93
 - status: re-partial
 - deps: RE-01, RE-03
-- evidence: C014, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 22 proven modules / 756,108 file bytes: 365 binary-rooted resident seeds -> 889 functions and 222 roots -> 308 functions across 22 modules / 75 generated TUs. The old C011 denominator is falsified, not silently edited. tools/compare_recomp_boundary.py executes generated crt0 and the independent Mednafen CPU oracle to first jal 0x80089344: 34/34 state fields agree with a forced named mismatch. IRQ resume 0x80088A2C remains solely main_reentry. FMV entry 0x800D6628 is an overlay seed backed by exact post-load call flow and a live generated stack. The obsolete renderer diagnostic seed was removed because it split the function the generic emitter must analyze.
+- evidence: C014, I010 and I011. tools/recomp_substrate.py identity-checks SLUS_008.93, re-runs the RE-01/RE-03 shipping gates, and drives the shipping emitter over 22 proven modules / 756,108 file bytes: 365 binary-rooted resident seeds -> 889 functions and 22 modules -> 309 functions across 75 generated TUs. The old C011 denominator is falsified, not silently edited. tools/compare_recomp_boundary.py executes generated crt0 and the independent Mednafen CPU oracle to first jal 0x80089344: 34/34 state fields agree with a forced named mismatch. IRQ resume 0x80088A2C remains solely main_reentry. FMV entry 0x800D6628 and LEVEL01 entry 0x800D12C4 are overlay seeds backed by exact load/call evidence. The obsolete renderer diagnostic seed was removed because it split the function the generic emitter must analyze.
 - where: tools/recomp_substrate.py; tools/compare_recomp_boundary.py; tests/toystory2_recomp_boundary.cpp; game/recomp_seeds.json; game/core/recomp_register.cpp; generated/ is gitignored
-- gap: Seed completeness remains empirical. Pinned psxport 57a17a14 passes the FMV parser and the resident renderer's exact 32-way internal table without a game seed. RenderQueue capture capacity is the next measured execution boundary.
+- gap: Seed completeness remains empirical. Last live psxport d2266f4b passes the FMV parser, the resident renderer's exact 32-way internal table and the title frame fence without a game seed, then executes the proven LEVEL01 entry. Current pin bc8c8897 passes the complete Clang/static gate without a runtime launch. The next boundary is RE-16's model-pointer producer divergence.
 - notes: Never copy another game's seeds. A foreign address can split a real function at an arbitrary offset while emission still succeeds. Reproduce the committed evidence with `python3 tools/recomp_substrate.py --selftest`, build `toystory2_recomp_boundary`, then run `python3 tools/compare_recomp_boundary.py --selftest --oracle build/psxport_build/tools/oracle/oracle_trace --runner scratch/bin/toystory2_recomp_boundary`.
 
 ### RE-11 — FMV ISO-9660 path parser and shared BIOS toupper
 - status: re-verified
 - deps: RE-02, RE-03, RE-10
-- evidence: C016, resolved issue #13 and scratch/decomp/re11-fmv-parser.c: retail FMV 0x800D8E48 calls executable Sony leaf 0x80082E5C; that leaf selects A0:0x25, and return 0x800D8E50 stores v0 as the normalized path byte. Pinned psxport 57a17a14 implements shared toupper. A clean Clang rebuild and bounded retail gate observe the exact 15 normalized bytes of `toy2fmv\acti.str` plus 62 same-caller calls, then pass the resident renderer table to the later RenderQueue boundary.
+- evidence: C016, resolved issue #13 and scratch/decomp/re11-fmv-parser.c: retail FMV 0x800D8E48 calls executable Sony leaf 0x80082E5C; that leaf selects A0:0x25, and return 0x800D8E50 stores v0 as the normalized path byte. Current pin bc8c8897 retains shared toupper and passes the complete Clang/static gate. The last bounded retail trace on d2266f4b observes the exact 15 normalized bytes of `toy2fmv\acti.str` plus 62 same-caller calls, then passes the renderer and frame fence to 0x800D12C4.
 - where: tools/verify_fmv_boundary.py; shared implementation belongs in psxport bios_libc_string, not this repo
 - gap: Complete for the retail FMV parser boundary. A different executable leaf/table selector, changed path-parser return site, or failure of the landed real-disc gate reopens it.
 - notes: FMV and MEMORY remain alternative contents of RE-03 one arena. The fresh ts2fmv_re11 Ghidra image injects FMV only at the already-proven shared base; it is evidence for this call chain, not a second resident slot.
@@ -98,10 +102,34 @@ layout remains independently TODO; visible boot cards do not close it.
 ### RE-12 — resident renderer computed jump table
 - status: re-verified
 - deps: RE-02, RE-11
-- evidence: C017 and resolved issue #14. Exact retail words build table base 0x800103EC, mask the selector with 31, scale by eight and `jr` (not `jalr`) into 32 consecutive `j`+nop trampolines inside function 0x800100E4. Observed slot 0x8001040C jumps to body label 0x80014838 while preserving outer ra=0x80026568. Pinned psxport 57a17a14 emits the exact ordered 32-slot local switch without a renderer seed. `tools/verify_render_reentry.py --selftest` passes 10/10 classes, including missing-sibling, extra-adjacent-body, split-seed, jalr, prologue, non-table and both former-miss negatives. The bounded retail route advances through 0x8001040C and 0x800104E4 with neither miss to RenderQueue capture capacity.
+- evidence: C017 and resolved issue #14. Exact retail words build table base 0x800103EC, mask the selector with 31, scale by eight and `jr` (not `jalr`) into 32 consecutive `j`+nop trampolines inside function 0x800100E4. Observed slot 0x8001040C jumps to body label 0x80014838 while preserving outer ra=0x80026568. Current pin bc8c8897 emits the exact ordered 32-slot local switch without a renderer seed. `tools/verify_render_reentry.py --selftest` passes 13/13 classes. The last bounded retail route on d2266f4b advances through both slots, LEVEL01 entry 0x800D12C4 and into C021's exact model-pointer boundary.
 - where: tools/verify_render_reentry.py; game/recomp_seeds.json (no renderer table seed); generic fix belongs in psxport's emitter
-- gap: Complete for this table. A changed table construction or case set, a regenerated switch that is not exactly the 32 retail slots, either former dispatch miss, or failure to reach the later RenderQueue boundary reopens it.
+- gap: Complete for this table. A changed table construction or case set, a regenerated switch that is not exactly the 32 retail slots, either former dispatch miss, or failure to reach the later exact C021 boundary reopens it.
 - notes: Absence of a stored RAM pointer was not classification evidence; executable table construction and control-transfer opcodes decide the class.
+
+### RE-13 — guest-owned frame fence and first stable title
+- status: re-verified
+- deps: RE-10, RE-12
+- evidence: C018, I014 and resolved issue #15. The pre-fix retail trace has 6,613 queue flushes, 5,518 explicit re-emits, no commits, maximum flush 1,231, then accumulates 65,337 + 1,210 beyond unchanged RQ_MAX 65,536. `tools/verify_frame_fence.py` rejects a single giant producer as the same class. The title-owned one-field callback now calls the neutral shared `game->presentation.commit(core,1)` fence without opting into a temporal decorator. Pinned psxport d2266f4b retail evidence advances through LEVEL01 for 8,320 commits, maximum flush 1,472, maximum captured field 3,096 and no overflow. Its 960x720 presents 1,500 and 2,100 are stable Toy Story 2 titles; the shipping color-family discriminator rejects real presents 900 and 2,400. Twelve selftest classes exercise both answers, including direct temporal-decorator coupling, lower-level presentation-bypass, wrong-consumer and wrong-address negatives.
+- where: game/sync/field_clock.cpp; tools/verify_frame_fence.py
+- gap: Complete for the guest-loop frame fence and first title. A cap increase, primitive drop, return to raw gpu_present, per-field capture reaching capacity, or title discriminator accepting either real negative reopens it.
+- notes: This is title-owned boundary wiring through the shared one-renderer path, not a title queue size and not a game-local presenter. Generated code remains untouched.
+
+### RE-14 — LEVEL01 target 0x800D12C4
+- status: re-verified
+- deps: RE-03, RE-13
+- evidence: C020. CLASSIFIED TRUE OVERLAY FUNCTION ENTRY and seeded (`game/recomp_seeds.json` overlay_seeds `LEVEL01__LEVEL`). Four independent signals: (1) every LEVEL module's first word is a sequential module ID so +4 is content start; (2) LEVEL01 +4 is a genuine entry prologue (addiu sp,-0x18 / sw ra / sw s0 / lw s0); (3) the miss RAM dump holds the loaded file byte-identical at the slot for 13,336/13,868 bytes — not corruption; (4) boot text carries a direct guarded `jal 0x800D12C4` and five 0x98-stride RAM descriptors store it as their entry value — not a mid-function resume point.
+- where: game/recomp_seeds.json; generated/ov_level01__level_disp.c (module funcs 18->20); tools/verify_frame_fence.py + tools/verify_render_reentry.py updated to the moved boundary
+- gap: none for classification. The route now runs PAST the former fail-fast to a NEW terminal boundary: `[mem:error] FATAL: UNMAPPED RAM read16 @ 0xEDA4F893` reached via func_800426E0<-8002518C<-80025E44<-8002A070<-8007B254, at 8,320 commits (was 2,980 at the old miss), max captured field 3,096 under cap 65,536, title frames measured at presents 1500/2100 with transition/black controls at 900/2400. C021 classifies that address as a model-pointer consumer; its producer provenance remains RE-16.
+- notes: Reproduce with the headless route (`PSXPORT_NOPACE=1 PSXPORT_DEBUG=rqflush,ts2-field PSXPORT_PRESENT_SHOT_AT=900,1500,2100,2400 ./scratch/bin/toystory2_port scratch/bin/toystory2/SLUS_008.93`) and `python3 tools/verify_frame_fence.py --check`.
+
+### RE-16 — the post-seed terminal fault: unmapped read16 @ 0xEDA4F893 via func_800426E0
+- status: re-partial
+- deps: RE-14
+- evidence: C021 and issue #17. After RE-14's seed landed, the live route terminates in `Core::io_read` failing on phys 0x0DA4F893 read by gen_func_800426E0, called from 8002518C <- 80025E44 <- 8002A070 <- 8007B254 <- 8007A9E8. Ghidra resolves 8002518C as the consumer of nested model pointers selected from the package table at 0x800C7268; 800426E0 immediately dereferences that value. Loader 80041A10 writes the table and invokes relocator 800418C0. The final trace's bytes at v0=0x8013B770 contain signed-halfword payload data whose `93 F8 A4 ED` bytes form the wild pointer, while an earlier RAM image shows valid relocated nested pointers in the same model table. The frame-fence gate now requires the exact fault and consumer and rejects each independently changed.
+- where: tools/verify_frame_fence.py; scratch/decomp/re16-pointer-chain.c, re16-model-table-producer.c and re16-model-relocator.c; docs/issues/0017-*
+- gap: Writer provenance remains unknown. Capture the last writer or final RAM image and distinguish stale table after arena reuse, package overwrite, missed relocation on a later load, and wrong object/model index. Do not map or skip 0xEDA4F893 and do not substitute an expected pointer.
+- notes: The hardware-vs-pointer class is closed; the producer that supplied the invalid model pointer is the live frontier.
 
 ## overlays
 
@@ -120,7 +148,7 @@ layout remains independently TODO; visible boot cards do not close it.
 - deps: RE-01
 - evidence: C010/I009 locate the game-level synchronous path loader FUN_80082508(path,dest) and its inner contract FUN_80082608. Ghidra decompile plus exact calls identify stock CdSearchFile 0x80092AE8, CdRead 0x80093AF0 and CdReadSync 0x80093BF4. C012/I012 instruction-derive CdControl/CdCommand 0x80091DE4(cmd,param,result,async), pre-command/CdSync 0x80091898 and the common interrupt-result service 0x80091310. The service maps INT1 to ready state 0x800A0AE5/result 0x800A1978/callback 0x800A0808 and INT2/3/5 to sync state 0x800A0AE4/result 0x800A1970/callback 0x800A0804. Live mode-0xA0 ReadN derives LBA16 from Setloc, acknowledges INT3 then INT1, and DMA3 moves data, proving the command result is serviced. The same trace then delivers 21,164 contiguous sectors against a conservative physical upper bound of 3,451 in its 23-second watchdog denominator.
 - where: tools/verify_cd_command.py; game/core/game_config.cpp (CD fields intentionally zero during the raw-controller A/B); framework CDC fix coordinated outside this repo
-- gap: The generic following-sector timing defect is resolved and FMV's class is now proven by post-load execution, not destination alone. RE-04 remains partial because the located game loader still cannot be wired to psxport's incompatible `cdFileLoad` field: Toy Story 2 uses `(path,dest)`, while that seam expects `(dest,lba,size)`. The current live boundary is no longer CD; it is RenderQueue capture capacity after FMV parsing and the resident renderer table.
+- gap: The generic following-sector timing defect is resolved and FMV's class is now proven by post-load execution, not destination alone. RE-04 remains partial because the located game loader still cannot be wired to psxport's incompatible `cdFileLoad` field: Toy Story 2 uses `(path,dest)`, while that seam expects `(dest,lba,size)`. The current live boundary is no longer CD; it is RE-16's invalid model-pointer producer after the stable title and LEVEL01 entry.
 - notes: Reproduce the static/opposite CD evidence with `python3 tools/verify_cd_command.py --selftest`. The exact serviced phase sequence remains `16x1, 18x1, 12717x1, 12505x1, 12715x2, 12506x209, 316x1, 317x31, 317x31, 1746x1, 1748x79`; issue #9 owns that resolved timing defect. Reproduce FMV placement/class evidence with `python3 tools/overlay_map.py --check --selftest` and the direct headless port route. Do not special-case BIOS `A0:0x25` in this game.
 
 ## frame
@@ -160,12 +188,20 @@ layout remains independently TODO; visible boot cards do not close it.
 ## assets
 
 ### RE-08 — the .RAW container: the RNC ProPack method byte and a working decompressor
-- status: todo
+- status: re-verified
 - deps:
-- evidence: THE FRAMING IS CONFIRMED, the codec is not — docs/info/claims/005. A TS2 .RAW is a concatenation of RNC ProPack chunks whose standard 18-byte header has had its 4-byte magic ('RNC' + method) STRIPPED, leaving 14 bytes (be32 unpackedLen, be32 packedLen, be16 unpackedCRC, be16 packedCRC, u8 leeway, u8 packChunks), terminated by 0xFFFFFFFF. Discriminator was the packed CRC, not the lengths: LEVEL01/LEVEL.RAW reads chunks_scanned=39 crc_ok=39 crc_bad=0, CRC-16/ARC over each payload equalling be16@0x0A exactly, consuming 469,266 of 469,276 bytes and stopping on the sentinel. Instrument: tools/raw_probe.py, --selftest gates four classes and NEGATIVE C (one flipped payload byte -> crc_ok=38 crc_bad=1) proves the CRC check FIRES. Independently cross-confirmed: mouksx/Toy-Story-2-Modding's extracted `1.Andys House/level.raw` is byte-length-identical to our LEVEL01/LEVEL.RAW and its 39 sub-file lengths match our 39 decoded chunk lengths exactly and in order.
-- where: no code yet — the eventual native asset path, and a decompressor for the port to read textures/level data with
-- gap: TWO STATED GAPS, both printed by the instrument on every run. (a) The RNC METHOD byte (1 or 2) is unrecoverable from the stripped header and must be determined by ATTEMPTING decompression, never assumed. (b) The unpackedCRC is unchecked until a decompressor exists, so today's confirmation covers FRAMING only. Both are cheap to close: try both methods and check the unpacked CRC. temisu/ancient (BSD-2-Clause) supports both formats and ships test vectors; docs/references.md records the deliberate decision NOT to vendor it yet and why.
-- notes: This step is unusual in this tree in having real external documentation behind it (docs/references.md) — and equally unusual in that the best-furnished TS2 tool in existence is useless for it, because it targets the PC build's .NGN container which is NOT on this disc (measured: 0 NGN hits over the 300 entries `tools/discdump.py list` returns).
+- evidence: THE METHOD-BYTE QUESTION DISSOLVED BY MEASUREMENT — see docs/info/claims/019 (superseding 005). The framing half of C005 survives (14-byte header: be32 unpackedLen, be32 packedLen, be16 unpackedCRC, be16 packedCRC, u8 leeway, u8 chunkCount; 0xFFFFFFFF sentinel), but the payloads are NOT RNC ProPack in any variant. Attempted decompression per C005's own falsifier, via temisu/ancient's algorithms ported to scratch harnesses: RNC1-new fails 39/39 LEVEL01 chunks, RNC2-new 38/39 (big-endian-word variant identical), RNC1-old/RNC2-old all fail on backward-copy range. The codec that passes is Traveller's Tales' OWN flag-bit LZ scheme — `DecompressRAW` per mateusfavarin/tsr's Ghidra research (MIT) — transcribed faithfully into tools/raw_unpack.py. RESULT: 46/46 .RAW files, **813/813 chunks**, each decoding to exactly unpackedLen with crc16-ARC matching BOTH header fields (be16@0x08 == unpacked CRC on 39/39 LEVEL01 chunks — C005's unchecked blind spot now verified). INDEPENDENT WITNESS: decoded LEVEL01 output byte-matches all 39 mouksx sub-file extractions of the SHA-1-identical level.raw.
+- where: tools/raw_unpack.py (--selftest gates five classes incl. an unpacked-CRC-field negative); instrument docs/info/instruments/015
+- gap: none for the container itself. NEXT LAYER NAMED: each decoded chunk begins with an LE u32 behaving like a command/packet ID (LEVEL01 chunks read 0x0..0x11 across its first ten), the shape of tsr's loader taxonomy (<0x20 texture packets etc.) — TS2's OWN command-ID table and packet structures are UNMEASURED and gate the asset pipeline beyond raw bytes.
+- notes: TRAP recorded in C019: tiny LEVEL01#19 (35->64 B) ALSO decodes under RNC2-new with both CRCs passing AND matching the independent extraction — one chunk can "confirm" RNC2; only the corpus discriminates. The temisu/ancient decision in docs/references.md is updated by this outcome: ancient's decoders were the right thing to TRY and are now measured irrelevant to this container (its SHAPE was used for the falsification harnesses only; nothing vendored). Reproduce with `python3 tools/raw_unpack.py --all` and `python3 tools/raw_unpack.py --selftest`.
+
+### RE-15 — the decoded .RAW packet layer: TS2's command-ID table and per-packet structures
+- status: todo
+- deps: RE-08
+- evidence: RE-08's decoder delivers 813 verified chunk streams; each decoded chunk begins with an LE u32 behaving like a command/packet ID — LEVEL01 chunks 0..9 read 0x0,0x1,0x2,0x3,0x4,0x5,0x8,0xE,0x10,0x11 (`scratch/raw/LEVEL01__LEVEL.unpacked.bin`). tsr's `File_LoadRAW` research gives the SHAPE of such a table for Toy Story Racer (<0x20 texture packets, 0x20..0x26 framebuffer packets, pointer-table ranges, 0x101..0x103 cache packets) but that is ANOTHER GAME'S mapping.
+- where: no code yet; evidence source is the guest loader code in SLUS_008.93 via Ghidra (the consumer of these chunks in-engine), cross-checked against our decoded bytes
+- gap: NOTHING ABOUT TS2'S OWN TABLE IS MEASURED. Do not import TSR's command meanings by ID equality; derive them from this executable's loader and confirm each against our decoded packets before any struct reaches code.
+- notes: The natural instrument is a packet-census tool beside tools/raw_unpack.py that prints per-ID counts/sizes with denominators and refuses unknown IDs loudly rather than skipping them.
 
 ### RE-09 — the scene / collision / model formats: .DAT, TERRAIN.ALL, .ANM
 - status: todo

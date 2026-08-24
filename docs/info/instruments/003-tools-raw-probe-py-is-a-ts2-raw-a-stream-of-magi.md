@@ -7,7 +7,7 @@ created: 2026-08-12
 
 ## Instrument
 
-tools/raw_probe.py — is a TS2 .RAW a stream of magic-stripped RNC ProPack chunks? (the asset container probe)
+tools/raw_probe.py — does a TS2 .RAW follow the measured 14-byte chunk framing? (the asset container probe)
 
 ## Validated by
 
@@ -15,4 +15,13 @@ Validated in BOTH directions on real data 2026-08-12 by --selftest over FOUR cla
 
 ## Known failure modes
 
-FOUND AND FIXED 2026-08-12 (adversarial review, reproduced here before fixing): report() - the CLI path, i.e. the only channel a script or a hook can read - returned 0 whenever crc_bad == 0, REGARDLESS of why the chunk walk stopped. On a 100 KB truncation of LEVEL01/LEVEL.RAW it exited 0 while printing `chunks_scanned=7 crc_ok=7 crc_bad=0 consumed=96550/100000 stopped_because='implausible lengths at 0x17926'` - clean over a walk that never reached the sentinel and left 3,450 bytes unaccounted for, which is exactly the "clean over broken" this tree forbids. The selftest did not catch it because NEGATIVE B asserted on probe()'s internal tuple while the shipped path was report(): THE GATED CLASS AND THE SHIPPED PATH HAD DIVERGED. Fixed by returning non-zero unless the reason is the sentinel, and by asserting every class on report()'s return value (the POSITIVE too, so a stricter report() cannot start rejecting real files). Reverting the sentinel check now makes NEGATIVE B FAIL: "NEGATIVE B (truncated) exited 0 from report() - the CLI reports CLEAN over a walk that never reached a sentinel", exit 1. GENERAL LESSON: assert the gated class through the SHIPPED entry point, or the selftest certifies a function nobody calls.
+FOUND AND FIXED 2026-08-12 (adversarial review, reproduced here before fixing): report() - the CLI path, i.e. the only channel a script or a hook can read - returned 0 whenever crc_bad == 0, REGARDLESS of why the chunk walk stopped. On a 100 KB truncation of LEVEL01/LEVEL.RAW it exited 0 while printing `chunks_scanned=7 crc_ok=7 crc_bad=0 consumed=96550/100000 stopped_because='implausible lengths at 0x17926'` - clean over a walk that never reached the sentinel and left 3,450 bytes unaccounted for, which is exactly the "clean over broken" this tree forbids. The selftest did not catch it because NEGATIVE B asserted on probe()'s internal tuple while the shipped path was report(): THE GATED CLASS AND THE SHIPPED PATH HAD DIVERGED. Fixed by returning non-zero unless the reason is the sentinel, and by asserting every class on report()'s return value (the POSITIVE too, so a stricter report() cannot start rejecting real files). GENERAL LESSON: assert the gated class through the SHIPPED entry point, or the selftest certifies a function nobody calls.
+
+FOUND AND FIXED 2026-08-24 (issue #18): that repair still used `"sentinel" in reason`; the negative
+reason `ran off the end without a sentinel` therefore passed. Both consumers now compare against the
+one exact `SENTINEL_REASON`, and the hermetic decoder control removes only the terminator to exercise
+this exact shape. `raw_probe.py --selftest` now has the same fifth exact-EOF negative through
+`report()`. The earlier truncation happened to stop on `implausible lengths` and could not catch it.
+
+The codec/method and unpacked-CRC blind spots are closed by I015/C019; this instrument deliberately
+continues to own framing and packed CRC only.

@@ -51,7 +51,7 @@ engine-family layer. If a second Traveller's Tales title is ever ported, measure
 — the lineage claim that all 7 TT PSX games share one engine rests on one person's README and **could
 not be measured**, because no other TT disc is available on this machine.
 
-## THE STATE OF THIS PORT: headless boot renders through the ESRB card and enters FMV
+## THE STATE OF THIS PORT: headless boot renders the stable retail title
 
 RE-00 supplies Ghidra; RE-01 proves crt0 and RE-03 proves the LEVEL/MEMORY/FMV slots. RE-02 now emits the
 identity-checked executable and all 22 proven modules, links the real port, and matches the independent
@@ -63,15 +63,31 @@ counter that could not advance. RE-10's game-local field clock now arms after ex
 `0x8003A650`, invokes the registered callback at the GPU field rate, advances pad/audio and presents.
 The same retail headless route changed from zero presents and a 30-second watchdog to non-black legal
 and ESRB frames at presents 30, 120 and 900. It then loads `FMV/FMV.BIN` at `0x800D5D20`, enters
-`0x800D6628` (file+`0x908`) and executes emitted FMV code until the next honest shared-runtime boundary:
-unimplemented BIOS `A0:0x25`. The per-frame OT/packet-pool layout remains unmeasured; visible boot cards
-do not imply gameplay rendering is complete.
+`0x800D6628` (file+`0x908`), completes shared BIOS `A0:0x25` path parsing and traverses the resident
+renderer's exact 32-way internal jump table. The next defect was title-owned boundary wiring, not
+queue capacity: `field_turn` called raw `gpu_present`, so thousands of fields accumulated in one
+captured queue. It now commits once per measured field through the neutral shared presentation fence,
+without opting into temporal decoration. Real A/B records 8,320 commits, maximum captured field
+3,096 under unchanged cap 65,536, and a stable retail title at presents 1,500 and 2,100. RE-14 then
+classified LEVEL01 target `0x800D12C4` as a TRUE overlay
+entry (module-ID header word at +0, entry prologue at +4, byte-identical residency in the miss RAM
+dump, a direct guarded `jal` in boot text plus five descriptor copies storing it) and seeded it; the
+route now terminates at unmapped read16 @ 0xEDA4F893 via func_800426E0 (RE-16). C021 classifies that
+as a model pointer selected through table 0x800C7268, not hardware; the writer that left it stale,
+overwritten, unrelocated, or indexed incorrectly remains open. RE-08 separately closed
+the .RAW container: payloads decode with TT's own DecompressRAW LZ scheme (NOT RNC; C019/I015),
+813/813 corpus chunks verify both CRCs. The per-frame OT/packet-pool layout remains unmeasured; a
+correct title does not imply gameplay rendering is complete.
 
 `game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives
 `LegacyGameRuntimeAdapter` only because generic psxport algorithms still consume the measured
 `GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Boot dispatch and RE-10 field-clock
-installation are runtime overrides; do not add new title behavior to either legacy table. Remove each
-legacy field or callback when a narrow typed runtime interface replaces its last framework reader.
+installation are runtime overrides. Pinned psxport `bc8c8897` also makes guest-VRAM picture ownership
+a required runtime policy: this title remains legacy-backed, so the adapter projects its verified
+immutable answer (`preserveVramBackdrop = 1`) while the current route is wholly guest-rendered. Do not
+duplicate that answer in `ToyStory2Runtime`; replace the adapter projection with a derived dynamic
+policy only when a measured native producer creates a second ownership state. Remove each legacy
+field or callback when a narrow typed runtime interface replaces its last framework reader.
 
 What DOES build today, and is the gate for a change to the seam:
 
@@ -94,8 +110,6 @@ once there, never per-port (`--recursive` aborts on beetle-psx's url-less `deps/
 `sync-submodules.sh` prints "all at recorded gitlinks" over vendors it never reached —
 `external/psxport/docs/workspace/KNOWN-DEFECT-sync-submodules.md`). `CMakeLists.txt` fails with a clear
 message if they are missing in the shared clone.
-url-less path. `CMakeLists.txt` checks both vendors and fails with that exact command; `tools/discdump.py`
-says the same when its build fails.
 
 ## Start here, every task
 

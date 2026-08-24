@@ -2,9 +2,9 @@
 # framework (external/psxport resolves to the shared checkout or a private clone at psxport.pin).
 #
 # The framework (PSX-generic static-recomp substrate + runtime + HW backends + SBS harness + SDL_GPU
-# renderer) is the reusable `psxport` library; this repo adds the game (game/**) and — once it exists —
-# the recompiled SLUS_008.93 substrate (generated/**). Only the Ghidra supply (RE-00) is verified; see
-# docs/re-frontier.md and cmake/toystory2_port.cmake for what does and does not build today.
+# renderer) is the reusable `psxport` library; this repo adds the game (game/**) and the generated
+# recompiled SLUS_008.93 substrate (generated/**, provisioned and never tracked). See
+# docs/re-frontier.md and cmake/toystory2_port.cmake for the current verified boundary.
 #
 # AND THERE IS NO DECOMP OF THIS GAME (docs/references.md), so there is no symbol map and no function
 # boundaries to start from — every address this port will ever hold comes out of Ghidra on this
@@ -111,6 +111,14 @@ if(BUILD_TESTING)
   add_test(
     NAME verify_render_reentry_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_render_reentry.py --selftest
+  )
+  add_test(
+    NAME verify_frame_fence_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_frame_fence.py --selftest
+  )
+  add_test(
+    NAME raw_unpack_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_unpack.py --selftest
   )
   if(TARGET toystory2_recomp_boundary)
     add_test(
