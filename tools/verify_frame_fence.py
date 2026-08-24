@@ -35,12 +35,10 @@ DEFAULT_NEGATIVE_SHOTS = (
     ROOT / "scratch" / "screenshots" / "present_900.ppm",
     ROOT / "scratch" / "screenshots" / "present_2400.ppm",
 )
-# RE-14 landed 2026-08-24: the former fail-fast at LEVEL01's entry 0x800D12C4 is classified
-# (true overlay entry) and seeded, so the live route no longer stops there. The current
-# next unknown is the terminal unmapped-memory fault the deeper run now reaches. The faulting
-# consumer is now classified as the model-pointer dereference rooted at 0x800426E0; writer
-# provenance remains open. Requiring both exact facts prevents an unrelated read16 from certifying
-# that the trace advanced through the seeded entry.
+# Historical RE-14 frame-fence witness: this trace predates RE-16's emitter correction and therefore
+# ends at the now-retired model-pointer fault. Requiring its exact terminal address and consumer keeps
+# this frame-fence artifact classifiable without relabelling it as the current frontier. Current
+# reset/continuation evidence belongs to verify_model_table_reset.py.
 NEXT_BOUNDARY_EVIDENCE = (
     "[mem:error] FATAL: UNMAPPED RAM read16 @ 0xEDA4F893 "
     "(phys 0x0DA4F893) — fail-fast."
@@ -179,12 +177,12 @@ def classify_post_fix(log: str, evidence: TraceEvidence, capacity: int) -> None:
         )
     if NEXT_BOUNDARY_EVIDENCE not in log:
         raise Refused(
-            f"post-fix trace does not reach the current boundary evidence "
+            f"post-fix trace does not reach its historical terminal evidence "
             f"'{NEXT_BOUNDARY_EVIDENCE}'"
         )
     if NEXT_BOUNDARY_FUNCTION not in log:
         raise Refused(
-            "post-fix trace reaches the address but not through the classified "
+            "post-fix trace reaches the historical address but not through the classified "
             "model-pointer consumer at 0x800426E0"
         )
     if RETIRED_MISS in log:

@@ -46,8 +46,9 @@ endif()
 if(NOT EXISTS ${CMAKE_SOURCE_DIR}/generated/rec_sources.cmake)
   message(STATUS
     "toystory2_port: NOT configured — generated/rec_sources.cmake is absent, i.e. the recompiled "
-    "substrate is not provisioned in this checkout. Run `python3 tools/recomp_substrate.py --ensure` "
-    "or `./run.sh`; the compile-only `toystory2_seam` remains available without game-derived bytes.")
+    "substrate is not provisioned in this checkout. Run "
+    "`uv run --frozen python tools/recomp_substrate.py --ensure`; the compile-only "
+    "`toystory2_seam` remains available without game-derived bytes.")
   return()
 endif()
 

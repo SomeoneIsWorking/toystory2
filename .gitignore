@@ -2,6 +2,7 @@
 build/
 scratch/
 generated/
+.venv/
 
 # INPUTS come from YOUR OWN disc and are never committed: the disc image and anything extracted from
 # it are Activision's/Traveller's Tales', not this repo's.

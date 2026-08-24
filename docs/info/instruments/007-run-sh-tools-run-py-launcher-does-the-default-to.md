@@ -1,8 +1,9 @@
 ---
 id: I007
 kind: instrument
-status: trusted
+status: DISTRUSTED
 created: 2026-08-21
+distrusted_on: 2026-08-24
 ---
 
 ## Instrument
@@ -26,3 +27,12 @@ before configure/build. CMake independently refuses a non-Clang C++ compiler.
 ## Known failure modes
 
 (none recorded yet)
+
+## DISTRUSTED 2026-08-24
+
+The launcher implementation changed on 2026-08-24 to a frozen-uv bootstrap, CMake-owned compiler
+discovery, `BUILD_TESTING=OFF` product build, and required windowed sink. This session validated its
+injected-host contract but deliberately did not run the game/window, so I007's prior real-path
+validation no longer covers the current implementation.
+
+> Every result this instrument produced is suspect until it is re-validated.

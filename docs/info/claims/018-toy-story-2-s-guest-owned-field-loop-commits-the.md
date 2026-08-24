@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,frame-fence,boot
 depends: game/sync/field_clock.cpp#field_turn, tools/verify_frame_fence.py#classify_post_fix, tools/verify_frame_fence.py#classify_title, psxport.pin
-reconfirmed: 2026-08-24 20:19:57
-verified_at: 2026-08-24 20:19:57
+reconfirmed: 2026-08-25 00:53:16
+verified_at: 2026-08-25 00:53:16
 ---
 
 ## Claim
@@ -42,7 +42,7 @@ CTest gate also pass.
 
 ## Framework-policy migration 2026-08-24
 
-Current pin bc8c8897 moves guest-VRAM picture ownership behind a required runtime policy. This title
+Pin bc8c8897 moved guest-VRAM picture ownership behind a required runtime policy. This title
 is legacy-backed, and its adapter projects the already-verified static true answer while no native
 producer exists. The Clang port/oracle build and 11/11 CTest gate pass. No runtime launch was made, so
 the 8,320-commit visual evidence above remains attributed to d2266f4b.
@@ -50,3 +50,14 @@ the 8,320-commit visual evidence above remains attributed to d2266f4b.
 ## Re-confirmed 2026-08-24 20:19:57
 
 After 456a31f, frame-fence check measured 8320 commits, max captured field 3096, no overflow; direct inspection confirmed coherent title frames 1500/2100 and rejected ESRB/black controls 900/2400.
+
+## Re-confirmed 2026-08-24 at current pin 9c2e3f1c
+
+`verify_frame_fence.py --check` accepted the recorded 8,320-commit post-fix trace and both title
+frames while rejecting the pre-fix overflow and early/transition controls. The explicit Clang
+port/oracle build plus complete 11/11 CTest gate passed. No runtime launch was performed, so this is a
+static/recorded-trace reconfirmation rather than new visual evidence.
+
+## Re-confirmed 2026-08-25 00:53:16
+
+At pushed framework pin aa0b2067, verify_frame_fence.py --check accepted the recorded 8320-commit trace and two title captures while rejecting the overflow and real visual controls; the clean Clang build passed 12/12 CTest. No new game launch or visual observation was made.

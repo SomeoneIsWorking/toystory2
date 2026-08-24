@@ -23,11 +23,6 @@ endif()
 
 project(toystory2 CXX C)
 
-if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  message(FATAL_ERROR "Toy Story 2 C++ must use clang++; got ${CMAKE_CXX_COMPILER_ID} "
-                      "(${CMAKE_CXX_COMPILER}). Reconfigure with CC=clang CXX=clang++.")
-endif()
-
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
@@ -49,7 +44,7 @@ set(PSXPORT_DIR "${CMAKE_SOURCE_DIR}/external/psxport" CACHE PATH
     "psxport framework source directory (default: external/psxport)")
 if(NOT EXISTS "${PSXPORT_DIR}/cmake/psxport.cmake")
   message(FATAL_ERROR "PSXPORT_DIR=${PSXPORT_DIR} has no cmake/psxport.cmake — "
-                      "run `python3 tools/psxport_sync.py --auto`, or point PSXPORT_DIR at a psxport checkout.")
+                      "run `uv run --frozen python tools/psxport_sync.py --auto`, or point PSXPORT_DIR at a psxport checkout.")
 endif()
 message(STATUS "psxport framework: ${PSXPORT_DIR}")
 
@@ -91,7 +86,10 @@ add_subdirectory(${PSXPORT_DIR} ${CMAKE_BINARY_DIR}/psxport_build)
 include(cmake/toystory2_port.cmake)
 
 if(BUILD_TESTING)
-  add_test(NAME run_py_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/run.py --selftest)
+  add_test(
+    NAME launcher_contract
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_run.py
+  )
   add_test(
     NAME verify_crt0_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_crt0.py --selftest
@@ -111,6 +109,10 @@ if(BUILD_TESTING)
   add_test(
     NAME verify_render_reentry_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_render_reentry.py --selftest
+  )
+  add_test(
+    NAME verify_model_table_reset_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_model_table_reset.py --selftest
   )
   add_test(
     NAME verify_frame_fence_selftest

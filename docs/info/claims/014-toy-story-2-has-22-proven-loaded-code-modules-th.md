@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: recomp,overlays,fmv,boot
 depends: tools/recomp_substrate.py#measure, tools/overlay_map.py#loader_contract, game/recomp_seeds.json
-reconfirmed: 2026-08-24 20:19:56
-verified_at: 2026-08-24 20:19:56
+reconfirmed: 2026-08-25 00:53:16
+verified_at: 2026-08-25 00:53:16
 ---
 
 ## Claim
@@ -15,7 +15,7 @@ Toy Story 2 has 22 proven loaded code modules: the original 21-module 245,148-by
 
 ## Evidence
 
-overlay_map.py --check exact-calls 0x8003EEAC->0x80082508 and 0x8003EEC4->0x800D6628, verifies retail FMV file+0x908 begins 0x27BDFF10, and passes 10/10 selftest. recomp_substrate emits 365 roots->889 resident functions and 22 modules->309 functions across 75 TUs after the proven LEVEL01 entry was added. A bounded retail run executes generated FMV functions, completes the A0:0x25 path parser, renders the stable title, executes LEVEL01 entry 0x800D12C4 and reaches the later model-pointer boundary in C021.
+overlay_map.py --check exact-calls 0x8003EEAC->0x80082508 and 0x8003EEC4->0x800D6628, verifies retail FMV file+0x908 begins 0x27BDFF10, and passes 10/10 selftest. recomp_substrate emits 360 roots->884 resident functions and 22 modules->309 functions across 75 TUs after five impossible overlay-data delay-slot roots were removed. A bounded retail run executes generated FMV functions, completes the A0:0x25 path parser, renders the stable title, executes LEVEL01 entry 0x800D12C4, clears/reloads the model slot from C021 and advances through field 10,303 without fatal/miss.
 
 ## What would falsify it
 
@@ -47,9 +47,27 @@ The shipping substrate selftest passes 5/5 and emits 365 resident roots to 889 f
 modules to 309 functions. The one-function module increase is the classified `0x800D12C4` entry in
 C020, not a changed module census. The Clang build and complete 11/11 CTest gate pass.
 
-Current recorded framework pin bc8c8897 retains the same 22-module / 309-function emission under an
-explicit Clang build and complete 11/11 CTest gate; no runtime launch was used for the pin migration.
+Framework pin bc8c8897 retained the same 22-module / 309-function emission under an explicit Clang
+build and complete 11/11 CTest gate; no runtime launch was used for that pin migration.
 
 ## Re-confirmed 2026-08-24 20:19:56
 
 After 456a31f, recomp_substrate --selftest verified the 22-module denominator and emitted 309 overlay functions; omission control failed as required.
+
+## Re-confirmed 2026-08-24 at current pin 9c2e3f1c
+
+The frozen non-launching bootstrap provisioned all 22/22 measured modules and retained 365 resident
+roots to 889 functions plus 223 overlay roots to 309 functions across 75 generated TUs. The explicit
+Clang port/oracle build and complete 11/11 CTest gate passed. No runtime launch was performed, so the
+live FMV/title evidence remains attributed to d2266f4b.
+
+## Re-confirmed 2026-08-25 with RE-16's corrected partition
+
+The 22-module / 309-overlay-function denominator is unchanged. Resident roots/functions change from
+365/889 to 360/884 because five overlay payload coincidences targeted resident branch delay slots,
+which cannot be function entries. The generated reset now retains its delay-slot increment; the real
+route executes FMV/title/LEVEL01 and crosses the retired pointer fault through field 10,303.
+
+## Re-confirmed 2026-08-25 00:53:16
+
+At pushed framework pin aa0b2067, frozen provisioning retained 22/22 modules and regenerated 360 resident roots to 884 functions plus 223 overlay roots to 309 functions across 75 TUs; a clean Clang build linked the port and oracle boundary and passed 12/12 CTest without launching the game.

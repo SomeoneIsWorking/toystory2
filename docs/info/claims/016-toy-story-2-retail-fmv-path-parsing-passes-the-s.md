@@ -5,13 +5,13 @@ status: holds
 created: 2026-08-22
 tags: boot,fmv,bios,recomp
 depends: tools/verify_fmv_boundary.py#analyze, psxport.pin
-reconfirmed: 2026-08-24 20:19:57
-verified_at: 2026-08-24 20:19:57
+reconfirmed: 2026-08-25 00:53:16
+verified_at: 2026-08-25 00:53:16
 ---
 
 ## Claim
 
-Toy Story 2 retail FMV path parsing passes the shared BIOS A0:0x25 boundary; current pin bc8c8897 retains that shared implementation
+Toy Story 2 retail FMV path parsing passes the shared BIOS A0:0x25 boundary; current pin 8611d756 retains that shared implementation
 
 ## Evidence
 
@@ -45,3 +45,13 @@ sequence remains evidence from d2266f4b rather than being relabelled as a bc8c88
 ## Re-confirmed 2026-08-24 20:19:57
 
 After 456a31f at pinned bc8c8897, verify_fmv_boundary --check reproduced the retail call chain through A0:0x25 and normalized path return.
+
+## Re-confirmed 2026-08-24 at current pin 9c2e3f1c
+
+`verify_fmv_boundary.py --check` reproduced the retail call chain through A0:0x25 and its normalized
+path return, and the explicit Clang port/oracle build plus complete 11/11 CTest gate passed. No runtime
+launch was performed, so the exact live path sequence remains evidence from d2266f4b.
+
+## Re-confirmed 2026-08-25 00:53:16
+
+At pushed framework pin aa0b2067, verify_fmv_boundary.py --check reproduced the exact retail call chain through shared BIOS A0:0x25 and the normalized-path return; the clean Clang port/oracle build passed 12/12 CTest without a game launch.

@@ -40,38 +40,49 @@ and RE-03 are re-verified; RE-02 is partial; CD, frame, input, remaining HLE and
 
 ```sh
 git clone <this repo> && cd toystory2
-python3 tools/psxport_sync.py --auto              # shared workspace checkout or private clone at psxport.pin
+uv run --frozen python tools/psxport_sync.py --auto # shared workspace checkout or private clone at psxport.pin
 cp .env.example .env && $EDITOR .env                # point it at your own disc image (.env is gitignored)
-./run.sh                                             # focused provisioning, emit, Clang build, launch
-python3 tools/recomp_substrate.py --selftest         # identity/map/emitter forced-negative gate
-python3 tools/code_scan.py --census scratch/flat --ctrl-exe scratch/bin/toystory2/SLUS_008.93
-python3 tools/base_fit.py --selftest                # re-derive the overlay slot from the bytes
-python3 tools/ram_image.py                          # header-driven 2 MiB image + placement manifest
+./run.sh                                             # focused provisioning, emit, native build, launch
+./run.sh --prepare-only                              # same cold path without opening the game
+uv run --frozen python tools/recomp_substrate.py --selftest
+uv run --frozen python tools/code_scan.py --census scratch/flat --ctrl-exe scratch/bin/toystory2/SLUS_008.93
+uv run --frozen python tools/base_fit.py --selftest # re-derive the overlay slot from the bytes
+uv run --frozen python tools/ram_image.py           # header-driven 2 MiB image + placement manifest
 external/psxport/tools/decomp.sh import scratch/ghidra/ram-boot.bin ts2boot
-python3 tools/re_xref.py --selftest                 # prove Ghidra and the independent fold both answer
-python3 tools/verify_crt0.py --check                # re-derive all shipping RE-01 fields from instructions
-python3 tools/overlay_map.py --check                # re-derive both shipping RE-03 slots from instructions
-python3 tools/verify_cd_command.py --selftest       # derive libcd ABI; force bounded/runaway answers
-cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+uv run --frozen python tools/re_xref.py --selftest  # prove Ghidra and the independent fold both answer
+uv run --frozen python tools/verify_crt0.py --check
+uv run --frozen python tools/overlay_map.py --check
+uv run --frozen python tools/verify_cd_command.py --selftest
+uv run --frozen python tools/verify_model_table_reset.py --selftest
+# Maintainer evidence after a bounded PSXPORT_WWATCH=800C728C,800C7290 run:
+uv run --frozen python tools/verify_model_table_reset.py --check-log scratch/logs/re16-reset-fixed.log
+cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  -DPython3_EXECUTABLE="$(uv run --frozen python -c 'import sys; print(sys.executable)')"
 cmake --build build --target toystory2_port toystory2_recomp_boundary -j"$(nproc)"
-python3 tools/compare_recomp_boundary.py --selftest \
+uv run --frozen python tools/compare_recomp_boundary.py --selftest \
   --oracle build/psxport_build/tools/oracle/oracle_trace \
   --runner scratch/bin/toystory2_recomp_boundary
 ctest --test-dir build --output-on-failure         # launcher, RE-01/03/04, oracle, format, tidy
-python3 tools/re_frontier.py next                   # what to work on
+uv run --frozen python tools/re_frontier.py next   # what to work on
 ```
 
 `tools/psxport_sync.py --auto` is the single framework-resolution path. In the workspace it makes
 `external/psxport` a symlink to the one shared framework checkout; in a standalone clone it creates a
 private checkout at `psxport.pin` and initializes the required framework vendors non-recursively.
 
-`run.sh` is the stable launcher wrapper over `tools/run.py`; Python owns focused provisioning,
-hash-checked regeneration, the Clang build, RmlUi asset resolution, and launching the current product.
+`run.sh` is the stable launcher wrapper over the frozen `uv.lock` environment and `bootstrap.py`;
+Python owns focused provisioning, hash-checked regeneration, CMake build policy, RmlUi asset resolution,
+and the current windowed product. Its isolated `scratch/build/player` tree builds only
+`toystory2_port` with `BUILD_TESTING=OFF`; CTest remains a separate maintainer gate in `build/`.
+Explicit `CC`/`CXX` values pass through unchanged, and otherwise CMake discovers the host toolchain
+without compiler identity filtering.
 
 ## Requirements
 
-cmake ≥ 3.21, pkg-config, SDL3, zlib, zstd, Python 3, Clang/clang++ with clang-format and clang-tidy,
-and Ruff for Python formatting/linting.
+`uv`, cmake ≥ 3.21, `glslc`, pkg-config, SDL3, SDL3_image, FreeType, zlib, zstd, and a C/C++ toolchain
+CMake can use. Maintainer verification separately uses Clang, clang-format, and clang-tidy. The
+launcher names the exact supported Homebrew, APT, DNF, or Windows install command when a packaged
+dependency is absent; it never runs a privileged package manager itself.
 
 ## Legal
 

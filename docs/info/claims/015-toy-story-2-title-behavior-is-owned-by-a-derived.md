@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: architecture,runtime
 depends: game/core/toystory2_runtime.cpp#ToyStory2Runtime, game/core/toystory2_runtime.h#ToyStory2Runtime, game/core/game_config.cpp#legacy::measuredConfig, game/core/main.cpp#main
-reconfirmed: 2026-08-24 20:19:56
-verified_at: 2026-08-24 20:19:56
+reconfirmed: 2026-08-25 00:53:16
+verified_at: 2026-08-25 00:53:16
 ---
 
 ## Claim
@@ -34,3 +34,12 @@ commit `bc8c8897`; no runtime launch was used for this API migration.
 ## Re-confirmed 2026-08-24 20:19:56
 
 After 456a31f, fresh Clang port/oracle build and CTest 11/11 passed with ToyStory2Runtime legacy adapter ownership and no direct temporal coupling.
+
+## Re-confirmed 2026-08-24 at current pin 9c2e3f1c
+
+The product and oracle targets compiled with Clang and the complete 11/11 CTest gate passed with the
+same process-lifetime `ToyStory2Runtime` ownership. No runtime launch was performed.
+
+## Re-confirmed 2026-08-25 00:53:16
+
+At pushed framework pin aa0b2067, a clean Clang build compiled the shipping port and oracle boundary with the same process-lifetime ToyStory2Runtime ownership and passed 12/12 CTest; no game launch was used.

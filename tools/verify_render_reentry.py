@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import overlay_map
-import verify_frame_fence
+import verify_model_table_reset
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EXE = Path(overlay_map.EXE)
@@ -32,6 +32,7 @@ REENTRY = 0x8001040C
 DESTINATION = 0x80014838
 SIBLING_REENTRY = 0x800104E4
 EXPECTED_SLOTS = [TABLE_BASE + slot * 8 for slot in range(32)]
+RETIRED_LEVEL_MISS = "no recompiled fn for 0x800D12C4"
 
 
 class Refused(Exception):
@@ -149,24 +150,18 @@ def check_fixed_log(log: str) -> None:
         raise Refused("trace still contains the retired shared BIOS A0:0x25 boundary")
     if "Fps60::rq_capture OVERFLOW" in log:
         raise Refused("trace regressed to the retired uncommitted-frame overflow")
-    if verify_frame_fence.RETIRED_MISS in log:
+    if RETIRED_LEVEL_MISS in log:
         raise Refused(
             "trace regressed to the retired LEVEL01-entry miss — the seeded overlay "
             "entry did not execute"
         )
-    if verify_frame_fence.NEXT_BOUNDARY_EVIDENCE not in log:
-        raise Refused(
-            "trace has no post-renderer boundary proving the table path and the "
-            f"seeded entry advanced (expected '{verify_frame_fence.NEXT_BOUNDARY_EVIDENCE}')"
-        )
-    if verify_frame_fence.NEXT_BOUNDARY_FUNCTION not in log:
-        raise Refused(
-            "trace reaches the current address without the classified model-pointer "
-            "consumer"
-        )
+    try:
+        evidence = verify_model_table_reset.classify_runtime(log)
+    except verify_model_table_reset.Refused as error:
+        raise Refused(f"post-renderer reset/continuation evidence refused: {error}") from error
     print(
         "[render-reentry] live route passed observed and sibling slots without a recomp miss; "
-        f"next boundary evidence '{verify_frame_fence.NEXT_BOUNDARY_EVIDENCE}'"
+        f"model slot reset/reloaded and continued through field {evidence.last_field}"
     )
 
 
@@ -231,10 +226,7 @@ def selftest(exe_path: Path, generated_dir: Path) -> int:
     struct.pack_into("<I", mutated, PAYLOAD + REENTRY + 4 - EXE_BASE, 0xAFBF001C)
     expect("negative non-table delay slot", bytes(mutated), False)
 
-    exact_log = (
-        f"{verify_frame_fence.NEXT_BOUNDARY_FUNCTION}\n"
-        f"{verify_frame_fence.NEXT_BOUNDARY_EVIDENCE}\n"
-    )
+    exact_log = verify_model_table_reset.synthetic_log()
     try:
         check_fixed_log(exact_log)
         tests.append(("positive post-table live boundary", True))
@@ -242,8 +234,7 @@ def selftest(exe_path: Path, generated_dir: Path) -> int:
         tests.append(("positive post-table live boundary", False))
     try:
         check_fixed_log(
-            exact_log
-            + "[hle:warn] [recomp-MISS 0] no recompiled fn for 0x800D12C4\n"
+            exact_log + "\n[hle:warn] [recomp-MISS 0] no recompiled fn for 0x800D12C4\n"
         )
         tests.append(("negative retired LEVEL01-entry miss", False))
     except Refused:
@@ -255,27 +246,23 @@ def selftest(exe_path: Path, generated_dir: Path) -> int:
         try:
             check_fixed_log(
                 exact_log
-                + f"[hle:warn] [recomp-MISS 0] no recompiled fn for 0x{target:08X}\n"
+                + f"\n[hle:warn] [recomp-MISS 0] no recompiled fn for 0x{target:08X}\n"
             )
             tests.append((name, False))
         except Refused:
             tests.append((name, True))
     try:
         check_fixed_log(
-            exact_log + "[fps60:error] Fps60::rq_capture OVERFLOW: bounded control\n"
+            exact_log + "\n[fps60:error] Fps60::rq_capture OVERFLOW: bounded control\n"
         )
         tests.append(("negative uncommitted-frame overflow", False))
     except Refused:
         tests.append(("negative uncommitted-frame overflow", True))
     try:
-        check_fixed_log(
-            exact_log.replace(
-                "last-fn-entered=0x800426E0", "last-fn-entered=0x800426DC"
-            )
-        )
-        tests.append(("negative current fault through wrong consumer", False))
+        check_fixed_log(exact_log.replace("f10303", "f9000"))
+        tests.append(("negative insufficient post-reset continuation", False))
     except Refused:
-        tests.append(("negative current fault through wrong consumer", True))
+        tests.append(("negative insufficient post-reset continuation", True))
 
     for name, passed in tests:
         print(f"[selftest] {'PASS' if passed else 'FAIL'} {name}")

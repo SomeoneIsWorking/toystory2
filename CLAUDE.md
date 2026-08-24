@@ -72,18 +72,20 @@ without opting into temporal decoration. Real A/B records 8,320 commits, maximum
 classified LEVEL01 target `0x800D12C4` as a TRUE overlay
 entry (module-ID header word at +0, entry prologue at +4, byte-identical residency in the miss RAM
 dump, a direct guarded `jal` in boot text plus five descriptor copies storing it) and seeded it; the
-route now terminates at unmapped read16 @ 0xEDA4F893 via func_800426E0 (RE-16). C021 classifies that
-as a model pointer selected through table 0x800C7268, not hardware; the writer that left it stale,
-overwritten, unrelocated, or indexed incorrectly remains open. RE-08 separately closed
+next route terminated at unmapped read16 @ 0xEDA4F893 via func_800426E0. RE-16 traces that retired
+fault to model-table reset 0x80041F38: jal-shaped mixed FMV data falsely seeded its branch delay slot
+0x80041FFC as a function, removing the loop's pointer increment. The generic partition fix restores
+the 128-entry clear; a real writer watch observes slot 9 clear/reload and the route continues through
+field 10,303 with no fatal or recompilation miss. RE-08 separately closed
 the .RAW container: payloads decode with TT's own DecompressRAW LZ scheme (NOT RNC; C019/I015),
 813/813 corpus chunks verify both CRCs. The per-frame OT/packet-pool layout remains unmeasured; a
-correct title does not imply gameplay rendering is complete.
+correct title and bounded autonomous continuation do not imply interactive gameplay is complete.
 
 `game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives
 `LegacyGameRuntimeAdapter` only because generic psxport algorithms still consume the measured
 `GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Boot dispatch and RE-10 field-clock
-installation are runtime overrides. Pinned psxport `bc8c8897` also makes guest-VRAM picture ownership
-a required runtime policy: this title remains legacy-backed, so the adapter projects its verified
+installation are runtime overrides. Current psxport `8611d756` retains the guest-VRAM
+picture-ownership policy introduced at `bc8c8897`: this title remains legacy-backed, so the adapter projects its verified
 immutable answer (`preserveVramBackdrop = 1`) while the current route is wholly guest-rendered. Do not
 duplicate that answer in `ToyStory2Runtime`; replace the adapter projection with a derived dynamic
 policy only when a measured native producer creates a second ownership state. Remove each legacy
@@ -92,15 +94,22 @@ field or callback when a narrow typed runtime interface replaces its last framew
 What DOES build today, and is the gate for a change to the seam:
 
 ```sh
-python3 tools/psxport_sync.py --auto                                    # resolve external/psxport (symlink to the shared clone, or a private clone at psxport.pin)
-python3 tools/recomp_substrate.py --ensure
-cmake -S . -B build && cmake --build build --target toystory2_port toystory2_recomp_boundary -j$(nproc)
+uv run --frozen python tools/psxport_sync.py --auto                     # resolve external/psxport (symlink to the shared clone, or a private clone at psxport.pin)
+uv run --frozen python tools/recomp_substrate.py --ensure
+cmake -S . -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  -DPython3_EXECUTABLE="$(uv run --frozen python -c 'import sys; print(sys.executable)')"
+cmake --build build --target toystory2_port toystory2_recomp_boundary -j$(nproc)
 ctest --test-dir build --output-on-failure                              # launcher, RE, oracle, format and tidy gates
 ```
 
-`run.sh` is the stable launcher interface and delegates all provisioning/build policy to `tools/run.py`.
-Its zero-argument route provisions the 22-module corpus, refreshes generated code only when inputs
-change, builds with Clang, and launches `toystory2_port`.
+`run.sh` is the stable launcher interface: a slim exec shim into `uv run --frozen python bootstrap.py`.
+`tools/run.py` owns provisioning and build policy. Its zero-argument route provisions the 22-module
+corpus, refreshes generated code only when inputs change, builds only `toystory2_port`, and launches
+the current windowed product from the isolated `scratch/build/player` tree with `BUILD_TESTING=OFF`;
+it never runs CTest or perturbs the maintainer `build/` cache. `--prepare-only` exercises the same cold
+path and stops before launch. The locked interpreter is propagated into every Python subprocess and CMake.
+Explicit `CC`/`CXX` values pass through without compiler-identity checks; when they are absent, CMake
+owns compiler discovery. Maintainer verification still uses Clang as shown above.
 
 **`external/psxport` is NOT a submodule any more (2026-08-16)** — it is a symlink to the workspace's
 shared framework clone when one exists, or a private clone at this repo's `psxport.pin` on a fresh
@@ -114,9 +123,9 @@ message if they are missing in the shared clone.
 ## Start here, every task
 
 ```sh
-python3 tools/re_frontier.py next            # which RE step is actually ready to work
-python3 tools/info.py brief <words>          # what's already proven — and does it still hold?
-python3 tools/catalog.py search <symptom>    # has this been hit (or ruled out) before?
+uv run --frozen python tools/re_frontier.py next         # which RE step is actually ready to work
+uv run --frozen python tools/info.py brief <words>       # what's already proven — and does it still hold?
+uv run --frozen python tools/catalog.py search <symptom> # has this been hit (or ruled out) before?
 ```
 
 Believe these over your instinct about what is known. End the task by writing back what you proved, what
@@ -149,7 +158,7 @@ This is the Vagrant Story answer, not the Mega Man X4 answer, and the consequenc
 - **BITS/MEMORY is simultaneously resident at `0x800D5D20`.** The same call path loads it first, the
   retail loader preserves bytes beyond the exact 63,312-byte file size during sector reads, and its
   caller advances the arena to `0x800E54F8`. Reproduce all shipping comparisons and the forced
-  opposite answer with `python3 tools/overlay_map.py --check` and `--selftest`.
+  opposite answer with `uv run --frozen python tools/overlay_map.py --check` and `--selftest`.
 - **`0x800D1000` remains only the old 4 KiB fit.** It is useful corroboration but is not wired. The
   exact instruction-derived slot is authoritative. RE-02 has now consumed it; pinned psxport
   `3418a79b` advances through the resolved CDC pacing dependency to the later
@@ -165,7 +174,7 @@ base emits a whole module of correctly-decoded instructions at wrong addresses �
 **Never import a PC-, N64- or Dreamcast-derived fact.** TS2 shipped on four platforms and the modding
 community lives on the **PC** build; almost every TS2 tool and note you will find describes a different
 platform's data. `.NGN` — the container the largest TS2 tool in existence is built around — **is not on
-the PSX disc** (measured: 0 `grep -ci NGN` hits over the **300** entries `python3 tools/discdump.py list`
+the PSX disc** (measured: 0 `grep -ci NGN` hits over the **300** entries `uv run --frozen python tools/discdump.py list`
 returns — the tree's own instrument, and its own printed denominator; an earlier "303" was a `wc -l` of
 that listing including its blank line and two `[discdump]` trailer lines). A PC-derived struct offset silently imported
 here would look exactly like a working fact. `docs/references.md` labels every source with its platform.
@@ -176,7 +185,7 @@ faking a step's output before its RE is done; it makes a broken port look finish
 **Provision from your own disc; commit nothing derived from it.** Resolution order (one implementation,
 `tools/resolve_disc.py`): CLI arg > `$PSXPORT_TS2_DISC` > `.env` > a `*.chd` in the repo root. `.env` is
 gitignored because the path is machine-specific; `.env.example` is the template.
-`python3 tools/extract_exe.py` extracts and identity-checks against `docs/info/exe-identity.txt` — note
+`uv run --frozen python tools/extract_exe.py` extracts and identity-checks against `docs/info/exe-identity.txt` — note
 that this expectation is OUR OWN measurement, not an independent witness, because no decomp states a
 target hash for this executable. `tools/go_public.py` audits the full history before this repo is
 published.
