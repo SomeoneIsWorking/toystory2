@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,frame-fence,boot
 depends: game/sync/field_clock.cpp#field_turn, tools/verify_frame_fence.py#classify_post_fix, tools/verify_frame_fence.py#classify_title, psxport.pin
-reconfirmed: 2026-08-22 19:46:57
-verified_at: 2026-08-22 19:46:57
+reconfirmed: 2026-08-24 20:19:57
+verified_at: 2026-08-24 20:19:57
 ---
 
 ## Claim
@@ -46,3 +46,7 @@ Current pin bc8c8897 moves guest-VRAM picture ownership behind a required runtim
 is legacy-backed, and its adapter projects the already-verified static true answer while no native
 producer exists. The Clang port/oracle build and 11/11 CTest gate pass. No runtime launch was made, so
 the 8,320-commit visual evidence above remains attributed to d2266f4b.
+
+## Re-confirmed 2026-08-24 20:19:57
+
+After 456a31f, frame-fence check measured 8320 commits, max captured field 3096, no overflow; direct inspection confirmed coherent title frames 1500/2100 and rejected ESRB/black controls 900/2400.

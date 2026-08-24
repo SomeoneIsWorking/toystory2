@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
 depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg, game/recomp_seeds.json
-reconfirmed: 2026-08-22 19:15:00
-verified_at: 2026-08-22 19:15:00
+reconfirmed: 2026-08-24 20:19:56
+verified_at: 2026-08-24 20:19:56
 ---
 
 ## Claim
@@ -56,3 +56,7 @@ After removing the obsolete resident diagnostic reentry seed, overlay_map shippi
 ## Re-confirmed 2026-08-22 19:15:00
 
 Post-commit 3b17154 authoritative Clang CTest passes 9/9; recomp substrate selftest passes with the renderer split seed removed and the existing 22-module overlay model unchanged.
+
+## Re-confirmed 2026-08-24 20:19:56
+
+After 456a31f, overlay_map --check rederived the single alternative LEVEL slot and MEMORY/FMV placements from the real executable and module corpus.

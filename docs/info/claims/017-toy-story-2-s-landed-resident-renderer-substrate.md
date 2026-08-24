@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,recomp,boot
 depends: tools/verify_render_reentry.py#check_generated, game/recomp_seeds.json, psxport.pin
-reconfirmed: 2026-08-22 19:46:57
-verified_at: 2026-08-22 19:46:57
+reconfirmed: 2026-08-24 20:19:57
+verified_at: 2026-08-24 20:19:57
 ---
 
 ## Claim
@@ -53,3 +53,7 @@ Pinned psxport 57a17a14 still emits the exact 32-slot resident renderer switch w
 ## Re-confirmed 2026-08-22 19:46:57
 
 Pinned d2266f4b exact generated-switch verifier passes 11/11 with all 32 retail slots and no renderer seed; final live trace crosses both former misses and reaches 0x800D12C4; CTest passes 10/10.
+
+## Re-confirmed 2026-08-24 20:19:57
+
+After 456a31f, render-reentry check and its controls verified the exact 32-slot table and advanced route to the classified model-pointer boundary.

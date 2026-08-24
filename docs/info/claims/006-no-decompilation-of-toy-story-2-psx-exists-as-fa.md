@@ -4,8 +4,8 @@ kind: claim
 status: holds
 created: 2026-08-12
 tags: prior-art,supply
-reconfirmed: 2026-08-24 20:18:50
-verified_at: 2026-08-24 20:18:50
+reconfirmed: 2026-08-24 20:19:56
+verified_at: 2026-08-24 20:19:56
 depends: docs/references.md
 ---
 
@@ -24,3 +24,7 @@ any decomp of SLUS_008.93 surfacing anywhere — a private tree, a non-GitHub ho
 ## Re-confirmed 2026-08-24 20:18:50
 
 Search refreshed 2026-08-24 across GitHub, decomp indexes, exact SLUS_008.93, and PlayStation-specific terms: no public PSX-executable decomp was found. The newly found 0danny/toy2-decomp explicitly targets PC and supplies no PSX symbols or matching build. This remains a dated search negative.
+
+## Re-confirmed 2026-08-24 20:19:56
+
+After 456a31f, the 2026-08-24 refresh still finds no public PSX SLUS_008.93 decomp; the newly found 0danny project is explicitly PC-only.

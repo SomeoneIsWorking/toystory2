@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: recomp,overlays,fmv,boot
 depends: tools/recomp_substrate.py#measure, tools/overlay_map.py#loader_contract, game/recomp_seeds.json
-reconfirmed: 2026-08-22 19:46:56
-verified_at: 2026-08-22 19:46:56
+reconfirmed: 2026-08-24 20:19:56
+verified_at: 2026-08-24 20:19:56
 ---
 
 ## Claim
@@ -49,3 +49,7 @@ C020, not a changed module census. The Clang build and complete 11/11 CTest gate
 
 Current recorded framework pin bc8c8897 retains the same 22-module / 309-function emission under an
 explicit Clang build and complete 11/11 CTest gate; no runtime launch was used for the pin migration.
+
+## Re-confirmed 2026-08-24 20:19:56
+
+After 456a31f, recomp_substrate --selftest verified the 22-module denominator and emitted 309 overlay functions; omission control failed as required.

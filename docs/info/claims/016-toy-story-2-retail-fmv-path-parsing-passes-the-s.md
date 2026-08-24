@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: boot,fmv,bios,recomp
 depends: tools/verify_fmv_boundary.py#analyze, psxport.pin
-reconfirmed: 2026-08-22 19:46:56
-verified_at: 2026-08-22 19:46:56
+reconfirmed: 2026-08-24 20:19:57
+verified_at: 2026-08-24 20:19:57
 ---
 
 ## Claim
@@ -41,3 +41,7 @@ Pinned d2266f4b live FMV gate observes the exact 15 normalized first-path bytes 
 The shared toupper implementation remains present; an explicit Clang port/oracle build and complete
 11/11 CTest gate pass. No runtime launch was performed for this pin migration, so the exact live path
 sequence remains evidence from d2266f4b rather than being relabelled as a bc8c8897 observation.
+
+## Re-confirmed 2026-08-24 20:19:57
+
+After 456a31f at pinned bc8c8897, verify_fmv_boundary --check reproduced the retail call chain through A0:0x25 and normalized path return.
