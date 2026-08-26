@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-21
 tags:
 depends: tools/verify_crt0.py#analyze, game/core/game_config.cpp#g_ts2_cfg
-reconfirmed: 2026-08-24 20:19:56
-verified_at: 2026-08-24 20:19:56
+reconfirmed: 2026-08-26 22:44:42
+verified_at: 2026-08-26 22:44:42
 ---
 
 ## Claim
@@ -40,3 +40,7 @@ Post-landing Clang CTest 7/7, crt0 verifier, oracle boundary 34/34, and forced-m
 ## Re-confirmed 2026-08-24 20:19:56
 
 After 456a31f, verify_crt0 --check rederived all 16 shipping constants from real SLUS_008.93 and matched every field.
+
+## Re-confirmed 2026-08-26 22:44:42
+
+Exact dbdb2baf Clang CTest 15/15 passed; verify_crt0 --check rederived and matched all 16 shipping constants, and the product boot audit reported 10 AGREE/0 DISAGREE before gameMain.

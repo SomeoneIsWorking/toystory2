@@ -85,12 +85,17 @@ stride, and the guest decoder independently reads slot 0. The host field turn wr
 Room, opens and leaves the pause menu, and visibly moves the camera under held Right. RE-17 remains
 in progress because replaying the exact 14,276 recorded pad samples reaches gameplay but stays paused
 at the later captures; issue #20 owns that determinism defect. The per-frame OT/packet-pool layout
-also remains unmeasured.
+also remains unmeasured. RE-07 is now partial rather than empty: retail graphics init `0x8003A650`
+calls SetGeomOffset `0x80083CD4` and SetGeomScreen `0x80083CF4` with `256/120/160`; the narrow title HLE
+binding preserves their guest effects and records the authored projection on the same Core. Static and
+hermetic differential gates prove that boundary. An exact-`dbdb2baf` product run reaches both leaves
+four times, first at field 1 with `256/120/160`, and reports zero ABI violations. No widescreen policy,
+interpolation path, or native render producer consumes the projection yet.
 
 `game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives
 `LegacyGameRuntimeAdapter` only because generic psxport algorithms still consume the measured
 `GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Boot dispatch and RE-10 field-clock
-installation are runtime overrides. Current psxport `54af32cb` retains the guest-VRAM
+installation are runtime overrides. Current psxport `dbdb2baf` retains the guest-VRAM
 picture-ownership policy introduced at `bc8c8897`: this title remains legacy-backed, so the adapter projects its verified
 immutable answer (`preserveVramBackdrop = 1`) while the current route is wholly guest-rendered. Do not
 duplicate that answer in `ToyStory2Runtime`; replace the adapter projection with a derived dynamic

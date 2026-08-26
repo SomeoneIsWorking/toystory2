@@ -119,6 +119,11 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_pad_buffers.py --selftest
   )
   add_test(
+    NAME verify_projection_publication_selftest
+    COMMAND
+      ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_projection_publication.py --selftest
+  )
+  add_test(
     NAME verify_frame_fence_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_frame_fence.py --selftest
   )
@@ -139,6 +144,9 @@ if(BUILD_TESTING)
         --selftest --oracle $<TARGET_FILE:oracle_trace>
         --runner $<TARGET_FILE:toystory2_recomp_boundary>
     )
+  endif()
+  if(TARGET toystory2_projection_boundary)
+    add_test(NAME projection_publication_boundary COMMAND toystory2_projection_boundary)
   endif()
   add_test(
     NAME cpp_policy

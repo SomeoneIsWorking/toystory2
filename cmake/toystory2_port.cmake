@@ -39,6 +39,26 @@ target_include_directories(toystory2_seam PRIVATE game game/core)
 target_link_libraries(toystory2_seam PRIVATE psxport)
 target_compile_options(toystory2_seam PRIVATE -g)
 
+# The first native-rendering prerequisite is projection publication: Toy Story 2's two measured
+# libgte leaves must route through psxport's faithful implementations and record state on this Core.
+# This boundary is title-owned and hermetic; unlike the entry boundary below it needs neither retail
+# bytes nor the generated substrate at runtime.
+add_executable(
+  toystory2_projection_boundary
+  tests/toystory2_projection_boundary.cpp
+  game/core/game_config.cpp
+  game/core/game_hooks.cpp
+)
+target_include_directories(
+  toystory2_projection_boundary PRIVATE game/core ${PSXPORT_DIR}/tests
+)
+target_link_libraries(toystory2_projection_boundary PRIVATE psxport)
+set_target_properties(
+  toystory2_projection_boundary
+  PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON
+             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/scratch/bin
+)
+
 if(NOT PSXPORT_BUILD_PORT)
   return()
 endif()

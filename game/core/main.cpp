@@ -88,12 +88,9 @@ int main(int argc, char **argv) {
   game->spu_audio.init();      // SDL audio sink (PSXPORT_NOAUDIO to disable)
   game->gpu.gpu_native_init(); // native GPU renderer over the guest's GP0 stream
   game->cd.overridesInit();    // native CD: drive-ready + by-LBA read
-  // Hardware-sync HLE. initBuiltins() installs the framework's generic handlers
-  // at whatever addresses THIS game declares in GameConfig::hle — which is all
-  // zero here (RE-07), so it registers nothing and says so. A run that needs
-  // one will hang in the guest's real spin loop; that is the honest signal that
-  // the RE is outstanding, and with no decomp of this game to borrow from there
-  // is no shortcut past it.
+  // Hardware-service HLE. RE-07 currently declares only the exact retail libgte projection pair, so
+  // their faithful common handlers also record the authored projection. Every unrelated sync entry
+  // remains zero: reaching one still runs the guest's real body and exposes the next missing fact.
   game->platform_hle.initBuiltins();
   game->pad.overridesInit(); // native controller input
   c->r[4] = 1;

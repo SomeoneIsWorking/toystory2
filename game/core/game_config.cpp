@@ -7,7 +7,8 @@
 // READ THIS BEFORE FILLING ANYTHING IN.
 //
 // Only complete measured groups are filled (currently RE-01 crt0, RE-02's physical resident range,
-// RE-03 overlay slots and RE-06 pad routing). Every un-RE'd guest address is still zero deliberately:
+// RE-03 overlay slots, RE-06 pad routing, and RE-07's projection leaves). Every other un-RE'd guest
+// address is still zero deliberately:
 // psxport fails fast on a zero it needs, whereas a plausible-looking WRONG address does not fail
 // cleanly — it breaks boot or diverges the byte-compare in a way that reads as a framework bug. Each
 // group names its frontier step in docs/re-frontier.md.
@@ -147,6 +148,24 @@ static constexpr uint32_t kPadDriverPointerTable = 0x800A3E98u;
 static constexpr uint32_t kPadDriverContextStride = 0xF0u;
 static_assert(kPadDriverPointerTable + kPadDriverContextStride == 0x800A3F88u,
               "the measured per-port driver pointer fields must stay one context apart");
+
+// RE-07 (partial), measured from the identity-checked retail executable by
+// tools/verify_projection_publication.py. The graphics initializer at 0x8003A650 calls these linked
+// libgte leaves with (OFX,OFY,H)=(256,120,160):
+//
+//   0x80083CD4  SetGeomOffset: sll a0/a1 by 16, ctc2 to CR24/CR25, return
+//   0x80083CF4  SetGeomScreen: ctc2 a0 to CR26, return
+//
+// PlatformHle replaces only those two exact leaves with psxport's common implementations. Those
+// implementations preserve the retail GTE writes and additionally record the authored projection in
+// this Core's ProjParams. The half-open window covers the measured leaf bodies and their alignment
+// padding only; it does not make an unsupported claim about the rest of the linked Sony library.
+static constexpr uint32_t kProjectionLeavesLo = 0x80083CD4u;
+static constexpr uint32_t kProjectionLeavesHi = 0x80083D00u;
+static constexpr uint32_t kSetGeomOffset = 0x80083CD4u;
+static constexpr uint32_t kSetGeomScreen = 0x80083CF4u;
+static_assert(kSetGeomOffset >= kProjectionLeavesLo && kSetGeomOffset < kProjectionLeavesHi);
+static_assert(kSetGeomScreen >= kProjectionLeavesLo && kSetGeomScreen < kProjectionLeavesHi);
 
 // DESIGNATED initialisers, deliberately. GameConfig is initialised POSITIONALLY
 // by the older consumers in this workspace, and the framework appends fields to
@@ -288,18 +307,15 @@ static const GameConfig g_ts2_cfg = {
     .padSlotPtrTable = kPadDriverPointerTable,
     .padSlotPtrStride = kPadDriverContextStride,
 
-    // --- platform HLE (the hardware-sync primitives)
-    // ----------------------------- RE-07, NOT DONE --
-    // ZERO MEANS "not RE'd, install nothing". initBuiltins() then registers no
-    // handler and says so; a
-    // run that needs one hangs in the guest's real spin loop, which is the
-    // honest signal that the RE is
-    // outstanding. The windows are zero too, so register_() refuses everything
-    // — this game has not
-    // stated its memory map yet, and a window guessed from another game's map
-    // is how a handler lands on
-    // an unrelated function.
-    .hle = {},
+    // --- platform HLE (the hardware-sync primitives) -------------------- RE-07 partial --
+    // Only the projection publication pair is instruction-verified. All unrelated sync leaves stay
+    // zero, so reaching one still runs the real guest body and exposes the next missing fact. The
+    // deliberately narrow window admits the exact two linked libgte functions, not an inferred
+    // library-wide range.
+    .hle = {.windowLo = {kProjectionLeavesLo, 0},
+            .windowHi = {kProjectionLeavesHi, 0},
+            .setGeomOffset = kSetGeomOffset,
+            .setGeomScreen = kSetGeomScreen},
 
     // --- adapter input: guest VRAM owns the picture throughout the verified route --
     // The renderer no longer reads this compatibility field. ToyStory2Runtime is legacy-backed,

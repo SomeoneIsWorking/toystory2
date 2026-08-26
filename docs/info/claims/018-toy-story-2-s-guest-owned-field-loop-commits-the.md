@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,frame-fence,boot
 depends: game/sync/field_clock.cpp#field_turn, tools/verify_frame_fence.py#classify_post_fix, tools/verify_frame_fence.py#classify_title, psxport.pin
-reconfirmed: 2026-08-26 21:40:52
-verified_at: 2026-08-26 21:40:52
+reconfirmed: 2026-08-26 22:44:43
+verified_at: 2026-08-26 22:44:43
 ---
 
 ## Claim
@@ -65,3 +65,7 @@ At pushed framework pin aa0b2067, verify_frame_fence.py --check accepted the rec
 ## Re-confirmed 2026-08-26 21:40:52
 
 At pushed framework pin 54af32cb, verify_frame_fence.py --check accepted the recorded 8320-commit trace and two title captures while rejecting the overflow and real visual controls; the clean Clang port/oracle build passed 13/13 CTest. No new game launch or visual observation was made.
+
+## Re-confirmed 2026-08-26 22:44:43
+
+Exact dbdb2baf product run armed the measured host field turn, delivered present frames 300/900/1500, and remained live; full Clang CTest 15/15 including frame-fence selftest passed. The framework pin change only adds typed projection HLE routing.

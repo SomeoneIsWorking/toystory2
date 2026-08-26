@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
 depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg, game/recomp_seeds.json
-reconfirmed: 2026-08-24 20:19:56
-verified_at: 2026-08-24 20:19:56
+reconfirmed: 2026-08-26 22:44:42
+verified_at: 2026-08-26 22:44:42
 ---
 
 ## Claim
@@ -60,3 +60,7 @@ Post-commit 3b17154 authoritative Clang CTest passes 9/9; recomp substrate selft
 ## Re-confirmed 2026-08-24 20:19:56
 
 After 456a31f, overlay_map --check rederived the single alternative LEVEL slot and MEMORY/FMV placements from the real executable and module corpus.
+
+## Re-confirmed 2026-08-26 22:44:42
+
+Exact dbdb2baf Clang CTest 15/15 passed; overlay_map --check rederived LEVEL/MEMORY/FMV placements and matched every shipping field.

@@ -186,12 +186,13 @@ RE-05's OT/packet-pool layout remains independently TODO; visible boot/title fra
 - notes: padDriverFn stays zero because psxport does not read it. serviceFrame consults the measured 0x800A3E98 pointer field with 0xF0 stride, then falls back to the same fixed buffers before guest registration. No SIO function was overridden.
 
 ### RE-07 — platform HLE windows (the hardware-sync primitives)
-- status: todo
+- status: re-partial
 - deps: RE-01
-- evidence:
-- where: game/core/game_config.cpp (.hle)
-- gap: Nothing located. ZERO MEANS "not RE'd, install nothing": initBuiltins() then registers no handler and says so, and a run that needs one hangs in the guest's real spin loop — the honest signal that the RE is outstanding. The windows are zero too, so register_() refuses everything, because this game has not stated its memory map yet and a window guessed from another game's map is how a handler lands on an unrelated function.
-- notes: Kept as its own step rather than folded into RE-01: in the sibling tree leaving the HLE windows under the crt0 step made a done crt0 imply a done HLE.
+- evidence: C023, I019 and resolved issue #21. Identity-checked SLUS_008.93 proves SetGeomOffset 0x80083CD4 writes CR24/CR25 after shifting a0/a1, SetGeomScreen 0x80083CF4 writes CR26, and graphics init 0x8003A650 calls them with OFX=256, OFY=120, H=160. tools/verify_projection_publication.py matches the exact bodies, calls, four shipping constants and bindings with 6/6 positive/mutation/refusal classes. The hermetic title boundary installs exactly two handlers and passes 3/3 tests / 19 checks for guest GPR/GTE effects and same-Core ProjParams validity.
+- where: tools/verify_projection_publication.py; tests/toystory2_projection_boundary.cpp; game/core/game_config.cpp (.hle projection pair only)
+- live: Exact-`dbdb2baf` product tracing reaches both installed leaves four times, first at field 1 with the measured `256/120/160` arguments, and reports zero ABI violations.
+- gap: Projection publication is now statically, differentially, and live-reach grounded. Every unrelated platform-sync address remains zero and unlocated; RE-07 is therefore partial, not a complete HLE map. This milestone does not enable widescreen, interpolate guest primitives, or create a native render producer.
+- notes: The accepted half-open window [0x80083CD4,0x80083D00) covers only the two measured leaf bodies plus alignment padding. Do not widen it to an inferred Sony-library range. Next native-rendering work may consume the recorded authored projection only after its title producer/culling boundary is measured; interpolation belongs on authored camera/object transforms, never final guest GP0 primitives.
 
 ### RE-10 — guest VBlank callback and host field delivery
 - status: re-verified

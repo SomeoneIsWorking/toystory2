@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: boot,fmv,bios,recomp
 depends: tools/verify_fmv_boundary.py#analyze, psxport.pin
-reconfirmed: 2026-08-26 21:40:52
-verified_at: 2026-08-26 21:40:52
+reconfirmed: 2026-08-26 22:44:43
+verified_at: 2026-08-26 22:44:43
 ---
 
 ## Claim
@@ -59,3 +59,7 @@ At pushed framework pin aa0b2067, verify_fmv_boundary.py --check reproduced the 
 ## Re-confirmed 2026-08-26 21:40:52
 
 At pushed framework pin 54af32cb, verify_fmv_boundary.py --check reproduced the exact retail call chain through shared BIOS A0:0x25 and the normalized-path return; the clean Clang port/oracle build passed 13/13 CTest without a game launch.
+
+## Re-confirmed 2026-08-26 22:44:43
+
+Exact dbdb2baf product run advanced through FMV mode after coherent legal/ESRB presents; verify_fmv_boundary passed in the 15/15 CTest suite. Issue 22 separately records corrupted 24-bit presentation.

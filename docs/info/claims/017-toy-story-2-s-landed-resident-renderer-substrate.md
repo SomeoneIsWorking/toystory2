@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,recomp,boot
 depends: tools/verify_render_reentry.py#check_generated, game/recomp_seeds.json, psxport.pin
-reconfirmed: 2026-08-26 21:40:52
-verified_at: 2026-08-26 21:40:52
+reconfirmed: 2026-08-26 22:44:43
+verified_at: 2026-08-26 22:44:43
 ---
 
 ## Claim
@@ -71,3 +71,7 @@ At pushed framework pin aa0b2067, verify_render_reentry.py --check retained exac
 ## Re-confirmed 2026-08-26 21:40:52
 
 At pushed framework pin 54af32cb, verify_render_reentry.py --check retained exactly 32 ordered retail slots with no renderer seed; the clean Clang port/oracle build passed 13/13 CTest without a game launch.
+
+## Re-confirmed 2026-08-26 22:44:43
+
+Exact dbdb2baf recomp_substrate --check passed: 360 roots/952 resident functions, 22 overlays/311 functions, 75 generated TUs; shipping product linked and ran.
