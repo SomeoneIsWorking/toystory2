@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,recomp,boot
 depends: tools/verify_render_reentry.py#check_generated, game/recomp_seeds.json, psxport.pin
-reconfirmed: 2026-08-25 00:53:16
-verified_at: 2026-08-25 00:53:16
+reconfirmed: 2026-08-26 21:40:52
+verified_at: 2026-08-26 21:40:52
 ---
 
 ## Claim
@@ -15,7 +15,7 @@ Toy Story 2's landed resident renderer substrate lowers exactly the retail 32-wa
 
 ## Evidence
 
-Current pinned and built psxport 8611d756. tools/verify_render_reentry.py --selftest passes 13/13
+Current pinned and built psxport 54af32cb. tools/verify_render_reentry.py --selftest passes 13/13
 positive/negative classes over the shipping generated switch, requiring exactly 32 ordered slots from
 0x800103EC through 0x800104E4. A bounded real-disc log has neither former 0x8001040C nor 0x800104E4
 dispatch miss, passes the resolved neutral frame-fence boundary, executes the seeded LEVEL01 entry
@@ -67,3 +67,7 @@ performed; the later model-pointer boundary remains the last d2266f4b live obser
 ## Re-confirmed 2026-08-25 00:53:16
 
 At pushed framework pin aa0b2067, verify_render_reentry.py --check retained exactly 32 ordered retail slots with no renderer seed; its saved real-log classifier crosses both former misses and the RE-16 reset/continuation witness through field 10303; the clean Clang build passed 12/12 CTest.
+
+## Re-confirmed 2026-08-26 21:40:52
+
+At pushed framework pin 54af32cb, verify_render_reentry.py --check retained exactly 32 ordered retail slots with no renderer seed; the clean Clang port/oracle build passed 13/13 CTest without a game launch.

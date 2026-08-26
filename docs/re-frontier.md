@@ -39,7 +39,7 @@ registered callback at the GPU rate. Live headless A/B changes zero presents plu
 into non-black legal/ESRB frames at presents 30, 120 and 900. Boot then loads FMV/FMV.BIN at
 `0x800D5D20`, calls file+`0x908` (`0x800D6628`) and executes emitted FMV code. Pinned psxport
 `d2266f4b` first carried A0:0x25 and generic lowering of the resident renderer's internal 32-way
-computed jump table; current pin `8611d756` retains both under the full Clang/static gate. The last
+computed jump table; current pin `54af32cb` retains both under the full Clang/static gate. The last
 live retail trace completes its first path, both formerly missing renderer slots execute,
 and RE-13 closes the title-owned frame fence: the field callback commits the shared captured queue
 once per display field instead of bypassing it through the lower-level presenter. RE-14 proves and
@@ -64,9 +64,12 @@ RE-14 classified and seeded `0x800D12C4` as LEVEL01's true entry. RE-16 is now c
 model consumer `0x800426E0` dereferenced `0xEDA4F893` because the generated reset repeatedly cleared
 only table slot 0. Mixed FMV payload words had been promoted as calls to delay slot `0x80041FFC`,
 partitioning away retail's `addiu a1,a1,4`. The generic partition fix removes five impossible roots;
-the live route observes slot 9 clear/reload and crosses the retired fault. The next product frontier is
-RE-06 pad/input discovery and an interactive gameplay witness. RE-05's OT/packet-pool layout remains
-independently TODO; visible boot/title frames do not close it.
+the live route observes slot 9 clear/reload and crosses the retired fault. RE-06 now derives the retail
+pad buffers and driver contexts, wires the host field sample into them, and observes both forced Cross
+and release packets live. RE-17 is now in progress: a bounded forced-input product run reaches Andy's
+Room, pauses/unpauses and visibly moves the camera, but the unchanged recorded input diverges at the
+pause transition when replayed. Issue #20 owns that remaining deterministic-replay defect.
+RE-05's OT/packet-pool layout remains independently TODO; visible boot/title frames do not close it.
 
 ## tooling
 
@@ -99,7 +102,7 @@ independently TODO; visible boot/title frames do not close it.
 ### RE-11 — FMV ISO-9660 path parser and shared BIOS toupper
 - status: re-verified
 - deps: RE-02, RE-03, RE-10
-- evidence: C016, resolved issue #13 and scratch/decomp/re11-fmv-parser.c: retail FMV 0x800D8E48 calls executable Sony leaf 0x80082E5C; that leaf selects A0:0x25, and return 0x800D8E50 stores v0 as the normalized path byte. Current pin 8611d756 retains shared toupper and passes the complete Clang/static gate. The last bounded retail trace on d2266f4b observes the exact 15 normalized bytes of `toy2fmv\acti.str` plus 62 same-caller calls, then passes the renderer and frame fence to 0x800D12C4.
+- evidence: C016, resolved issue #13 and scratch/decomp/re11-fmv-parser.c: retail FMV 0x800D8E48 calls executable Sony leaf 0x80082E5C; that leaf selects A0:0x25, and return 0x800D8E50 stores v0 as the normalized path byte. Current pin 54af32cb retains shared toupper and passes the complete Clang/static gate. The last bounded retail trace on d2266f4b observes the exact 15 normalized bytes of `toy2fmv\acti.str` plus 62 same-caller calls, then passes the renderer and frame fence to 0x800D12C4.
 - where: tools/verify_fmv_boundary.py; shared implementation belongs in psxport bios_libc_string, not this repo
 - gap: Complete for the retail FMV parser boundary. A different executable leaf/table selector, changed path-parser return site, or failure of the landed real-disc gate reopens it.
 - notes: FMV and MEMORY remain alternative contents of RE-03 one arena. The fresh ts2fmv_re11 Ghidra image injects FMV only at the already-proven shared base; it is evidence for this call chain, not a second resident slot.
@@ -134,7 +137,15 @@ independently TODO; visible boot/title frames do not close it.
 - evidence: C021 and resolved issue #17. Fault registers prove package index 9/model index 0: table slot 0x800C728C supplies package 0x8013B770 and package+8 supplies payload bytes 93 F8 A4 ED to 800426E0. Writer watches show the entire old package prefix is later overwritten by disc/DMA. Retail reset 80041F38 has bnez at 0x80041FF8 with delay-slot addiu a1,a1,4 at 0x80041FFC, but mixed FMV payload words 0x0C0107FF spuriously seeded that delay slot as a resident function. The split generated loop wrote zero to table base 128 times without advancing. The generic emitter rejects structurally impossible delay-slot roots; its RED whole-pipeline control changes from one increment to 3/3 and the direct Clang emitter suite passes 48/48. Regenerated TS2 has 360 roots -> 884 functions, no gen_func_80041FFC, and the intact reset increment. The bounded real writer trace observes slot9 0x8013B770 -> zero -> fresh 0x8012ED8C and continues through field 10,303 with no fatal or recomp-MISS. tools/verify_model_table_reset.py gates 7/7 positive/negative classes and the real log.
 - where: tools/verify_model_table_reset.py; tools/verify_render_reentry.py; scratch/logs/re16-reset-fixed.log; scratch/decomp/re16-pointer-chain.c, re16-model-table-producer.c and re16-model-relocator.c; docs/issues/0017-*
 - gap: none for the stale-table producer and retired 0xEDA4F893 boundary. The single 180-second continuation ended by its bound without reaching another fatal, so it does not prove indefinite stability or interactive gameplay.
-- notes: RE-16 is complete without a pointer substitution, skipped access, generated-C edit, or title/address special case. The next product frontier is RE-06 pad-buffer/input discovery plus a bounded interactive gameplay witness; RE-05 OT/packet attribution also remains independently TODO.
+- notes: RE-16 is complete without a pointer substitution, skipped access, generated-C edit, or title/address special case. RE-06 subsequently completed pad delivery; RE-17 owns the still-missing bounded interactive gameplay witness. RE-05 OT/packet attribution also remains independently TODO.
+
+### RE-17 — first bounded interactive gameplay witness
+- status: in-progress
+- deps: RE-06, RE-16
+- evidence: Two bounded real-product runs at psxport 54af32cb, issue #20. The forced-input recording run reaches Andy's Room, shows the pause menu at present 4700, returns to gameplay at 5000, and held Right materially changes the camera view at 5400 and 6000; no watchdog, fatal or recomp-MISS occurs. The second run loads all 14,276 recorded uint16 samples unchanged and independently reaches Andy's Room plus the pause menu, proving downstream title response, but remains paused at presents 5000/5400/6000 instead of reproducing movement.
+- where: scratch/logs/re17-drive-record.log; scratch/logs/re17-drive-replay.log; scratch/raw/re17-drive.pad; scratch/screenshots/re17_{record,replay}_{4700,5000,5400,6000}.png; docs/issues/0020-*
+- gap: Real gameplay entry, pause response and visible movement are proven. Close RE-17 only after the exact pad recording deterministically reproduces the same pause/unpause and movement sequence; first compare delivered per-pad-frame masks and guest pause-state timing, then asynchronous CD/FMV scheduling if the masks agree. Retain the minimal failing replay in a redistributable tracked location once its stable reproducer is isolated.
+- notes: Do not downgrade this to packet evidence: RE-06 proves delivery, while these captures prove downstream game response. Do not declare deterministic replay from the loader accepting the file; the visible record/replay split falsifies that. Do not use REPL before guest main returns; this title remains inside its guest-owned loop, so that command surface does not bound or drive boot.
 
 ## overlays
 
@@ -167,12 +178,12 @@ independently TODO; visible boot/title frames do not close it.
 - notes:
 
 ### RE-06 — pad driver buffers
-- status: todo
+- status: re-verified
 - deps: RE-01
-- evidence:
-- where: game/core/game_config.cpp (padSlot0Buf, padSlot1Buf, padDriverFn, padSlotPtrTable, padSlotPtrStride)
-- gap: Nothing located. The PSY-Q cohort says libpad rather than a custom SIO driver is the likely shape, which says what to look for, not where.
-- notes:
+- evidence: tools/verify_pad_buffers.py derives the unique 0x8003EF20 call arguments 0x800CF8A0/0x800CF8C8, linked-driver pointer fields 0x800A3E98/0x800A3F88 at 0xF0 stride, and independent consumer 0x8003AC58 reading slot 0. The shipping comparison matches all five GameConfig bindings; selftest passes 5/5 opposite/refusal classes. A bounded retail headless force-pulse writes active-low Cross byte 0xBF for fields 1..8, releases to 0xFF for 9..32, and pulses 0xBF again at 33, proving the host path can produce both packet answers at the measured buffer.
+- where: tools/verify_pad_buffers.py; game/core/game_config.cpp; game/sync/field_clock.cpp; scratch/decomp/re06-pad-init.c, re06-pad-read.c, re06-libpad-chain.c
+- gap: Complete for pad-buffer discovery and host packet delivery. This does not prove the title reacts correctly through menus into controllable gameplay; RE-17 owns that separate product witness.
+- notes: padDriverFn stays zero because psxport does not read it. serviceFrame consults the measured 0x800A3E98 pointer field with 0xF0 stride, then falls back to the same fixed buffers before guest registration. No SIO function was overridden.
 
 ### RE-07 — platform HLE windows (the hardware-sync primitives)
 - status: todo

@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-22
 tags: render,frame-fence,boot
 depends: game/sync/field_clock.cpp#field_turn, tools/verify_frame_fence.py#classify_post_fix, tools/verify_frame_fence.py#classify_title, psxport.pin
-reconfirmed: 2026-08-25 00:53:16
-verified_at: 2026-08-25 00:53:16
+reconfirmed: 2026-08-26 21:40:52
+verified_at: 2026-08-26 21:40:52
 ---
 
 ## Claim
@@ -61,3 +61,7 @@ static/recorded-trace reconfirmation rather than new visual evidence.
 ## Re-confirmed 2026-08-25 00:53:16
 
 At pushed framework pin aa0b2067, verify_frame_fence.py --check accepted the recorded 8320-commit trace and two title captures while rejecting the overflow and real visual controls; the clean Clang build passed 12/12 CTest. No new game launch or visual observation was made.
+
+## Re-confirmed 2026-08-26 21:40:52
+
+At pushed framework pin 54af32cb, verify_frame_fence.py --check accepted the recorded 8320-commit trace and two title captures while rejecting the overflow and real visual controls; the clean Clang port/oracle build passed 13/13 CTest. No new game launch or visual observation was made.

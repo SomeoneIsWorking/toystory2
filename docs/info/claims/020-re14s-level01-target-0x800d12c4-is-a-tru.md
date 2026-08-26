@@ -5,6 +5,8 @@ status: holds
 created: 2026-08-24
 tags: recomp,overlays,re14
 depends: game/recomp_seeds.json#overlay_seeds, tools/verify_frame_fence.py#classify_post_fix
+reconfirmed: 2026-08-26 21:40:52
+verified_at: 2026-08-26 21:40:52
 ---
 
 ## Claim
@@ -18,3 +20,7 @@ MEASURED 2026-08-24, four independent signals plus the landing itself. (1) MODUL
 ## What would falsify it
 
 a Ghidra read of SLUS_008.93 showing the direct `jal` target is formed differently than emitted (e.g. the emitter mis-decoded the call site); a second live run where the same dispatch reaches a DIFFERENT address while LEVEL01 is resident (would mean the descriptor value is data-dependent, i.e. computed, not a fixed entry); or discovery that the five RAM descriptors are consumed as data rather than as call targets
+
+## Re-confirmed 2026-08-26 21:40:52
+
+At pushed framework pin 54af32cb, verify_frame_fence.py --check retained the recorded LEVEL01 continuation through the exact later model-pointer boundary; the clean Clang port/oracle build passed 13/13 CTest without a game launch.

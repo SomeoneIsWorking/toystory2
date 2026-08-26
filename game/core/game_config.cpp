@@ -6,11 +6,11 @@
 //
 // READ THIS BEFORE FILLING ANYTHING IN.
 //
-// **Only the RE-01 crt0 group is filled.** Every other un-RE'd guest address is
-// still zero deliberately: psxport fails fast on a zero it needs, whereas a
-// plausible-looking WRONG address does not fail cleanly — it breaks boot or
-// diverges the byte-compare in a way that reads as a framework bug. Each group
-// names the open step in docs/re-frontier.md.
+// Only complete measured groups are filled (currently RE-01 crt0, RE-02's physical resident range,
+// RE-03 overlay slots and RE-06 pad routing). Every un-RE'd guest address is still zero deliberately:
+// psxport fails fast on a zero it needs, whereas a plausible-looking WRONG address does not fail
+// cleanly — it breaks boot or diverges the byte-compare in a way that reads as a framework bug. Each
+// group names its frontier step in docs/re-frontier.md.
 //
 // AND UNLIKE THE SIBLING PORTS, THERE IS NO SUPPLY TO BORROW FROM. vagrant has
 // a CC0 matching decomp of its executable and megamanx4 an AGPL one whose
@@ -125,6 +125,28 @@ static constexpr uint32_t kRecMainHi = 0x000A1800u;
 static_assert(kRecMainLo == REC_MAIN_LO && kRecMainHi == REC_MAIN_HI,
               "GameConfig resident range disagrees with the emitted substrate");
 #endif
+
+// RE-06, measured from the identity-checked retail executable by tools/verify_pad_buffers.py.
+// The game has exactly one call to its linked pad initializer at 0x8003EF20. Its two arguments are
+// formed directly from these buffer addresses, and the initializer stores those pointers into two
+// 0xF0-byte driver contexts:
+//
+//   0x8003EF10/14  lui/addiu a0 -> 0x800CF8A0
+//   0x8003EF18/1C  lui/addiu a1 -> 0x800CF8C8
+//   0x800972B0     sw s1,0x30(s0)  -> [0x800A3E98] = slot-0 buffer
+//   0x800972B4     sw s2,0x120(s0) -> [0x800A3F88] = slot-1 buffer
+//   0x800972FC     addiu a0,a0,0xF0 (next driver context)
+//
+// The game's input decoder at 0x8003AC58 independently forms 0x800CF8A0 and reads the standard pad
+// packet there. The host field clock already calls Pad::serviceFrame before the guest VBlank handler;
+// these facts supply the destinations that serviceFrame previously skipped because every pad field
+// was zero.
+static constexpr uint32_t kPadSlot0Buffer = 0x800CF8A0u;
+static constexpr uint32_t kPadSlot1Buffer = 0x800CF8C8u;
+static constexpr uint32_t kPadDriverPointerTable = 0x800A3E98u;
+static constexpr uint32_t kPadDriverContextStride = 0xF0u;
+static_assert(kPadDriverPointerTable + kPadDriverContextStride == 0x800A3F88u,
+              "the measured per-port driver pointer fields must stay one context apart");
 
 // DESIGNATED initialisers, deliberately. GameConfig is initialised POSITIONALLY
 // by the older consumers in this workspace, and the framework appends fields to
@@ -254,18 +276,17 @@ static const GameConfig g_ts2_cfg = {
     .cdSearchFile = 0,
     .dmaCallbackTable = 0,
 
-    // --- pad driver
-    // -------------------------------------------------------------- RE-06, NOT
-    // DONE --
-    // Nothing located. The PSY-Q cohort (sys.c 1.129 / intr.c 1.76 /
-    // bios.c 1.86) says libpad rather
-    // than a custom SIO driver is the likely SHAPE, which says what to look
-    // for, not where.
-    .padSlot0Buf = 0,
-    .padSlot1Buf = 0,
+    // --- pad driver --------------------------------------------- RE-06 re-verified --
+    // The retail initializer takes the two fixed buffers directly and registers them in per-port
+    // contexts. serviceFrame therefore consults the measured pointer fields first and falls back to
+    // the same fixed buffers if the guest has not initialized the contexts yet. padDriverFn remains
+    // zero because psxport never reads that retired compatibility field; no guest function is being
+    // bypassed or falsely claimed as a host override.
+    .padSlot0Buf = kPadSlot0Buffer,
+    .padSlot1Buf = kPadSlot1Buffer,
     .padDriverFn = 0,
-    .padSlotPtrTable = 0,
-    .padSlotPtrStride = 0,
+    .padSlotPtrTable = kPadDriverPointerTable,
+    .padSlotPtrStride = kPadDriverContextStride,
 
     // --- platform HLE (the hardware-sync primitives)
     // ----------------------------- RE-07, NOT DONE --

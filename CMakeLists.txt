@@ -115,6 +115,10 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_model_table_reset.py --selftest
   )
   add_test(
+    NAME verify_pad_buffers_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_pad_buffers.py --selftest
+  )
+  add_test(
     NAME verify_frame_fence_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_frame_fence.py --selftest
   )

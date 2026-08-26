@@ -78,13 +78,19 @@ fault to model-table reset 0x80041F38: jal-shaped mixed FMV data falsely seeded 
 the 128-entry clear; a real writer watch observes slot 9 clear/reload and the route continues through
 field 10,303 with no fatal or recompilation miss. RE-08 separately closed
 the .RAW container: payloads decode with TT's own DecompressRAW LZ scheme (NOT RNC; C019/I015),
-813/813 corpus chunks verify both CRCs. The per-frame OT/packet-pool layout remains unmeasured; a
-correct title and bounded autonomous continuation do not imply interactive gameplay is complete.
+813/813 corpus chunks verify both CRCs. RE-06 now closes input delivery: retail pad init passes
+`0x800CF8A0`/`0x800CF8C8`, stores them in driver contexts at `0x800A3E98`/`0x800A3F88` with a `0xF0`
+stride, and the guest decoder independently reads slot 0. The host field turn writes active-low Cross
+`0xBF` and release `0xFF` to that exact packet byte. A bounded real product run now reaches Andy's
+Room, opens and leaves the pause menu, and visibly moves the camera under held Right. RE-17 remains
+in progress because replaying the exact 14,276 recorded pad samples reaches gameplay but stays paused
+at the later captures; issue #20 owns that determinism defect. The per-frame OT/packet-pool layout
+also remains unmeasured.
 
 `game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives
 `LegacyGameRuntimeAdapter` only because generic psxport algorithms still consume the measured
 `GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Boot dispatch and RE-10 field-clock
-installation are runtime overrides. Current psxport `8611d756` retains the guest-VRAM
+installation are runtime overrides. Current psxport `54af32cb` retains the guest-VRAM
 picture-ownership policy introduced at `bc8c8897`: this title remains legacy-backed, so the adapter projects its verified
 immutable answer (`preserveVramBackdrop = 1`) while the current route is wholly guest-rendered. Do not
 duplicate that answer in `ToyStory2Runtime`; replace the adapter projection with a derived dynamic

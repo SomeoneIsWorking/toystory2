@@ -5,8 +5,8 @@ status: holds
 created: 2026-08-24
 tags: render,models,re16,pointers,recompiler,delay-slot
 depends: tools/verify_model_table_reset.py#classify_runtime
-reconfirmed: 2026-08-25 00:53:16
-verified_at: 2026-08-25 00:53:16
+reconfirmed: 2026-08-26 21:40:52
+verified_at: 2026-08-26 21:40:52
 ---
 
 ## Claim
@@ -64,3 +64,7 @@ jal-shaped words are executable calls; or a corrected-reset trace that still rea
 ## Re-confirmed 2026-08-25 00:53:16
 
 At pushed framework pin aa0b2067, verify_model_table_reset.py --check proved the retail branch delay slot and generated 128-entry reset agree; its saved real-log classifier observed slot 9 transition 0x8013B770 to zero to 0x8012ED8C and continuation through field 10303 without fatal/miss. Clean Clang build and 12/12 CTest passed without launching the game.
+
+## Re-confirmed 2026-08-26 21:40:52
+
+At pushed framework pin 54af32cb, verify_model_table_reset.py --check proved the retail delay slot and generated 128-entry reset agree; the saved real-log classifier still observes slot 9 clear/reload and continuation through field 10303; the clean Clang port/oracle build passed 13/13 CTest without a game launch.
