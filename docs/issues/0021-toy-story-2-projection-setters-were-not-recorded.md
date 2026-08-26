@@ -4,6 +4,7 @@ title: Toy Story 2 projection setters were not recorded for native consumers
 status: resolved
 symptom: GameConfig HLE is empty, so retail SetGeomOffset/SetGeomScreen update only GTE control registers and ProjParams remains invalid for widescreen, interpolation camera state, or native rendering
 tags: render,projection,widescreen,interpolation,native-renderer,re07,root-cause
+state_items: S008
 created: 2026-08-26
 updated: 2026-08-26
 ---

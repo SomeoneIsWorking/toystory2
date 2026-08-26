@@ -11,6 +11,7 @@ class ToyStory2Runtime final : public LegacyGameRuntimeAdapter {
 public:
   ToyStory2Runtime();
 
+  RenderCapabilities renderCapabilities() const override;
   void registerOverrides(Game &game) override;
   void bootInit(Core &core) override;
 };

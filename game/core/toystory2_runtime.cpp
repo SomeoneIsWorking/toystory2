@@ -11,6 +11,10 @@ namespace ts2 {
 
 ToyStory2Runtime::ToyStory2Runtime() : LegacyGameRuntimeAdapter(legacy::measuredConfig, legacy::compatibilityHooks) {}
 
+RenderCapabilities ToyStory2Runtime::renderCapabilities() const {
+  return RenderCapabilities::interpolatedNative();
+}
+
 void ToyStory2Runtime::registerOverrides(Game &) {
   // RE-10 owns the host field boundary only. The retail graphics initializer and VBlank callback
   // remain generated guest code; field_clock supplies the asynchronous host turn between them.

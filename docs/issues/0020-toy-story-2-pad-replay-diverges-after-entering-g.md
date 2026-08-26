@@ -4,6 +4,7 @@ title: Toy Story 2 pad replay diverges after entering gameplay
 status: investigating
 symptom: A recorded forced-input run unpauses and moves through Andy's Room, but replaying the unchanged uint16 pad recording reaches gameplay then remains paused at the same late captures
 tags: input,replay,determinism,re17,runtime
+state_items: S005
 created: 2026-08-26
 updated: 2026-08-26
 ---
