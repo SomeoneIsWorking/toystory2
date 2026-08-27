@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import runpy
 import shutil
 import subprocess
 import sys
@@ -389,8 +390,8 @@ def launch(
 
     executable = root / "scratch" / "bin" / "toystory2_port"
     game_executable = root / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
-    run_environment.pop("PSXPORT_VK_HEADLESS", None)
-    run_environment["PSXPORT_VK_WINDOW"] = "1"
+    policy = runpy.run_path(str(framework / "tools/port/launch_environment.py"))
+    run_environment = policy["player_environment"](run_environment)
     run_environment.setdefault("PSXPORT_ASSET_DIR", str(framework))
     emit_line(f"launching {executable.relative_to(root)}", stdout)
     try:

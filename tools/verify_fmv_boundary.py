@@ -191,8 +191,9 @@ def run_live(
         {
             "PSXPORT_ASSET_DIR": str(ROOT / "external" / "psxport"),
             "PSXPORT_DEBUG": "bios",
+            "PSXPORT_VK_HEADLESS": "1",
             "PSXPORT_NOAUDIO": "1",
-            "PSXPORT_NOWINDOW": "1",
+            "PSXPORT_NOPACE": "1",
             "PSXPORT_WATCHDOG": "5",
             "PSXPORT_WATCHDOG_BOOT": "30",
         }

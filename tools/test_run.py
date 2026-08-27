@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -64,6 +65,11 @@ class LauncherTest(unittest.TestCase):
         framework_cmake = self.root / "external" / "psxport" / "cmake"
         framework_cmake.mkdir(parents=True)
         (framework_cmake / "psxport.cmake").write_text("# fixture\n")
+        policy = self.root / "external/psxport/tools/port/launch_environment.py"
+        policy.parent.mkdir(parents=True)
+        shutil.copyfile(
+            REPO_ROOT / "external/psxport/tools/port/launch_environment.py", policy
+        )
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -95,7 +101,15 @@ class LauncherTest(unittest.TestCase):
         self,
     ) -> None:
         host = FakeHost()
-        code, stdout, stderr = self.invoke(host)
+        code, stdout, stderr = self.invoke(
+            host,
+            environment={
+                "PATH": os.environ.get("PATH", ""),
+                "PSXPORT_VK_HEADLESS": "1",
+                "PSXPORT_NOAUDIO": "1",
+                "PSXPORT_NOPACE": "1",
+            },
+        )
         commands = self.command_list(host)
 
         self.assertEqual(code, 0)
@@ -116,7 +130,8 @@ class LauncherTest(unittest.TestCase):
         self.assertTrue(commands[-1][0].endswith("scratch/bin/toystory2_port"))
         launch_environment = host.commands[-1][1]["env"]
         self.assertEqual(launch_environment["PSXPORT_VK_WINDOW"], "1")
-        self.assertNotIn("PSXPORT_VK_HEADLESS", launch_environment)
+        for key in ("PSXPORT_VK_HEADLESS", "PSXPORT_NOAUDIO", "PSXPORT_NOPACE"):
+            self.assertNotIn(key, launch_environment)
 
     def test_prepare_only_builds_without_launching(self) -> None:
         host = FakeHost()
