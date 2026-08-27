@@ -128,6 +128,10 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_frame_fence.py --selftest
   )
   add_test(
+    NAME verify_vsync_ownership_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_vsync_ownership.py --selftest
+  )
+  add_test(
     NAME raw_unpack_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_unpack.py --selftest
   )
@@ -147,6 +151,24 @@ if(BUILD_TESTING)
   endif()
   if(TARGET toystory2_projection_boundary)
     add_test(NAME projection_publication_boundary COMMAND toystory2_projection_boundary)
+  endif()
+  if(TARGET toystory2_cd_hle_boundary)
+    add_test(NAME stock_libcd_native_boundary COMMAND toystory2_cd_hle_boundary)
+  endif()
+  if(TARGET toystory2_frame_driver_boundary)
+    add_test(NAME native_frame_driver_boundary COMMAND toystory2_frame_driver_boundary)
+  endif()
+  if(TARGET toystory2_port)
+    foreach(_help_arg IN ITEMS -h --help)
+      string(REPLACE "-" "" _help_name "${_help_arg}")
+      add_test(NAME "product_help_${_help_name}" COMMAND toystory2_port "${_help_arg}")
+      set_tests_properties(
+        "product_help_${_help_name}"
+        PROPERTIES
+          ENVIRONMENT "PSXPORT_TS2_DISC=/disc-discovery-must-not-run.chd"
+          PASS_REGULAR_EXPRESSION "usage:.*\\[PS-X EXE\\]"
+      )
+    endforeach()
   endif()
   add_test(
     NAME cpp_policy

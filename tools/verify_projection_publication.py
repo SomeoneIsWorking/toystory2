@@ -3,8 +3,10 @@
 
 The native camera, widescreen policy, and future transform interpolation all need the projection the
 game actually authored. This checker proves the two linked libgte leaves directly from SLUS_008.93,
-proves the title initializer calls them with its retail values, and checks that GameConfig binds only
-that measured half-open address window. Missing or changed evidence is a refusal, never a match.
+proves the title initializer calls them with its retail values, and checks that GameConfig binds them
+through the measured shared SDK window. Registration remains exact-address and is covered at the C++
+boundary; the window is only the admission envelope. Missing or changed evidence is a refusal, never
+a match.
 """
 
 from __future__ import annotations
@@ -181,8 +183,16 @@ def shipping_state(text: str) -> tuple[dict[str, int], list[str]]:
 
     uncommented = re.sub(r"//[^\n]*|/\*.*?\*/", "", text, flags=re.DOTALL)
     bindings = (
-        ("windowLo", "{kProjectionLeavesLo, 0}", r"\{[^}\n]+\}"),
-        ("windowHi", "{kProjectionLeavesHi, 0}", r"\{[^}\n]+\}"),
+        (
+            "windowLo",
+            "{kSdkGraphicsWindowLo, ts2::cd::kStockLibcdLayout.libraryWindowLo}",
+            r"\{[^}\n]+\}",
+        ),
+        (
+            "windowHi",
+            "{kSdkGraphicsWindowHi, ts2::cd::kStockLibcdLayout.libraryWindowHi}",
+            r"\{[^}\n]+\}",
+        ),
         ("setGeomOffset", "kSetGeomOffset", r"[^,}\n]+"),
         ("setGeomScreen", "kSetGeomScreen", r"[^,}\n]+"),
     )
@@ -192,6 +202,12 @@ def shipping_state(text: str) -> tuple[dict[str, int], list[str]]:
         wanted = re.sub(r"\s+", "", expected_value)
         if actual != wanted:
             failures.append(f"GameConfig .{field} ships {actual}, expected {wanted}")
+    for relation in (
+        "static constexpr uint32_t kSdkGraphicsWindowLo = kProjectionLeavesLo;",
+        "static constexpr uint32_t kSdkGraphicsWindowHi = kVSyncBodyHi;",
+    ):
+        if relation not in uncommented:
+            failures.append(f"shipping source is missing measured SDK window relation: {relation}")
     return constants, failures
 
 

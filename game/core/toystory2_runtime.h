@@ -11,7 +11,11 @@ class ToyStory2Runtime final : public LegacyGameRuntimeAdapter {
 public:
   ToyStory2Runtime();
 
+  void *createContext(Core &core) override;
+  void destroyContext(void *context) override;
   RenderCapabilities renderCapabilities() const override;
+  const GuestWidescreenProjection *guestWidescreenProjection() const override;
+  std::unique_ptr<FrameDriver> createFrameDriver(Game &game) override;
   void registerOverrides(Game &game) override;
   void bootInit(Core &core) override;
 };

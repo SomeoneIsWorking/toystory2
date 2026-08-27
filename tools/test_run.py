@@ -132,6 +132,22 @@ class LauncherTest(unittest.TestCase):
             )
         )
 
+    def test_help_succeeds_before_dependencies_framework_or_disc_discovery(self) -> None:
+        for help_argument in ("-h", "--help"):
+            with self.subTest(help_argument=help_argument):
+                host = FakeHost(missing={"cmake", "git", "glslc", "pkg-config"})
+                code, stdout, stderr = self.invoke(
+                    host,
+                    help_argument,
+                    environment={"PSXPORT_TS2_DISC": "/must/not/be/read.chd"},
+                )
+
+                self.assertEqual(code, 0)
+                self.assertIn("usage:", stdout)
+                self.assertIn("--prepare-only", stdout)
+                self.assertEqual(stderr, "")
+                self.assertEqual(host.commands, [])
+
     def test_explicit_compilers_pass_through_without_identity_probe(self) -> None:
         host = FakeHost()
         code, _, stderr = self.invoke(

@@ -1,36 +1,49 @@
 #include "toystory2_runtime.h"
 
-#include "cfg.h"
+#include "boot/guest_main_boot.h"
+#include "boot/native_sync_overrides.h"
 #include "core.h"
+#include "input/native_pad_owner.h"
 #include "legacy_game_interface.h"
-#include "sync/field_clock.h"
-
-#include <cstdlib>
+#include "loop/toystory2_frame_driver.h"
+#include "render/guest_widescreen.h"
+#include "render/resident_scene_history.h"
+#include "toystory2_context.h"
 
 namespace ts2 {
 
 ToyStory2Runtime::ToyStory2Runtime() : LegacyGameRuntimeAdapter(legacy::measuredConfig, legacy::compatibilityHooks) {}
 
+void *ToyStory2Runtime::createContext(Core &) {
+  return new ToyStory2Context();
+}
+
+void ToyStory2Runtime::destroyContext(void *context) {
+  delete static_cast<ToyStory2Context *>(context);
+}
+
 RenderCapabilities ToyStory2Runtime::renderCapabilities() const {
-  return RenderCapabilities::interpolatedNative();
+  return RenderCapabilities::widescreenOnly();
+}
+
+const GuestWidescreenProjection *ToyStory2Runtime::guestWidescreenProjection() const {
+  return &guestWidescreenPolicy();
+}
+
+std::unique_ptr<FrameDriver> ToyStory2Runtime::createFrameDriver(Game &game) {
+  return ts2::createFrameDriver(game);
 }
 
 void ToyStory2Runtime::registerOverrides(Game &) {
-  // RE-10 owns the host field boundary only. The retail graphics initializer and VBlank callback
-  // remain generated guest code; field_clock supplies the asynchronous host turn between them.
-  ts2_field_clock_install();
+  // The title FrameDriver owns field delivery directly. In particular, no graphics-init override
+  // registers a host turn and no host path dispatches guest VBlank 0x80039D60.
+  installNativeSyncOverrides();
+  installNativePadOverrides();
+  installResidentSceneObservationOverrides();
 }
 
 void ToyStory2Runtime::bootInit(Core &core) {
-  const GameConfig *config = legacyConfigForMigration();
-  if (!config || !config->gameMain) {
-    cfg_loge("boot",
-             "the measured RE-01 gameMain entry is absent from Toy Story 2's legacy program facts; "
-             "refusing to dispatch address 0");
-    std::abort();
-  }
-  cfg_logi("boot", "dispatching guest main() 0x%08X on the recompiled substrate", config->gameMain);
-  rec_dispatch(&core, config->gameMain);
+  initializeGuestMain(core);
 }
 
 } // namespace ts2

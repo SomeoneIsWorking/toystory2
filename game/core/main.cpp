@@ -15,6 +15,7 @@
 #include "game.h"
 #include "toystory2_runtime.h"
 #include <stdio.h>
+#include <string_view>
 
 extern "C" {
 void watchdog_init(void);
@@ -44,6 +45,14 @@ static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
 static const char *kDiscExePath = "\\SLUS_008.93";
 
 int main(int argc, char **argv) {
+  for (int index = 1; index < argc; ++index) {
+    const std::string_view argument = argv[index];
+    if (argument == "-h" || argument == "--help") {
+      std::printf("usage: %s [PS-X EXE]\n", argv[0]);
+      return 0;
+    }
+  }
+
   // Process-lifetime derived owner. Installation must precede the first Core, which snapshots it.
   static ts2::ToyStory2Runtime runtime;
   psxport_install_game(runtime);

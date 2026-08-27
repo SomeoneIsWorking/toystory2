@@ -23,6 +23,7 @@
 // must come from reproducible binary evidence on SLUS_008.93 in this repo. When you
 // fill one, gate it against the executable bytes and cite that verifier; here
 // binary evidence is the only provenance a value can have.
+#include "cd/stock_libcd_layout.h"
 #include "game_iface.h"
 #include "legacy_game_interface.h"
 
@@ -66,6 +67,15 @@ static_assert(kSystemCnfStack < kPsExeSpHeader,
               "(SYSTEM.CNF 0x801FFF00 vs header "
               "0x801FFFF0); if this ever fires, one of them was re-read and "
               "RE-01's note is stale");
+
+// RE-05 (partial). Resident graphics init 0x80039D9C constructs the two buffer objects at
+// 0x801BBD28/0x801DD21C. The selected buffer publishes object+0x2C4 to gp+0x3E4 (0x800A10BC), making
+// these values direct retail facts. OT extent and the remaining submit leaves stay unbound below.
+static constexpr uint32_t kPacketPoolBase = 0x801BBFECu;
+static constexpr uint32_t kPacketPoolStride = 0x000214F4u;
+static constexpr uint32_t kCurrentPacketPoolPointer = 0x800A10BCu;
+static_assert(kPacketPoolBase + kPacketPoolStride == 0x801DD4E0u,
+              "the two measured render-buffer parities must retain the same packet-pool offset");
 
 // RE-01, measured from the verified executable by tools/verify_crt0.py. The
 // verifier symbolically follows entry 0x80082D60 through the InitHeap return,
@@ -167,6 +177,32 @@ static constexpr uint32_t kSetGeomScreen = 0x80083CF4u;
 static_assert(kSetGeomOffset >= kProjectionLeavesLo && kSetGeomOffset < kProjectionLeavesHi);
 static_assert(kSetGeomScreen >= kProjectionLeavesLo && kSetGeomScreen < kProjectionLeavesHi);
 
+// RE-18: libgpu arms/checks its DMA timeout through two exact linked-library leaves. Their guest
+// bodies query VSync(-1), but the host GPU consumes command/DMA work synchronously. The framework's
+// standard owner therefore publishes the measured globals without entering either guest body.
+static constexpr uint32_t kGpuTimeoutArm = 0x80088380u;
+static constexpr uint32_t kGpuTimeoutCheck = 0x800883B4u;
+static constexpr uint32_t kGpuTimeoutDeadline = 0x8009EC20u;
+static constexpr uint32_t kGpuTimeoutFlag = 0x8009EC24u;
+
+// RE-18, measured from the identity-checked linked libetc body and its 56 static call sites. VSync
+// starts at 0x80088628 and ends at the next helper 0x80088770; its timeout helper references the
+// retail "VSync: timeout" string. The title FrameDriver now bypasses resident wait 0x8003FA68 and
+// owns the two display fields itself, so every remaining guest call is an ownership violation and
+// traps. This second half-open window admits only the measured VSync body.
+static constexpr uint32_t kVSyncBodyLo = 0x80088628u;
+static constexpr uint32_t kVSyncBodyHi = 0x80088770u;
+static constexpr uint32_t kVSyncTrap = 0x80088628u;
+static_assert(kVSyncTrap >= kVSyncBodyLo && kVSyncTrap < kVSyncBodyHi);
+
+// The projection and VSync functions are both linked SCEI library leaves. Combining their adjacent
+// address ranges frees the second PlatformHle window for the measured stock-libcd group without
+// admitting any additional handler: PlatformHle still registers exact entry points only.
+static constexpr uint32_t kSdkGraphicsWindowLo = kProjectionLeavesLo;
+static constexpr uint32_t kSdkGraphicsWindowHi = kVSyncBodyHi;
+static_assert(kSetGeomOffset >= kSdkGraphicsWindowLo && kSetGeomOffset < kSdkGraphicsWindowHi);
+static_assert(kVSyncTrap >= kSdkGraphicsWindowLo && kVSyncTrap < kSdkGraphicsWindowHi);
+
 // DESIGNATED initialisers, deliberately. GameConfig is initialised POSITIONALLY
 // by the older consumers in this workspace, and the framework appends fields to
 // it — which means a positional list silently re-binds every value after an
@@ -222,20 +258,19 @@ static const GameConfig g_ts2_cfg = {
     // wearing a citation.
     .bootFmv = {nullptr, nullptr, nullptr, nullptr},
 
-    // --- per-frame OT / packet pool
-    // ---------------------------------------------- RE-05, NOT DONE --
-    // ⬜ todo, NOT skip-by-design: unlike megamanx4 this port has made no scope
-    // decision that removes
-    // the native frame loop, and no measurement of this game's frame rate
-    // exists in this repo. It is
-    // simply not RE'd. Do not read the zeros as a decision.
+    // --- per-frame OT / packet pool --------------------------------------- RE-05 partial --
+    // Resident graphics init 0x80039D9C proves two complete render-buffer objects at
+    // 0x801BBD28/0x801DD21C. Each buffer swap publishes object+0x2C4 through gp+0x3E4
+    // (0x800A10BC), so the packet-pool starts and their parity stride are direct retail facts.
+    // The OT extent, prior-pool pointer, clear/submit leaves and dwell contract remain zero until
+    // their independent call sites are measured; those gaps do not make the pool facts uncertain.
     .otRegionBase = 0,
     .otRegionStride = 0,
-    .packetPoolBase = 0,
-    .packetPoolStride = 0,
+    .packetPoolBase = kPacketPoolBase,
+    .packetPoolStride = kPacketPoolStride,
     .otBasePtr = 0,
     .dwellCounter = 0,
-    .poolPtrCur = 0,
+    .poolPtrCur = kCurrentPacketPoolPointer,
     .poolPtrLast = 0,
     .clearOtagR = 0,
     .putDrawEnv = 0,
@@ -244,8 +279,7 @@ static const GameConfig g_ts2_cfg = {
     .dualviewRenderOrch = 0,
     .dualviewSubmit = 0,
 
-    // --- scheduler task layout ------------------------------- N/A until a
-    // native frame loop exists --
+    // --- scheduler task layout ----------------------------- not used by title FrameDriver --
     // The framework's PcScheduler is not wired for this port: GameHooks'
     // scheduler entries are
     // fail-fast stubs, so these values would have no reader even if they were
@@ -265,18 +299,20 @@ static const GameConfig g_ts2_cfg = {
     // still unresolved under RE-04 and is therefore not represented as code.
     .overlaySlots = {{kLevelOverlayBase, "LEVEL"}, {kMemoryOverlayBase, "MEMORY"}, {0, nullptr}},
 
-    // --- CD chokepoints ------------------------------------------- RE-04 partial --
+    // --- CD chokepoints ----------------------------------------- RE-04 verified --
     // RE-03 identifies the game-level synchronous path loader at 0x80082508 and
     // its stock-libcd chain (CdSearchFile 0x80092AE8, CdRead 0x80093AF0,
     // CdReadSync 0x80093BF4). RE-04 additionally proves CdControl 0x80091DE4,
     // CdSync 0x80091898 and the INT1..INT5 service state machine 0x80091310.
-    // They remain zero because the verified shipping path uses the raw controller;
-    // arming an HLE would bypass that path. Independently, psxport's
-    // cdFileLoad field has the incompatible (dest,lba,size) ABI, while this
-    // game's loader takes (path,dest); never register it under the wrong contract.
+    // The native FrameDriver makes successful guest VSync illegal, so the old raw-controller route
+    // is no longer a valid owner: CdSync and CdControl both query VSync for their IRQ timeout. Bind
+    // the framework's existing synchronous stock-libcd owners at the exact measured entries. This
+    // also moves file reads above the guest callback/IRQ loop, through native CdRead/CdReadSync and
+    // CdSearchFile, rather than weakening the VSync trap. cdFileLoad remains zero because its
+    // (dest,lba,size) ABI is incompatible with this game's (path,dest) loader.
     .cdInit = 0,
-    .cdCommand = 0,
-    .cdSync = 0,
+    .cdCommand = ts2::cd::kStockLibcdLayout.command,
+    .cdSync = ts2::cd::kStockLibcdLayout.sync,
     .cdReadPrim = 0,
     .cdFileLoad = 0,
     .cdAsyncRead = 0,
@@ -287,12 +323,12 @@ static const GameConfig g_ts2_cfg = {
     .cdCmdStream = 0,
     .cdCallbackTable = {0, 0, 0, 0},
     .cdCallbackFn = {0, 0, 0, 0},
-    .cdGetSector = 0,
-    .cdReadyCbPtr = 0,
-    .cdLastPosBuf = 0,
-    .cdReadStock = 0,
-    .cdReadSync = 0,
-    .cdSearchFile = 0,
+    .cdGetSector = ts2::cd::kStockLibcdLayout.getSector,
+    .cdReadyCbPtr = ts2::cd::kStockLibcdLayout.readyCallback,
+    .cdLastPosBuf = ts2::cd::kStockLibcdLayout.lastPosition,
+    .cdReadStock = ts2::cd::kStockLibcdLayout.read,
+    .cdReadSync = ts2::cd::kStockLibcdLayout.readSync,
+    .cdSearchFile = ts2::cd::kStockLibcdLayout.searchFile,
     .dmaCallbackTable = 0,
 
     // --- pad driver --------------------------------------------- RE-06 re-verified --
@@ -308,21 +344,26 @@ static const GameConfig g_ts2_cfg = {
     .padSlotPtrStride = kPadDriverContextStride,
 
     // --- platform HLE (the hardware-sync primitives) -------------------- RE-07 partial --
-    // Only the projection publication pair is instruction-verified. All unrelated sync leaves stay
-    // zero, so reaching one still runs the real guest body and exposes the next missing fact. The
-    // deliberately narrow window admits the exact two linked libgte functions, not an inferred
-    // library-wide range.
-    .hle = {.windowLo = {kProjectionLeavesLo, 0},
-            .windowHi = {kProjectionLeavesHi, 0},
+    // One SCEI-library window owns the projection leaves and mandatory VSync trap; the other admits
+    // only the measured stock-libcd span. Registration remains exact-address, so unrelated library
+    // bodies remain guest code.
+    .hle = {.windowLo = {kSdkGraphicsWindowLo, ts2::cd::kStockLibcdLayout.libraryWindowLo},
+            .windowHi = {kSdkGraphicsWindowHi, ts2::cd::kStockLibcdLayout.libraryWindowHi},
+            .gpuTimeoutArm = kGpuTimeoutArm,
+            .gpuTimeoutCheck = kGpuTimeoutCheck,
+            .gpuTimeoutDeadlineVar = kGpuTimeoutDeadline,
+            .gpuTimeoutFlagVar = kGpuTimeoutFlag,
             .setGeomOffset = kSetGeomOffset,
-            .setGeomScreen = kSetGeomScreen},
+            .setGeomScreen = kSetGeomScreen,
+            .vsyncTrap = kVSyncTrap},
 
     // --- adapter input: guest VRAM owns the picture throughout the verified route --
     // The renderer no longer reads this compatibility field. ToyStory2Runtime is legacy-backed,
     // so LegacyGameRuntimeAdapter projects it through the required per-Game
     // GameRuntime::guestVramIsPicture policy. The current port has no native producer: its measured
-    // field loop invokes the guest VBlank callback and presents guest DrawOTag/VRAM output, including
-    // upload-only screens. Therefore the one verified answer is true. If native picture ownership is
+    // finite FrameDriver still dispatches the resident guest renderer and presents guest DrawOTag/VRAM
+    // output, including upload-only screens, without dispatching guest VBlank. Therefore the one
+    // verified answer is true. If native picture ownership is
     // added later, migrate the title to a derived dynamic policy rather than changing this static
     // adapter input or adding a second copy of the same rule.
     .preserveVramBackdrop = 1,
@@ -349,9 +390,9 @@ static const GameConfig g_ts2_cfg = {
     // CADENCE, NOT BY THE GAME'S DISPLAY RATE — a port that still runs the
     // guest's own frame loop and
     // paces once per FIELD sets 1, which is this port's shape (there is no
-    // native loop here). Revisit
-    // together with RE-05 if a native loop ever calls the pacer once per logic
-    // frame.
+    // title FrameDriver calls the presentation fence once per logic frame with the real one- or
+    // two-field quota, so the compatibility value remains one only for legacy readers that still
+    // interpret it per pacing call.
     .paceQuota = 1,
 
     .windowTitle = "Toy Story 2 (psxport)",

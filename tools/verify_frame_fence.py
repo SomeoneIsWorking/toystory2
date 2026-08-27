@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Verify Toy Story 2's captured-queue frame fence and first title frame.
 
-The guest-owned loop submits draw lists from its VBlank callback.  Each host
-field therefore has to close the shared capture with the neutral presentation
-fence; calling the lower-level presenter leaves every flush in one capture
-forever.
+The historical guest-owned loop submitted draw lists from its VBlank callback.
+The current title-owned resident loop closes the shared capture once after its
+two measured display fields; calling the lower-level presenter still leaves
+every flush in one capture forever.
 This gate distinguishes that missing fence from a legitimately large queue or
 a runaway producer, then checks a real post-fix trace and title capture.
 """
@@ -18,7 +18,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_FRAME_CLOCK = ROOT / "game" / "sync" / "field_clock.cpp"
+DEFAULT_FRAME_CLOCK = ROOT / "game" / "loop" / "toystory2_frame_driver.cpp"
+DEFAULT_OUTER_LOOP_HEADER = ROOT / "game" / "loop" / "outer_loop.h"
+DEFAULT_SYNC_OVERRIDES = ROOT / "game" / "boot" / "native_sync_overrides.cpp"
+DEFAULT_GENERATED_RESIDENT = ROOT / "generated" / "shard_3.c"
 DEFAULT_QUEUE_HEADER = (
     ROOT / "external" / "psxport" / "runtime" / "recomp" / "render_queue.h"
 )
@@ -88,16 +91,50 @@ def queue_capacity(header: str) -> int:
 
 
 def check_shipping_source(source: str) -> None:
-    if "core->game->presentation.commit(core, 1);" not in source:
+    if "core_.game->presentation.commit(&core_, guestFields);" not in source:
         raise Refused(
-            "Toy Story 2's field boundary does not use the neutral one-field fence"
+            "Toy Story 2's native frame boundary does not use the neutral title-owned fence"
         )
+    if "rec_dispatch(&core_, residentUpdateAddress(alternate));" not in source:
+        raise Refused("Toy Story 2's frame boundary does not route the measured resident owners")
+    if 'constexpr uint32_t kLibetcVBlankCount = 0x8009FD54u;' not in source:
+        raise Refused("Toy Story 2's frame boundary does not name its linked-libetc field counter")
+    if "residentPreparation_.step(core_, level" not in source:
+        raise Refused(
+            "resident preparation drops the selected-level a0 live into retail 0x8007BEC4"
+        )
+    if "rec_dispatch(&core_, kGuestVBlankHandler)" in source:
+        raise Refused("Toy Story 2 still dispatches guest VBlank from its host frame owner")
+    if "rec_host_turn_register" in source:
+        raise Refused("Toy Story 2 still registers callback-driven host turns")
     if "core->game->fps60.frame_commit" in source:
         raise Refused("Toy Story 2 directly couples its field fence to Fps60")
-    if re.search(r"^\s*gpu_present\(core\);", source, re.MULTILINE):
+    if re.search(r"^\s*gpu_present\([^;]+\);", source, re.MULTILINE):
         raise Refused(
             "Toy Story 2 still bypasses the frame fence with the lower-level presenter"
         )
+
+
+def check_native_loop_ownership(
+    outer_loop: str, sync_overrides: str, generated: str | None
+) -> None:
+    if "alternateMode ? 0x8007B850u : 0x8007B254u" not in outer_loop:
+        raise Refused("finite outer loop does not retain both measured resident owners")
+    for address in ("0x8003A218u", "0x80039D9Cu", "0x8003FA68u"):
+        if f"registry->shard_set_override({address}" not in sync_overrides:
+            raise Refused(f"native synchronization override {address} is not registered")
+    if "core.mem_w16(0x800A1E64u, 0xFFFF);" not in sync_overrides:
+        raise Refused("graphics-buffer swap does not clear retail gp+4492")
+    if "0x80088628u" in sync_overrides:
+        raise Refused("title synchronization override still names or dispatches guest VSync")
+    if generated is not None:
+        graphics_super = re.search(
+            r"void gen_func_8003A218\(Core\* c\) \{(?P<body>.*?)\n\}\n\nvoid gen_func_",
+            generated,
+            re.DOTALL,
+        )
+        if graphics_super is None or graphics_super.group("body").count("func_80088628(c);") != 2:
+            raise Refused("generated graphics-init super no longer contains its two retail VSync calls")
 
 
 def analyze_trace(log: str) -> TraceEvidence:
@@ -236,6 +273,9 @@ def classify_title(evidence: TitleEvidence) -> None:
 
 def check(
     source_path: Path,
+    outer_loop_path: Path,
+    sync_overrides_path: Path,
+    generated_path: Path,
     header_path: Path,
     pre_log_path: Path,
     post_log_path: Path,
@@ -243,6 +283,11 @@ def check(
     negative_shot_paths: tuple[Path, ...],
 ) -> None:
     check_shipping_source(source_path.read_text(encoding="utf-8"))
+    check_native_loop_ownership(
+        outer_loop_path.read_text(encoding="utf-8"),
+        sync_overrides_path.read_text(encoding="utf-8"),
+        generated_path.read_text(encoding="utf-8") if generated_path.exists() else None,
+    )
     capacity = queue_capacity(header_path.read_text(encoding="utf-8"))
     pre = analyze_trace(pre_log_path.read_text(encoding="utf-8", errors="replace"))
     post_text = post_log_path.read_text(encoding="utf-8", errors="replace")
@@ -283,7 +328,13 @@ def check(
     )
 
 
-def selftest(source_path: Path, header_path: Path) -> int:
+def selftest(
+    source_path: Path,
+    outer_loop_path: Path,
+    sync_overrides_path: Path,
+    generated_path: Path,
+    header_path: Path,
+) -> int:
     checks: list[tuple[str, bool]] = []
 
     def expect(name: str, operation, accepted: bool) -> None:
@@ -294,20 +345,103 @@ def selftest(source_path: Path, header_path: Path) -> int:
             result = False
         checks.append((name, result == accepted))
 
+    generated_fixture = (
+        "void gen_func_8003A218(Core* c) {\n"
+        "func_80088628(c);\nfunc_80088628(c);\n}\n\n"
+        "void gen_func_8003A548(Core* c) {}\n"
+    )
+    generated_source = (
+        generated_path.read_text(encoding="utf-8")
+        if generated_path.exists()
+        else generated_fixture
+    )
+
     expect(
         "positive shipping frame-fence ownership",
         lambda: check_shipping_source(source_path.read_text(encoding="utf-8")),
         True,
     )
     expect(
+        "negative resident preparation drops selected-level a0",
+        lambda: check_shipping_source(
+            source_path.read_text(encoding="utf-8").replace(
+                "residentPreparation_.step(core_, level",
+                "residentPreparation_.step(core_, 0",
+            )
+        ),
+        False,
+    )
+    expect(
+        "positive native loop owners preserve generated VSync super",
+        lambda: check_native_loop_ownership(
+            outer_loop_path.read_text(encoding="utf-8"),
+            sync_overrides_path.read_text(encoding="utf-8"),
+            generated_source,
+        ),
+        True,
+    )
+    expect(
+        "negative missing alternate resident owner",
+        lambda: check_native_loop_ownership(
+            "return 0x8007B254u;",
+            sync_overrides_path.read_text(encoding="utf-8"),
+            generated_source,
+        ),
+        False,
+    )
+    expect(
+        "negative wrong graphics-buffer state address",
+        lambda: check_native_loop_ownership(
+            outer_loop_path.read_text(encoding="utf-8"),
+            sync_overrides_path.read_text(encoding="utf-8").replace(
+                "core.mem_w16(0x800A1E64u, 0xFFFF);",
+                "core.mem_w16(0x800A118Cu, 0xFFFF);",
+            ),
+            generated_source,
+        ),
+        False,
+    )
+    expect(
+        "negative edited generated VSync super",
+        lambda: check_native_loop_ownership(
+            outer_loop_path.read_text(encoding="utf-8"),
+            sync_overrides_path.read_text(encoding="utf-8"),
+            generated_source.replace("func_80088628(c);", "", 1),
+        ),
+        False,
+    )
+    expect(
         "negative direct temporal-decorator coupling",
-        lambda: check_shipping_source("core->game->fps60.frame_commit(core, 1);\n"),
+        lambda: check_shipping_source("core_.game->fps60.frame_commit(&core_, 2);\n"),
         False,
     )
     expect(
         "negative lower-level presentation bypass",
         lambda: check_shipping_source(
-            "core->game->presentation.commit(core, 1);\ngpu_present(core);\n"
+            "rec_dispatch(&core_, residentUpdateAddress(alternate));\n"
+            'constexpr uint32_t kLibetcVBlankCount = 0x8009FD54u;\n'
+            "core_.game->presentation.commit(&core_, guestFields);\n"
+            "gpu_present(&core_);\n"
+        ),
+        False,
+    )
+    expect(
+        "negative guest-vblank dispatch",
+        lambda: check_shipping_source(
+            "rec_dispatch(&core_, residentUpdateAddress(alternate));\n"
+            'constexpr uint32_t kLibetcVBlankCount = 0x8009FD54u;\n'
+            "core_.game->presentation.commit(&core_, guestFields);\n"
+            "rec_dispatch(&core_, kGuestVBlankHandler);\n"
+        ),
+        False,
+    )
+    expect(
+        "negative callback-driven host turn",
+        lambda: check_shipping_source(
+            "rec_dispatch(&core_, residentUpdateAddress(alternate));\n"
+            'constexpr uint32_t kLibetcVBlankCount = 0x8009FD54u;\n'
+            "core_.game->presentation.commit(&core_, guestFields);\n"
+            "rec_host_turn_register(&core_, turn, 59940);\n"
         ),
         False,
     )
@@ -415,6 +549,9 @@ def main() -> int:
     modes.add_argument("--check", action="store_true")
     modes.add_argument("--selftest", action="store_true")
     parser.add_argument("--source", type=Path, default=DEFAULT_FRAME_CLOCK)
+    parser.add_argument("--outer-loop", type=Path, default=DEFAULT_OUTER_LOOP_HEADER)
+    parser.add_argument("--sync-overrides", type=Path, default=DEFAULT_SYNC_OVERRIDES)
+    parser.add_argument("--generated-resident", type=Path, default=DEFAULT_GENERATED_RESIDENT)
     parser.add_argument("--queue-header", type=Path, default=DEFAULT_QUEUE_HEADER)
     parser.add_argument("--pre-log", type=Path, default=DEFAULT_PRE_LOG)
     parser.add_argument("--post-log", type=Path, default=DEFAULT_POST_LOG)
@@ -423,9 +560,18 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.selftest:
-            return selftest(args.source, args.queue_header)
+            return selftest(
+                args.source,
+                args.outer_loop,
+                args.sync_overrides,
+                args.generated_resident,
+                args.queue_header,
+            )
         check(
             args.source,
+            args.outer_loop,
+            args.sync_overrides,
+            args.generated_resident,
             args.queue_header,
             args.pre_log,
             args.post_log,

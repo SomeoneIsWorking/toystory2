@@ -59,14 +59,14 @@ CPU oracle 34/34 at first call `0x80089344`. The first live miss proved IRQ resu
 wired solely as a mid-function re-entry. RE-04 proves the stock-libcd command/result path and deterministic
 CDC pacing. The next blocker was not geometry: the guest registered VBlank callback `0x80039D60`, but
 the game seam never delivered a host field, leaving wait `0x8003FA68` permanently dependent on a
-counter that could not advance. RE-10's game-local field clock now arms after exact graphics init
-`0x8003A650`, invokes the registered callback at the GPU field rate, advances pad/audio and presents.
+counter that could not advance. RE-10's now-retired game-local field clock armed after exact graphics
+init `0x8003A650`, invoked the registered callback at the GPU field rate, advanced pad/audio and presented.
 The same retail headless route changed from zero presents and a 30-second watchdog to non-black legal
 and ESRB frames at presents 30, 120 and 900. It then loads `FMV/FMV.BIN` at `0x800D5D20`, enters
 `0x800D6628` (file+`0x908`), completes shared BIOS `A0:0x25` path parsing and traverses the resident
 renderer's exact 32-way internal jump table. The next defect was title-owned boundary wiring, not
 queue capacity: `field_turn` called raw `gpu_present`, so thousands of fields accumulated in one
-captured queue. It now commits once per measured field through the neutral shared presentation fence,
+captured queue. That historical path then committed once per measured field through the neutral shared presentation fence,
 without opting into temporal decoration. Real A/B records 8,320 commits, maximum captured field
 3,096 under unchanged cap 65,536, and a stable retail title at presents 1,500 and 2,100. RE-14 then
 classified LEVEL01 target `0x800D12C4` as a TRUE overlay
@@ -85,17 +85,56 @@ stride, and the guest decoder independently reads slot 0. The host field turn wr
 Room, opens and leaves the pause menu, and visibly moves the camera under held Right. RE-17 remains
 in progress because replaying the exact 14,276 recorded pad samples reaches gameplay but stays paused
 at the later captures; issue #20 owns that determinism defect. The per-frame OT/packet-pool layout
-also remains unmeasured. RE-07 is now partial rather than empty: retail graphics init `0x8003A650`
+is now partial: retail buffer objects prove packet pools `0x801BBFEC`/`0x801DD4E0`, stride `0x214F4`,
+and current pointer `0x800A10BC`. A live exact-frame query records 15,521 attribution spans and names
+the dominant pre-GTE submitters, but OT extent and title-native producer structures remain unmeasured.
+RE-07 is partial rather than empty: retail graphics init `0x8003A650`
 calls SetGeomOffset `0x80083CD4` and SetGeomScreen `0x80083CF4` with `256/120/160`; the narrow title HLE
 binding preserves their guest effects and records the authored projection on the same Core. Static and
 hermetic differential gates prove that boundary. An exact-`dbdb2baf` product run reaches both leaves
-four times, first at field 1 with `256/120/160`, and reports zero ABI violations. No widescreen policy,
-interpolation path, or native render producer consumes the projection yet.
+four times, first at field 1 with `256/120/160`, and reports zero ABI violations.
+
+RE-18 begins the ownership correction required by the current shared shell. `ToyStory2Runtime` now
+creates a title-local FrameDriver and returns from the measured initialization prefix of guest main
+`0x8007A9E8` instead of dispatching its non-returning outer loop. The finite owner completes MEMORY
+initialization in its first frame, advances one pre-resident poll or interactive-selection iteration,
+prepares resident state, and routes normal `0x8007B254` or alternate `0x8007B850`. Its encompassing
+frame owns input, two display fields, direct deferred display service `0x80021028`, audio, and one
+neutral `commit(...,2)`. A title runtime override preserves graphics init `0x8003A218`'s measured buffer
+effects without its two VSync calls and without editing the generated super. Guest VBlank `0x80039D60`
+and host turns are absent; linked libetc VSync `0x80088628` is fatal in exact window
+`[0x80088628,0x80088770)`. This is not yet an end-to-end product: issue #25 owns independent
+MEMORY/FMV loop completion. Bounded real-disc re21 is the current loop witness: it exits itself at the
+300-frame cap, reconciles 300/300 frames with zero dropped layers, reaches coherent Andy's Room demo
+gameplay, and hits no guest VSync, fatal, miss, unmapped access, or watchdog. This proves the resident
+route, not the still-independent MEMORY/FMV owners or indefinite interactive play. A later current-
+binary Clang witness, re35, independently exits at 120/120 reconciled frames with zero dropped layers;
+its inspected presents 45, 60, 90, and 120 again show coherent Andy's Room gameplay with no guest
+VSync or fatal.
+
+The first controlled `aspect=1` run uses that same 300-frame resident route and falsifies the proposed
+guest-wide source path: widening the authored 512-pixel draw canvas to 684 crosses each fixed horizontal
+double-buffer parity inside 1024-pixel VRAM and exposes wrapped/atlas columns as vertical black slabs.
+Issue #24 owns the captures and root cause. True widescreen, Native and lerp now share the correct
+pre-GTE frontier under issue #30: resident scene root `0x8002A070`, its object/mesh owners, and their
+authored inputs. The first camera boundary is now located at `0x800C1540` (position `+0/+4/+8`, angle
+halfwords `+12/+14/+16`) through producer `0x8002C848`; scene root then builds visible lists at
+`0x800BB4D8` and `0x800C0AB0`. `ResidentCameraHistory` now captures stable previous/current position
+and wrap-aware rotations after each resident update. Bounded real-disc re37 traces changing authored
+camera values through 120/120 reconciled frames while inspected Andy's Room captures remain coherent
+and no guest VSync/fatal occurs. Dual-method xrefs then separate the stack-local submitted counts for
+the two visibility lists from their post-load residency globals. The common owner `0x8002622C`
+reaches typed visibility/object/instance records and dominant mesh leaf `0x800100E4`.
+`ResidentSceneHistory` now observes both exact entries, captures previous/current candidate batches
+and actual mesh-call arguments, and always super-calls the unchanged generated bodies. This builds and
+passes its focused boundary, but still awaits the serialized real-disc witness. It is grounded producer
+input, not a native picture: vertex/primitive stream, material, and texture semantics remain open.
+Post-GTE packet or OT replay is not an acceptable native producer.
 
 `game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives
 `LegacyGameRuntimeAdapter` only because generic psxport algorithms still consume the measured
-`GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Boot dispatch and RE-10 field-clock
-installation are runtime overrides. Current psxport `dbdb2baf` retains the guest-VRAM
+`GameConfig` facts and bounded neutral/fail-fast `GameHooks` callbacks. Guest-main prefix ownership and
+FrameDriver construction are runtime overrides. Current psxport `dbdb2baf` retains the guest-VRAM
 picture-ownership policy introduced at `bc8c8897`: this title remains legacy-backed, so the adapter projects its verified
 immutable answer (`preserveVramBackdrop = 1`) while the current route is wholly guest-rendered. Do not
 duplicate that answer in `ToyStory2Runtime`; replace the adapter projection with a derived dynamic
@@ -117,7 +156,10 @@ ctest --test-dir build --output-on-failure                              # launch
 `tools/run.py` owns provisioning and build policy. Its zero-argument route provisions the 22-module
 corpus, refreshes generated code only when inputs change, builds only `toystory2_port`, and launches
 the current windowed product from the isolated `scratch/build/player` tree with `BUILD_TESTING=OFF`;
-it never runs CTest or perturbs the maintainer `build/` cache. `--prepare-only` exercises the same cold
+it never runs CTest or perturbs the maintainer `build/` cache. `-h`/`--help` print usage and exit 0
+before dependency, framework, executable, or disc discovery. The product executable handles the same
+flags before installing the title runtime, constructing a `Game`, or attempting disc discovery.
+`--prepare-only` exercises the same cold
 path and stops before launch. The locked interpreter is propagated into every Python subprocess and CMake.
 Explicit `CC`/`CXX` values pass through without compiler-identity checks; when they are absent, CMake
 owns compiler discovery. Maintainer verification still uses Clang as shown above.

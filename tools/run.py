@@ -234,7 +234,7 @@ def announce_framework(
     )
 
 
-def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("disc", nargs="?", help="path to the user's Toy Story 2 disc")
     parser.add_argument(
@@ -242,7 +242,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="provision and build the current product without launching it",
     )
-    return parser.parse_args(list(argv))
+    return parser
+
+
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    return argument_parser().parse_args(list(argv))
 
 
 def launch(
@@ -256,6 +260,12 @@ def launch(
     stderr: TextIO = sys.stderr,
 ) -> int:
     """Run the shipping path; injected host seams keep its tests hermetic."""
+
+    # Help is a discovery-free launcher operation. Handle argparse's two standard spellings before
+    # checking tools, resolving the framework, or asking the substrate provisioner to find a disc.
+    if "-h" in argv or "--help" in argv:
+        argument_parser().print_help(file=stdout)
+        return 0
 
     environment = dict(os.environ if environ is None else environ)
     machine = host or Host()
