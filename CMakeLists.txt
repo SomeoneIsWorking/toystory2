@@ -135,6 +135,10 @@ if(BUILD_TESTING)
     NAME raw_unpack_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_unpack.py --selftest
   )
+  add_test(
+    NAME raw_packet_census_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_packet_census.py --selftest
+  )
   if(TARGET toystory2_recomp_boundary)
     add_test(
       NAME recomp_substrate_selftest

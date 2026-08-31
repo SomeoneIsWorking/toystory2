@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import struct
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -49,6 +50,19 @@ from raw_probe import SENTINEL_REASON, crc16_arc, walk
 
 class DecompressionError(Exception):
     """The bitstream violated the format."""
+
+
+@dataclass(frozen=True)
+class DecodedRawChunk:
+    """One fully verified decoded .RAW chunk.
+
+    This is deliberately the post-CRC boundary shared with packet-level analysis.  Consumers never
+    receive a plausible partial stream: a malformed chunk invalidates the complete container.
+    """
+
+    index: int
+    offset: int
+    payload: bytes
 
 
 def decompress_tt(payload_with_header: bytes) -> bytes:
@@ -234,15 +248,17 @@ def decompress_tt(payload_with_header: bytes) -> bytes:
             raise DecompressionError(f"decoded size exceeded expected ({expected_size})")
 
 
-def verify_data(data: bytes, label: str) -> tuple[int, bytes | None]:
-    """Verify one complete container and return (exit status, decoded bytes).
+def decode_data(data: bytes, label: str, *, verbose: bool = True) -> tuple[int, list[DecodedRawChunk] | None]:
+    """Verify and decode one complete container into verified chunk payloads.
 
-    This is the single production path used by both file inputs and the
-    hermetic regression controls.  Refused/failing inputs return no output.
+    This is the single production decode path used by the CLI, the hermetic controls, and every
+    later .RAW-layer consumer. Refused/failing inputs return no chunk payloads, so a caller cannot
+    mistake a clean prefix for decoded source data.
     """
     chunks, consumed, reason = walk(data)
-    print(f"{label}: {len(chunks)} chunks, consumed {consumed}/{len(data)} bytes, "
-          f"stopped_because='{reason}'")
+    if verbose:
+        print(f"{label}: {len(chunks)} chunks, consumed {consumed}/{len(data)} bytes, "
+              f"stopped_because='{reason}'")
     if not chunks:
         print(f"  REFUSED: zero chunks parsed from {len(data)} bytes — not a .RAW; "
               f"nothing was asserted.")
@@ -253,7 +269,7 @@ def verify_data(data: bytes, label: str) -> tuple[int, bytes | None]:
         return 1, None
     bad = 0
     total_raw = 0
-    decoded = []
+    decoded: list[DecodedRawChunk] = []
     for i, ch in enumerate(chunks):
         off, ulen, plen, ucrc, pcrc, _leeway, nchunk, payload = ch
         got_packed = crc16_arc(payload)
@@ -261,35 +277,42 @@ def verify_data(data: bytes, label: str) -> tuple[int, bytes | None]:
             bad += 1
             print(f"  chunk {i} @0x{off:06X}: FAIL packed CRC {got_packed:04X} != "
                   f"header {pcrc:04X} — not decoding a payload that contradicts its header")
-            decoded.append(None)
             continue
         try:
             out = decompress_tt(data[off:off + 0x0E + plen])
         except DecompressionError as e:
             bad += 1
             print(f"  chunk {i} @0x{off:06X}: FAIL decode: {e}")
-            decoded.append(None)
             continue
         got_unpacked = crc16_arc(out)
         if len(out) != ulen or got_unpacked != ucrc:
             bad += 1
             print(f"  chunk {i} @0x{off:06X}: FAIL unpacked len={len(out)} (want {ulen}) "
                   f"CRC {got_unpacked:04X} (want {ucrc:04X})")
-            decoded.append(None)
             continue
-        decoded.append(out)
+        decoded.append(DecodedRawChunk(index=i, offset=off, payload=out))
         total_raw += len(out)
-        if i < 6:
+        if verbose and i < 6:
             print(f"  chunk {i} @0x{off:06X}: OK ulen={ulen} plen={plen} "
                   f"packed_crc ok unpacked_crc ok")
     ok = len(chunks) - bad
-    print(f"  summary: chunks={len(chunks)} ok={ok} failed={bad} "
-          f"unpacked_bytes={total_raw} leeway/chunkcount="
-          f"{sorted({(ch[5], ch[6]) for ch in chunks})[:6]}")
+    if verbose or bad:
+        print(f"  summary: chunks={len(chunks)} ok={ok} failed={bad} "
+              f"unpacked_bytes={total_raw} leeway/chunkcount="
+              f"{sorted({(ch[5], ch[6]) for ch in chunks})[:6]}")
     if bad:
         print(f"  FAIL: {bad} of {len(chunks)} chunks did not decompress+verify.")
         return 1, None
-    return 0, b"".join(d for d in decoded if d is not None)
+    return 0, decoded
+
+
+def verify_data(data: bytes, label: str) -> tuple[int, bytes | None]:
+    """Verify one complete container and return (exit status, concatenated decoded bytes)."""
+    rc, chunks = decode_data(data, label)
+    if rc != 0:
+        return rc, None
+    assert chunks is not None
+    return 0, b"".join(chunk.payload for chunk in chunks)
 
 
 def verify_file(path: Path, want_output: Path | None) -> int:
