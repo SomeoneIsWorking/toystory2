@@ -15,6 +15,7 @@ namespace ts2 {
 namespace {
 
 constexpr uint32_t kSceneBank = 0x800A11E0u;
+constexpr uint32_t kMaterialDepthTableBase = 0x800A12F8u;
 
 bool usesExtendedInstanceLayout(uint8_t type) {
   switch (type & 0x6Fu) {
@@ -95,9 +96,7 @@ void observeSceneOwner(Core *core) {
 void observeMeshSubmitter(Core *core) {
   ResidentSceneHistory &history = context(*core).scene;
   if (history.capturing()) {
-    const uint32_t mesh = core->r[4];
-    const int32_t headerWord = mesh == 0 ? 0 : static_cast<int32_t>(core->mem_r32(mesh));
-    history.captureMeshSubmission(mesh, headerWord, core->r[5], core->r[6], core->r[7]);
+    history.captureMeshSubmission(*core, core->r[4], core->r[5], core->r[6], core->r[7]);
   }
   gen_func_800100E4(core);
 }
@@ -149,16 +148,49 @@ void ResidentSceneFrame::captureOwnerSubmission(
 }
 
 void ResidentSceneFrame::captureMeshSubmission(
-    uint32_t mesh, int32_t headerWord, uint32_t scale, uint32_t materialTable, uint32_t cameraCoarse) {
+    Core &core, uint32_t mesh, uint32_t scale, uint32_t materialDepthTableIndex, uint32_t cameraCoarse) {
   if (meshCount_ == meshes_.size()) {
     lucent::error("ts2-scene", "resident mesh capture overflow at {} submissions", meshCount_);
     std::abort();
   }
-  meshes_[meshCount_++] = {.meshAddress = mesh,
-                           .headerWord = headerWord,
-                           .scale = scale,
-                           .materialTableAddress = materialTable,
-                           .cameraCoarseAddress = cameraCoarse};
+  ResidentMeshSubmission submission{
+      .meshAddress = mesh,
+      .headerWord = mesh == 0 ? 0 : static_cast<int32_t>(core.mem_r32(mesh)),
+      .scale = scale,
+      .materialDepthTableIndex = materialDepthTableIndex,
+      .cameraCoarseAddress = cameraCoarse,
+  };
+  submission.materialDepthTableBase = core.mem_r32(kMaterialDepthTableBase);
+  submission.materialDepthTableAddress = submission.materialDepthTableBase + materialDepthTableIndex * 4u;
+  submission.materialDepthTableEntry = core.mem_r32(submission.materialDepthTableAddress);
+  for (uint32_t index = 0; index < submission.affineControlWords.size(); ++index) {
+    submission.affineControlWords[index] = gte_read_ctrl(index);
+  }
+  for (uint32_t index = 0; index < submission.projectionControlWords.size(); ++index) {
+    submission.projectionControlWords[index] = gte_read_ctrl(24u + index);
+  }
+  submission.textureCoordinateOffset = core.mem_r16(0x1F800024u);
+  const std::optional<ResidentMeshLayout> layout = decodeResidentMeshLayout(core, mesh);
+  if (layout) {
+    const std::optional<ResidentMeshCommand> command = decodeResidentMeshCommand(core, layout->commandAddress);
+    const std::optional<ResidentMeshCommandSummary> summary = summarizeResidentMeshCommands(core, *layout);
+    if (command && summary) {
+      submission.layout = *layout;
+      submission.firstCommand = *command;
+      submission.commandSummary = *summary;
+      submission.materialCensus = censusResidentMeshMaterials(core, *layout, submission.descriptorSamples);
+      if (!command->terminal) {
+        const std::optional<ResidentMeshPrimitive> primitive = decodeResidentMeshPrimitive(core, *command, 0u);
+        if (primitive) {
+          submission.firstPrimitive = *primitive;
+          submission.decoded = true;
+        }
+      } else {
+        submission.decoded = true;
+      }
+    }
+  }
+  meshes_[meshCount_++] = submission;
 }
 
 void ResidentSceneHistory::reset() {
@@ -188,12 +220,12 @@ void ResidentSceneHistory::captureOwnerSubmission(
 }
 
 void ResidentSceneHistory::captureMeshSubmission(
-    uint32_t mesh, int32_t headerWord, uint32_t scale, uint32_t materialTable, uint32_t cameraCoarse) {
+    Core &core, uint32_t mesh, uint32_t scale, uint32_t materialDepthTableIndex, uint32_t cameraCoarse) {
   if (!capturing_) {
     lucent::error("ts2-scene", "resident mesh captured outside a resident update");
     std::abort();
   }
-  working_.captureMeshSubmission(mesh, headerWord, scale, materialTable, cameraCoarse);
+  working_.captureMeshSubmission(core, mesh, scale, materialDepthTableIndex, cameraCoarse);
 }
 
 void ResidentSceneHistory::finishFrame() {
@@ -214,10 +246,34 @@ void ResidentSceneHistory::finishFrame() {
   const std::span<const ResidentMeshSubmission> meshes = current_.meshes();
   const ResidentSceneCandidate firstCandidate = candidates.empty() ? ResidentSceneCandidate{} : candidates.front();
   const ResidentMeshSubmission firstMesh = meshes.empty() ? ResidentMeshSubmission{} : meshes.front();
+  size_t decodedMeshCount = 0;
+  uint32_t primitiveOpcodeMask = 0;
+  uint32_t materialTableSlotMask = 0;
+  uint8_t blendVariantMask = 0;
+  uint64_t primitiveCount = 0;
+  uint64_t descriptorCount = 0;
+  uint64_t descriptorSampleCount = 0;
+  size_t descriptorSampleOverflowCount = 0;
+  for (const ResidentMeshSubmission &mesh : meshes) {
+    if (!mesh.decoded) {
+      continue;
+    }
+    ++decodedMeshCount;
+    primitiveOpcodeMask |= mesh.commandSummary.primitiveOpcodeMask;
+    materialTableSlotMask |= mesh.commandSummary.materialTableSlotMask;
+    blendVariantMask |= mesh.commandSummary.blendVariantMask;
+    primitiveCount += mesh.commandSummary.primitiveCount;
+    descriptorCount += mesh.materialCensus.descriptorCount;
+    descriptorSampleCount += mesh.materialCensus.sampleCount;
+    descriptorSampleOverflowCount += mesh.materialCensus.descriptorSampleOverflow ? 1u : 0u;
+  }
   lucent::debug("ts2-scene",
                 "resident scene batches={} candidates={} first vis=0x{:08X} type=0x{:02X} "
                 "object=0x{:08X} instance=0x{:08X} candidate-mesh=0x{:08X}; meshes={} first "
-                "mesh=0x{:08X} header={}",
+                "mesh=0x{:08X} header={} vertices={} aux={} command=0x{:04X} opcode={} count={} "
+                "depth-index={} depth-base=0x{:08X} depth-address=0x{:08X} depth-entry=0x{:08X}; "
+                "decoded={}/{} primitive-count={} descriptor-samples={}/{} overflowed-meshes={} "
+                "opcode-mask=0x{:08X} material-slots=0x{:08X} blend-mask=0x{:02X}",
                 current_.batches().size(),
                 candidates.size(),
                 firstCandidate.visibilityAddress,
@@ -227,7 +283,25 @@ void ResidentSceneHistory::finishFrame() {
                 firstCandidate.meshAddress,
                 meshes.size(),
                 firstMesh.meshAddress,
-                firstMesh.headerWord);
+                firstMesh.headerWord,
+                firstMesh.layout.vertexCount,
+                firstMesh.layout.hasAuxiliaryVertexRecords,
+                static_cast<uint16_t>(firstMesh.firstCommand.word),
+                firstMesh.firstCommand.opcode,
+                firstMesh.firstCommand.primitiveCount,
+                firstMesh.materialDepthTableIndex,
+                firstMesh.materialDepthTableBase,
+                firstMesh.materialDepthTableAddress,
+                firstMesh.materialDepthTableEntry,
+                decodedMeshCount,
+                meshes.size(),
+                primitiveCount,
+                descriptorSampleCount,
+                descriptorCount,
+                descriptorSampleOverflowCount,
+                primitiveOpcodeMask,
+                materialTableSlotMask,
+                blendVariantMask);
 }
 
 bool ResidentSceneHistory::capturing() const {

@@ -126,9 +126,14 @@ and no guest VSync/fatal occurs. Dual-method xrefs then separate the stack-local
 the two visibility lists from their post-load residency globals. The common owner `0x8002622C`
 reaches typed visibility/object/instance records and dominant mesh leaf `0x800100E4`.
 `ResidentSceneHistory` now observes both exact entries, captures previous/current candidate batches
-and actual mesh-call arguments, and always super-calls the unchanged generated bodies. This builds and
-passes its focused boundary, but still awaits the serialized real-disc witness. It is grounded producer
-input, not a native picture: vertex/primitive stream, material, and texture semantics remain open.
+and actual mesh-call arguments, and always super-calls the unchanged generated bodies. Clean
+real-disc re40 reaches it across 89 resident updates with four batches, 142..198 candidates, and
+66..86 mesh calls per update while preserving coherent changing Andy's Room frames and native-owned
+frame reconciliation. `resident_mesh_format.*` further decodes the signed mesh header, base
+XYZ/colour vertices, command offsets, opcode-specific descriptor strides, packed indices and texture
+coordinate words, material/blend bits, and terminators from pre-GTE source RAM. It is grounded
+producer input plus a source-format slice, not a native picture: CLUT/texture-page resource
+resolution, separate 2D submitters, and the visible native producer remain open.
 Post-GTE packet or OT replay is not an acceptable native producer.
 
 `game/core/toystory2_runtime.*` is the title's framework-facing behavior owner. It derives

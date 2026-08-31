@@ -42,7 +42,9 @@ a 0x14-byte visibility record: position at `+0/+4/+8`, radius at `+0x0C`, type/f
 viewport at `+0x0F`, and object record at `+0x10`. The object record selects the active resource at
 `+0x18 + 4*mem32(0x800A11E0)` and the instance at `+0x14`. Common instance families carry position at
 `+0/+4/+8`; their mesh is at `+0x14` or `+0x1C` according to the type family. The dominant leaf
-`0x800100E4(mesh, scale, materialTable, 0x1F800384)` begins by consuming the signed mesh header word.
+`0x800100E4(mesh, scale, materialDepthTableIndex, 0x1F800384)` begins by consuming the signed mesh
+header word. Its third argument is not a material-table pointer: the submitter shifts it by two and
+adds it to the pointer loaded from `0x800A12F8`.
 
 The first implementation slice retains that camera input in the title's per-Core context after
 each resident update. `ResidentCameraHistory` stores stable previous/current signed positions, masks
@@ -78,8 +80,34 @@ same 89 live scene updates and 142..198 candidate / 66..86 mesh-call ranges. Ins
 control reports 671,652 of 691,200 pixels changed (97.1719%) between them. This is now clean live
 reachability evidence for the input seam, but still not evidence of a native-rendered layer.
 
-The remaining implementation must decode `0x800100E4`'s vertex and primitive groups plus their
-material/texture inputs, submit equivalent native geometry and 2D layers, and enable Native and
-temporal capabilities only after real-disc picture comparison. The typed entry arguments and their
-live reachability are grounded; the mesh's internal vertex/primitive stream and texture/material
-semantics are not.
+The first source decoder is now binary-grounded before any GTE operation or packet write. A positive
+signed mesh header `N` places `N` eight-byte vertices at `mesh+4` and its command stream at
+`mesh+4+8*N`; a non-positive header uses `-N` vertices and places the stream at `mesh+8+12*(-N)`,
+accounting for the extra four-byte header and one four-byte auxiliary record per vertex. Each base
+vertex is signed `x/y/z` halfwords followed by the 15-bit colour that the submitter expands from bits
+`10..14`, `5..9`, and `0..4`. Command words select opcode `word&31`; opcodes `0..15` consume 12-byte
+primitive descriptors, `16..23` consume four-byte descriptors, and `24..31` terminate. Even
+primitive opcodes load four packed byte vertex indices and odd opcodes load three. The upper command
+bits retain the exact material-table byte offset `(uint16(word)>>4)&0x1F0` (equivalently the
+five-bit slot `(word>>8)&31` scaled by 16), blend variant `(word>>5)&3`, and signed material-state
+update condition. The source starts at `0x800CD2E0`, and every non-negative command replaces that
+state with the raw record at `0x800CD200 + offset`; this is independent of the entry argument's
+depth-table index. The packet construction paths further prove the 12-byte group's
+packed texture-coordinate selection: quads consume the four attribute halfwords in order, while
+triangles skip the low halfword of the first attribute word and consume the remaining three. The
+decoder retains both those selected words and the raw payload; CLUT/texture-page adjustments and the
+resolved texture/material resource still remain unclaimed.
+
+`resident_mesh_format.*` implements those checked source layouts and a command walker bounded by the
+remaining canonical 2 MiB RAM range and the retail terminator. `ResidentSceneHistory` retains the
+first decoded primitive and per-mesh opcode/material/blend/primitive-count summary without consuming
+guest GTE, OT, or GP0 output. The census runs inside the `0x800100E4` observation wrapper before its
+generated super-call, so it samples source RAM without replacing guest rendering. Its focused
+boundary covers a non-negative state update followed by negative inheritance, plus a separate
+negative-first stream that retains the initial `0xE0` record. This is static decoder evidence pending an authorized real-disc histogram;
+it is not a visible native producer.
+
+No native renderer is retained or wired while those semantics are unknown. The next authorized
+real-disc run must first report the resident command/material denominator and raw records; only then
+may an independently grounded 4:3 world producer be implemented and picture-compared. Native and
+temporal capabilities stay disabled until that picture exists.

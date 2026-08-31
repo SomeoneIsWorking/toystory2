@@ -39,6 +39,7 @@ set(SEAM_SRC
   game/loop/toystory2_frame_driver.cpp
   game/render/guest_widescreen.cpp
   game/render/resident_camera_history.cpp
+  game/render/resident_mesh_format.cpp
   game/render/resident_scene_history.cpp
 )
 add_library(toystory2_seam OBJECT ${SEAM_SRC})
@@ -104,6 +105,7 @@ add_executable(
   game/loop/toystory2_frame_driver.cpp
   game/render/guest_widescreen.cpp
   game/render/resident_camera_history.cpp
+  game/render/resident_mesh_format.cpp
   game/render/resident_scene_history.cpp
 )
 target_include_directories(

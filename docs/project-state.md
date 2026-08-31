@@ -168,7 +168,13 @@ final clean product certification. The subsequent clean Clang build against land
 `3c342ec3` passes 20/20 CTests. Exact-product re40 (PID 3160059) reproduces the same 89 updates and
 ranges, exits at 120/120 with zero dropped layers and no guest VSync/fatal, and preserves distinct
 coherent frames 60/120. A validated identical-frame control reports zero changed pixels; re40 frames
-60 to 120 change 671,652/691,200 pixels. This remains producer input, not a visible native layer. The runtime
+60 to 120 change 671,652/691,200 pixels. A title-owned checked decoder now derives the dominant
+submitter's signed header, base XYZ/colour vertices, command offsets, opcode-specific descriptor
+strides, packed vertex indices, packed texture-coordinate selection, material/blend command fields,
+and terminators entirely from source RAM before GTE/OT/GP0 output. It also summarizes complete
+command streams for the next authorized live opcode/material census. Texture-resource resolution and
+2D submitters remain ungrounded, and
+there is still no native draw. This remains producer input, not a visible native layer. The runtime
 therefore remains `RenderCapabilities::widescreenOnly()`: GTE is the default product picture and
 Native/temporal interpolation stay unavailable until real title producers consume the state. The
 earlier `interpolatedNative()` declaration was false exposure, not a working renderer.

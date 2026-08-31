@@ -21,7 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_FRAME_CLOCK = ROOT / "game" / "loop" / "toystory2_frame_driver.cpp"
 DEFAULT_OUTER_LOOP_HEADER = ROOT / "game" / "loop" / "outer_loop.h"
 DEFAULT_SYNC_OVERRIDES = ROOT / "game" / "boot" / "native_sync_overrides.cpp"
-DEFAULT_GENERATED_RESIDENT = ROOT / "generated" / "shard_3.c"
+# `0x8003A218` is emitted in shard_6; checking shard_3 silently made the native-loop selftest
+# reject the real generated super while the negative fixture still appeared meaningful.
+DEFAULT_GENERATED_RESIDENT = ROOT / "generated" / "shard_6.c"
 DEFAULT_QUEUE_HEADER = (
     ROOT / "external" / "psxport" / "runtime" / "recomp" / "render_queue.h"
 )

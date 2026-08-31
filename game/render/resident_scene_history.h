@@ -1,5 +1,7 @@
 #pragma once
 
+#include "render/resident_mesh_format.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -40,8 +42,21 @@ struct ResidentMeshSubmission {
   uint32_t meshAddress = 0;
   int32_t headerWord = 0;
   uint32_t scale = 0;
-  uint32_t materialTableAddress = 0;
+  uint32_t materialDepthTableIndex = 0;
+  uint32_t materialDepthTableBase = 0;
+  uint32_t materialDepthTableAddress = 0;
+  uint32_t materialDepthTableEntry = 0;
   uint32_t cameraCoarseAddress = 0;
+  std::array<uint32_t, 8> affineControlWords{};
+  std::array<uint32_t, 3> projectionControlWords{};
+  uint16_t textureCoordinateOffset = 0;
+  ResidentMeshLayout layout{};
+  ResidentMeshCommand firstCommand{};
+  ResidentMeshPrimitive firstPrimitive{};
+  ResidentMeshCommandSummary commandSummary{};
+  std::array<ResidentMeshDescriptorSample, kMaxResidentMeshDescriptorSamples> descriptorSamples{};
+  ResidentMeshMaterialCensus materialCensus{};
+  bool decoded = false;
 };
 
 class ResidentSceneFrame {
@@ -57,7 +72,7 @@ private:
   void captureOwnerSubmission(
       Core &core, uint32_t visibilityList, uint32_t count, uint32_t packetPool, uint32_t viewSelector);
   void captureMeshSubmission(
-      uint32_t mesh, int32_t headerWord, uint32_t scale, uint32_t materialTable, uint32_t cameraCoarse);
+      Core &core, uint32_t mesh, uint32_t scale, uint32_t materialDepthTableIndex, uint32_t cameraCoarse);
 
   std::array<ResidentSceneSubmissionBatch, kMaxSceneSubmissionBatches> batches_{};
   std::array<ResidentSceneCandidate, kMaxVisibilityCandidatesPerBatch * kMaxSceneSubmissionBatches> candidates_{};
@@ -74,7 +89,7 @@ public:
   void captureOwnerSubmission(
       Core &core, uint32_t visibilityList, uint32_t count, uint32_t packetPool, uint32_t viewSelector);
   void captureMeshSubmission(
-      uint32_t mesh, int32_t headerWord, uint32_t scale, uint32_t materialTable, uint32_t cameraCoarse);
+      Core &core, uint32_t mesh, uint32_t scale, uint32_t materialDepthTableIndex, uint32_t cameraCoarse);
   void finishFrame();
 
   bool capturing() const;
