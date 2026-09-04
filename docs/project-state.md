@@ -25,6 +25,7 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | S011 | Presentation interpolates stable authored state at a player-facing 60fps cadence | missing | S008, S009 | G003 |
 | S012 | Traveller's Tales `.RAW` assets are reproducibly framed and decompressed | verified | S001 | G001 |
 | S013 | The fresh-clone launcher builds and starts the intended product | partial | S001, S002 | G001 |
+| S014 | Hosted CI truthfully distinguishes repository policy from native product support on Linux, Windows, macOS, and Android | partial | S002 | G001 |
 
 ## Current focus
 
@@ -122,3 +123,20 @@ explicit disc, build-only, and zero-argument paths.
 
 Gap: the default product cannot enter gameplay until S002, and the cold real build/launch path has not
 been rerun for this migration.
+
+### S014 — Platform CI coverage
+
+Partial capability: `.github/workflows/ci.yml` runs the asset-free launcher and structure contracts
+on one Linux host with full history, read-only permissions, pinned actions, and an explicit timeout.
+It does not present those Python contracts as a native Linux or macOS build.
+
+| Platform | Applicability | Current CI evidence and exact gap |
+| --- | --- | --- |
+| Linux x86-64 | applicable desktop target | Repository policy is covered; the blocked Lightrec runtime prevents a truthful native product build, runtime test, and package gate. |
+| Windows x86-64 | applicable desktop target | Missing: no current Windows native/dynarec build, runtime test, first-run setup, or package boundary exists. |
+| macOS arm64 | applicable desktop target | Missing: no current Apple-Silicon native/dynarec build, runtime test, first-run setup, or application package exists. |
+| Android arm64 | applicable future portable target | Missing: no Android title integration, shared `android-port` consumer, native runtime, APK build, or install test exists. |
+
+Gap: add each platform job when the matching redistributable runtime/package boundary exists and is
+asset-free. The same launcher-policy tests on multiple hosted operating systems would not prove
+platform support.
