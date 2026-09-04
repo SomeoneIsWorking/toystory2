@@ -1,20 +1,19 @@
 // main.cpp — the Toy Story 2 port's process entry point.
 //
-// Installs ToyStory2Runtime + RecompRegistry, brings up
+// Installs ToyStory2Runtime, brings up
 // the framework's PSX hardware backends, loads the retail executable, and
 // enters the native boot. After the install nothing here names anything but
 // framework symbols.
 //
-// RE-02 supplies the generated registry and this is the shipping launcher. Game behavior remains
-// guest code; the host runtime restores only the measured field boundary, and current boot enters
-// emitted FMV before stopping at the honest shared BIOS A0:0x25 boundary.
-#include "cfg.h"
+// Guest code is consumed directly from the authenticated executable and translated by psxport's
+// dynarec. Native title owners remain explicit runtime overrides.
 #include "core.h"
 #include "disc.h"
 #include "fs_util.h"
 #include "game.h"
 #include "toystory2_runtime.h"
-#include <stdio.h>
+#include <iostream>
+#include <lucent/log.h>
 #include <string_view>
 
 extern "C" {
@@ -23,12 +22,10 @@ void mdec_init(void);
 void spu_init(void);
 }
 
-void load_exe(const char *path, Core *c); // runtime/recomp/boot.cpp (framework)
-void native_boot_run(Core *c);            // runtime/recomp/native_boot.cpp (framework)
+void load_exe(const char *path, Core *c); // psxport executable loader
+void native_boot_run(Core *c);            // psxport native boot owner
 void gte_init(void);
-int selftest_run(const char *path); // runtime/recomp/selftest.cpp (framework harness)
-
-extern void ts2_install_recomp(); // game/core/recomp_register.cpp
+int selftest_run(const char *path); // psxport test-only harness
 
 // The retail US executable, as it is named on the disc. SYSTEM.CNF boots it
 // directly
@@ -39,8 +36,7 @@ extern void ts2_install_recomp(); // game/core/recomp_register.cpp
 // THE ENGINE IS NOT ALL IN THIS FILE, WHICH IS THIS PORT'S DEFINING STRUCTURAL
 // FACT: the original 21 plain overlays hold 29.1% of the measured code-bearing
 // bytes, and FMV/FMV.BIN is a 22nd entered code module (C014). RE-03 proves
-// their two physical slots; RE-02 emits the resident executable and all 22
-// modules. Do not read "load the boot exe and go" as "the boot exe is the game".
+// their two physical slots. Do not read "load the boot exe and go" as "the boot exe is the game".
 static const char *kDefaultExe = "scratch/bin/toystory2/SLUS_008.93";
 static const char *kDiscExePath = "\\SLUS_008.93";
 
@@ -48,7 +44,7 @@ int main(int argc, char **argv) {
   for (int index = 1; index < argc; ++index) {
     const std::string_view argument = argv[index];
     if (argument == "-h" || argument == "--help") {
-      std::printf("usage: %s [PS-X EXE]\n", argv[0]);
+      std::cout << "usage: " << argv[0] << " [PS-X EXE]\n";
       return 0;
     }
   }
@@ -56,7 +52,6 @@ int main(int argc, char **argv) {
   // Process-lifetime derived owner. Installation must precede the first Core, which snapshots it.
   static ts2::ToyStory2Runtime runtime;
   psxport_install_game(runtime);
-  ts2_install_recomp();
 
   const char *path = argc > 1 ? argv[1] : kDefaultExe;
 
@@ -68,12 +63,12 @@ int main(int argc, char **argv) {
   // a *.chd in the working directory — the same order tools/resolve_disc.py
   // implements host-side).
   if (!Fs::exists(path)) {
-    cfg_logw("boot", "%s missing — extracting from disc", path);
+    lucent::warn("boot", "{} missing — extracting from disc", path);
     if (!disc_extract_file(&game->disc, kDiscExePath, path)) {
-      cfg_loge("boot",
-               "extraction failed: provide a disc (PSXPORT_TS2_DISC, .env, or "
-               "a *.chd in "
-               "the working directory), or run `python3 tools/extract_exe.py`");
+      lucent::error("boot",
+                    "extraction failed: provide a disc (PSXPORT_TS2_DISC, .env, or "
+                    "a *.chd in the working directory), or run `uv run --frozen python "
+                    "tools/extract_exe.py`");
       return 1;
     }
   }
@@ -107,6 +102,6 @@ int main(int argc, char **argv) {
 
   c->runtime->registerOverrides(*game);
   native_boot_run(c);
-  cfg_logi("boot", "native boot returned");
+  lucent::info("boot", "native boot returned");
   return 0;
 }

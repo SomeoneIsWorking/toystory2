@@ -1,8 +1,9 @@
 #include "boot/guest_main_boot.h"
 
 #include "core.h"
-#include "recomp_iface.h"
+#include "guest_execution.h"
 
+#include <array>
 #include <cstdint>
 #include <lucent/log.h>
 
@@ -31,10 +32,8 @@ constexpr uint32_t kMenuPhase = 0x800A14D8u;
 constexpr uint32_t kLoopExitReason = 0x800A136Eu;
 
 void callGuest(Core &core, uint32_t address, uint32_t returnAddress, uint32_t a0 = 0, uint32_t a1 = 0) {
-  core.r[4] = a0;
-  core.r[5] = a1;
-  core.r[31] = returnAddress;
-  rec_dispatch(&core, address);
+  const std::array arguments{a0, a1};
+  callGuestToReturn(core, {address, returnAddress, arguments, std::nullopt, "Toy Story 2 boot"});
 }
 
 } // namespace

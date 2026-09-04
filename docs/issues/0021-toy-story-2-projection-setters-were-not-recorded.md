@@ -11,7 +11,7 @@ updated: 2026-08-26
 
 ## Classified cause
 
-The guest already publishes projection through linked libgte leaves at 0x80083CD4 and 0x80083CF4, but Toy Story 2 declared no platform-HLE window or projection bindings. Their recompiled bodies updated CR24/CR25/CR26 only; psxport therefore had no authored projection record for a later native camera or title-owned guest-widescreen plan.
+The guest already publishes projection through linked libgte leaves at 0x80083CD4 and 0x80083CF4, but Toy Story 2 declared no platform-HLE window or projection bindings. Those bodies update CR24/CR25/CR26 only; psxport therefore had no authored projection record for a later native camera or title-owned guest-widescreen plan.
 
 ## Resolution
 

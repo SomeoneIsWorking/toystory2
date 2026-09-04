@@ -2,7 +2,7 @@
 
 #include "boot/native_sync_overrides.h"
 #include "core.h"
-#include "recomp_iface.h"
+#include "guest_execution.h"
 
 #include <algorithm>
 #include <array>
@@ -18,13 +18,8 @@ constexpr uint32_t kTransitionFlags = 0x800A1480u;
 constexpr uint32_t kPreviousTransitionFlags = 0x800A11E4u;
 
 uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 0, uint32_t a2 = 0, uint32_t a3 = 0) {
-  core.r[4] = a0;
-  core.r[5] = a1;
-  core.r[6] = a2;
-  core.r[7] = a3;
-  core.r[31] = 0x8007BEC4u;
-  rec_dispatch(&core, address);
-  return core.r[2];
+  const std::array arguments{a0, a1, a2, a3};
+  return callGuestToReturn(core, {address, 0x8007BEC4u, arguments, std::nullopt, "resident preparation"});
 }
 
 void zeroHalfwords(Core &core, uint32_t address, unsigned count) {

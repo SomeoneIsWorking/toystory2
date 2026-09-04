@@ -105,8 +105,8 @@ private:
   bool ready_ = false;
 };
 
-// Runtime observation wrappers preserve the generated owners as super-calls. They record the exact
+// Runtime observation wrappers preserve the guest owners as dynarec original calls. They record the exact
 // 0x8002622C candidate batches and 0x800100E4 mesh arguments without changing guest state.
-void installResidentSceneObservationOverrides();
+void installResidentSceneObservationOverrides(Core &core);
 
 } // namespace ts2

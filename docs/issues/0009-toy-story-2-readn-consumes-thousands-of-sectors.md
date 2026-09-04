@@ -31,7 +31,7 @@ any Toy Story CD field. Direct and no-argument routes both service exactly 358 s
 ReadN phases; their longest contiguous phase is 209 sectors from LBA12506. Both retain stock
 controller acknowledgement and DMA3 service, return Read|Standby status `0x22` on the first INT1,
 and advance beyond the old CdSync stack into the BITS/MEMORY overlay path at
-`0x800D9704`/`0x800D95C4`, with no recompilation miss; the landed default watchdog sampled resident
+`0x800D9704`/`0x800D95C4`, with no execution fault; the landed default watchdog sampled resident
 caller `0x8003D084`. Classify either landed
 capture with `python3 tools/verify_cd_command.py --trace <log> --expect bounded`.
 The `cdcr` capture additionally gates the measured status with

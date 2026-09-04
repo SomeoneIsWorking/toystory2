@@ -3,7 +3,7 @@ id: C016
 kind: claim
 status: holds
 created: 2026-08-22
-tags: boot,fmv,bios,recomp
+tags: boot,fmv,bios
 depends: tools/verify_fmv_boundary.py#analyze, psxport.pin
 reconfirmed: 2026-08-26 22:44:43
 verified_at: 2026-08-26 22:44:43

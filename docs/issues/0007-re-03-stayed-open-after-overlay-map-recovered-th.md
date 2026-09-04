@@ -26,10 +26,10 @@ it cannot prove that two loads occur.
 ## Resolution
 
 C010/I009 connect exact instruction pairs and the one-call path builder to the retail bytes, compare
-the derived LEVEL/MEMORY placements with GameConfig and recompiler seeds, and force the opposite
+the derived LEVEL/MEMORY placements with runtime GameConfig, and force the opposite
 `co-resident-possible` answer by mutating all real MEMORY/FMV destination pairs through the same
-census path. RE-03 is now re-verified and normal CTest runs the verifier. RE-04 remains partial because
+census path. RE-03 is now re-verified. RE-04 remains partial because
 the located retail `(path,dest)` loader is not psxport's `(dest,lba,size)` hook ABI.
 
 ### Resolution (2026-08-21)
-Resolved by C010/I009: exact retail instruction/call-flow proof now drives shipping config and seeds, normal CTest, and a mutated forced-opposite answer; RE-04 stays partial because the located loader ABI is incompatible with psxport cdFileLoad.
+Resolved by C010/I009: exact retail instruction/call-flow proof now drives runtime configuration and a mutated forced-opposite answer; RE-04 stays partial because the located loader ABI is incompatible with psxport `cdFileLoad`.

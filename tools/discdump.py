@@ -7,7 +7,7 @@ ONE answer.
 
 WHICH framework checkout it is built from is the same decision CMake makes: $PSXPORT_DIR, defaulting
 to the pinned submodule, so a bare clone works standalone. $PSXPORT_DISCDUMP overrides with a
-prebuilt binary. When it must build, it builds into this repo's gitignored scratch/build/ keyed by the
+prebuilt binary. When it must build, it builds into this repo's gitignored build/tools/ keyed by the
 checkout — never into `<PSXPORT_DIR>/build`, because the submodule is a READ-ONLY pinned consumer.
 
 Nothing here caches a file list: a stale listing is a silent trap, and the reads are cheap.
@@ -46,11 +46,11 @@ def find(build_if_missing=True):
         raise SystemExit(2)
 
     # An ALREADY-BUILT binary wins over building one, and the build directory is this repo's
-    # gitignored scratch/ — NOT `<submodule>/build`. `external/psxport` is a READ-ONLY pinned
+    # gitignored build/ — NOT `<submodule>/build`. `external/psxport` is a READ-ONLY pinned
     # consumer, and a plain `discdump.py list` used to write a whole cmake build tree into it. The
     # directory is keyed by the checkout it was built from, so pointing PSXPORT_DIR at a dev clone
     # does not silently reuse the submodule's binary.
-    build_dir = os.path.join(ROOT, "scratch", "build",
+    build_dir = os.path.join(ROOT, "build", "tools",
                              "discdump-" + hashlib.sha1(os.path.realpath(px).encode()).hexdigest()[:12])
     searched = []
     for base in (build_dir, os.path.join(px, "build")):
@@ -130,7 +130,7 @@ def get(disc, path_on_disc, outdir, dd=None):
 
 # ---------------------------------------------------------------------------------------------------
 # CLI. `list` exists because this repo's overlay/module inventory has to be ENUMERATED before anything
-# in docs/re-frontier.md RE-03 or game/recomp_seeds.json may be written, and enumerating it must not
+# in docs/re-frontier.md RE-03 may be accepted, and enumerating it must not
 # require a second implementation of the disc reader.
 #
 # It REFUSES (exit 2) rather than printing an empty listing: `discdump` missing, the disc unresolvable,

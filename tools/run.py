@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision, build, and launch Toy Story 2's current generated-code port."""
+"""Resolve, build, and launch Toy Story 2's native/dynarec product."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TextIO
 
 ROOT = Path(__file__).resolve().parents[1]
-PLAYER_BUILD_DIR = "scratch/build/player"
+PLAYER_BUILD_DIR = "build/player"
 CYAN = "\033[1;36m"
 RED = "\033[1;31m"
 RESET = "\033[0m"
@@ -241,7 +241,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prepare-only",
         action="store_true",
-        help="provision and build the current product without launching it",
+        help="build the current product without launching it",
     )
     return parser
 
@@ -263,7 +263,7 @@ def launch(
     """Run the shipping path; injected host seams keep its tests hermetic."""
 
     # Help is a discovery-free launcher operation. Handle argparse's two standard spellings before
-    # checking tools, resolving the framework, or asking the substrate provisioner to find a disc.
+    # checking tools, resolving the framework, or resolving game media.
     if "-h" in argv or "--help" in argv:
         argument_parser().print_help(file=stdout)
         return 0
@@ -314,17 +314,8 @@ def launch(
 
         run_environment = dict(environment)
         run_environment["PSXPORT_DIR"] = str(framework)
-        recomp = [python_executable, "-B", "tools/recomp_substrate.py", "--ensure"]
         if options.disc:
-            recomp.append(options.disc)
             run_environment["PSXPORT_TS2_DISC"] = options.disc
-        run_stage(
-            machine,
-            recomp,
-            "verified executable/overlay provisioning or recompilation failed",
-            root=root,
-            env=run_environment,
-        )
 
         emit_line("building the Toy Story 2 port…", stdout)
         configure = [
@@ -388,18 +379,13 @@ def launch(
         emit_line("Toy Story 2 is built and ready.", stdout)
         return 0
 
-    executable = root / "scratch" / "bin" / "toystory2_port"
-    game_executable = root / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
+    executable = root / PLAYER_BUILD_DIR / "bin" / "toystory2_port"
     policy = runpy.run_path(str(framework / "tools/port/launch_environment.py"))
     run_environment = policy["player_environment"](run_environment)
     run_environment.setdefault("PSXPORT_ASSET_DIR", str(framework))
     emit_line(f"launching {executable.relative_to(root)}", stdout)
     try:
-        result = machine.run(
-            [str(executable), str(game_executable)],
-            cwd=root,
-            env=run_environment,
-        )
+        result = machine.run([str(executable)], cwd=root, env=run_environment)
     except OSError as exc:
         print(f"{RED}[run] error:{RESET} launch failed: {exc}", file=stderr)
         return 1

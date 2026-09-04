@@ -11,7 +11,7 @@ external/psxport/tools/check_cpp_style.py via CTest cpp_policy — checks this c
 
 ## Validated by
 
-Validated 2026-08-21 on Toy Story 2 in both failure classes and restored clean: deliberately malformed formatting in game/core/recomp_register.cpp made cpp_policy fail at clang-format; a formatted sizeof(pointer)/sizeof(pointer[0]) probe made it fail with bugprone-sizeof-expression; the restored four-TU Clang compile database passed. A missing compile database refuses instead of reporting zero tidy TUs.
+Validated 2026-08-21 on Toy Story 2 in both failure classes and restored clean: deliberately malformed first-party C++ formatting made `cpp_policy` fail at clang-format; a formatted `sizeof(pointer)/sizeof(pointer[0])` probe made it fail with `bugprone-sizeof-expression`. A missing compile database refuses instead of reporting zero tidy translation units.
 
 ## Known failure modes
 

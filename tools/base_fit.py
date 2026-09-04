@@ -8,7 +8,7 @@
 THE QUESTION. `tools/code_scan.py` answers "is this file code?". It says nothing about WHERE that code
 lives, and an overlay is keyed BY its load address: a wrong base emits a whole module of correctly
 decoded instructions at wrong addresses, and every jal target, pointer test and router lookup then goes
-silently wrong. So the base has to be measured before a single overlay may be recompiled (RE-03).
+silently wrong. So the base has to be measured before any overlay address is accepted (RE-03).
 
 METHOD. A statically linked overlay's own intra-module calls are absolute `jal` into
 [base, base+filesize). Slide a candidate base over every 4 KiB-aligned address in RAM and score it by

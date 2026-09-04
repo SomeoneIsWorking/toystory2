@@ -1,8 +1,8 @@
 #include "boot/native_sync_overrides.h"
 
 #include "core.h"
+#include "guest_execution.h"
 #include "input/native_pad_owner.h"
-#include "recomp_iface.h"
 #include "render/guest_widescreen.h"
 
 #include <algorithm>
@@ -30,15 +30,13 @@ void dispatchGuest(Core &core,
                    uint32_t a3 = 0,
                    bool hasStackArgument = false,
                    uint32_t stackArgument = 0) {
-  core.r[4] = a0;
-  core.r[5] = a1;
-  core.r[6] = a2;
-  core.r[7] = a3;
-  if (hasStackArgument) {
-    core.mem_w32(core.r[29] + 16, stackArgument);
-  }
-  core.r[31] = 0x8003A218u;
-  rec_dispatch(&core, address);
+  const std::array arguments{a0, a1, a2, a3};
+  callGuestToReturn(core,
+                    {address,
+                     0x8003A218u,
+                     arguments,
+                     hasStackArgument ? std::optional<uint32_t>{stackArgument} : std::nullopt,
+                     "native graphics owner"});
 }
 
 void selectGraphicsBuffer(Core &core, uint32_t firstChoice) {
@@ -255,18 +253,11 @@ void initializeResidentGraphicsWithoutGuestVSync(Core &core) {
   std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core.r));
 }
 
-void installNativeSyncOverrides() {
-#ifdef TS2_HAVE_SUBSTRATE
-  const RecompRegistry *const registry = psxport_recomp();
-  if (registry == nullptr || registry->shard_set_override == nullptr) {
-    lucent::error("ts2-boot", "generated override registry is unavailable");
-    std::abort();
-  }
-  registry->shard_set_override(0x8003A218u, initializeGraphicsWithoutGuestVSync);
-  registry->shard_set_override(0x80039D9Cu, initializeResidentGraphicsOverride);
-  registry->shard_set_override(0x8003A838u, shutdownGraphicsWithoutGuestVSync);
-  registry->shard_set_override(0x8003FA68u, completeOwnedFieldBarrier);
-#endif
+void installNativeSyncOverrides(Core &core) {
+  installResidentOverride(core, 0x8003A218u, "graphics-init", initializeGraphicsWithoutGuestVSync);
+  installResidentOverride(core, 0x80039D9Cu, "resident-graphics-init", initializeResidentGraphicsOverride);
+  installResidentOverride(core, 0x8003A838u, "graphics-shutdown", shutdownGraphicsWithoutGuestVSync);
+  installResidentOverride(core, 0x8003FA68u, "field-barrier", completeOwnedFieldBarrier);
 }
 
 } // namespace ts2

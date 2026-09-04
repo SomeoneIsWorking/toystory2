@@ -27,10 +27,6 @@
 #include "game_iface.h"
 #include "legacy_game_interface.h"
 
-#ifdef TS2_HAVE_SUBSTRATE
-#include "overlay_table.h"
-#endif
-
 // MEASURED, from the PS-EXE header of the extracted SLUS_008.93
 // (tools/extract_exe.py prints it) and from the disc's SYSTEM.CNF. Kept as
 // named constants rather than dropped into the struct below, because the
@@ -127,15 +123,10 @@ static_assert(kLevelOverlayBase == kCrt0HeapBase,
 static_assert(kMemoryOverlayBase - kLevelOverlayBase == 19040u,
               "the next co-resident slot bounds the level overlay window");
 
-// Physical resident range from the identity-checked PS-X EXE header. The recompilation gate checks
-// these literals against generated/overlay_table.h after every emission; the build adds a second
-// compile-time tripwire when the generated header is present.
+// Physical resident range from the identity-checked PS-X EXE header. Despite the bounded legacy
+// field names below, this is runtime image identity for psxport's dynarec, not a static code corpus.
 static constexpr uint32_t kRecMainLo = 0x00010000u;
 static constexpr uint32_t kRecMainHi = 0x000A1800u;
-#ifdef TS2_HAVE_SUBSTRATE
-static_assert(kRecMainLo == REC_MAIN_LO && kRecMainHi == REC_MAIN_HI,
-              "GameConfig resident range disagrees with the emitted substrate");
-#endif
 
 // RE-06, measured from the identity-checked retail executable by tools/verify_pad_buffers.py.
 // The game has exactly one call to its linked pad initializer at 0x8003EF20. Its two arguments are
@@ -227,9 +218,8 @@ static const GameConfig g_ts2_cfg = {
     .gameMain = kCrt0GameMain,
     .crt0 = kCrt0Entry,
 
-    // --- recompiled MAIN .text range (physical) ---------------- RE-02 partial --
-    // Header-derived literals, checked against generated/overlay_table.h by both the emitter gate
-    // and a compile-time assertion whenever the substrate is present.
+    // --- resident MAIN .text range (physical) ------------------ RE-02 --
+    // Header-derived literals consumed as runtime image identity by the dynarec integration.
     .recMainLo = kRecMainLo,
     .recMainHi = kRecMainHi,
 

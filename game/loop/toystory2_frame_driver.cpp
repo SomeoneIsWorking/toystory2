@@ -4,10 +4,10 @@
 #include "core.h"
 #include "game.h"
 #include "game_runtime.h"
+#include "guest_execution.h"
 #include "loop/outer_loop.h"
 #include "loop/resident_frame.h"
 #include "loop/resident_preparation.h"
-#include "recomp_iface.h"
 #include "toystory2_context.h"
 
 #include <cstdlib>
@@ -61,13 +61,8 @@ constexpr uint32_t kCommitSequenceState = 0x80041818u;
 constexpr uint32_t kScreenStatus = 0x80073458u;
 
 uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 0, uint32_t a2 = 0, uint32_t a3 = 0) {
-  core.r[4] = a0;
-  core.r[5] = a1;
-  core.r[6] = a2;
-  core.r[7] = a3;
-  core.r[31] = 0x8007A9E8u;
-  rec_dispatch(&core, address);
-  return core.r[2];
+  const std::array arguments{a0, a1, a2, a3};
+  return callGuestToReturn(core, {address, 0x8007A9E8u, arguments, std::nullopt, "frame driver"});
 }
 
 class CoreResidentFrameBoundary final : public ResidentFrameBoundary, public OuterLoopBoundary {
@@ -106,7 +101,7 @@ public:
     core_.mem_w32(kElapsedFields, static_cast<uint32_t>(fieldsDelivered_));
     core_.mem_w32(kFieldAccumulator, 0);
     core_.mem_w32(kDeferredDisplayRequest, 1);
-    rec_dispatch(&core_, kDeferredFieldService);
+    callGuest(core_, kDeferredFieldService);
     if (core_.mem_r32(kDeferredDisplayRequest) != 0) {
       lucent::error("ts2-frame",
                     "deferred field service 0x{:08X} did not acknowledge request 0x{:08X}",
@@ -275,7 +270,7 @@ public:
   void updateResident() override {
     const bool alternate = core_.mem_r32(kAlternateUpdateMode) != 0;
     context(core_).scene.beginFrame();
-    rec_dispatch(&core_, residentUpdateAddress(alternate));
+    callGuest(core_, residentUpdateAddress(alternate));
     // Both resident update owners call camera producer 0x8002C848 before the later scene root
     // 0x8002A070. Capture its authored input after the update so future native producers and temporal
     // presentation share one previous/current source rather than re-reading mutable guest RAM.

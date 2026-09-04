@@ -114,12 +114,8 @@ class LauncherTest(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertEqual(stderr, "")
-        self.assertIn("launching scratch/bin/toystory2_port", stdout)
+        self.assertIn("launching build/player/bin/toystory2_port", stdout)
         self.assertIn([LOCKED_PYTHON, "tools/psxport_sync.py", "--auto"], commands)
-        self.assertIn(
-            [LOCKED_PYTHON, "-B", "tools/recomp_substrate.py", "--ensure"],
-            commands,
-        )
         configure = next(command for command in commands if "-S" in command)
         self.assertEqual(configure[configure.index("-B") + 1], run.PLAYER_BUILD_DIR)
         self.assertIn("-DBUILD_TESTING=OFF", configure)
@@ -127,7 +123,7 @@ class LauncherTest(unittest.TestCase):
         self.assertFalse(any(Path(command[0]).name == "ctest" for command in commands))
         self.assertFalse(any("test" in argument.lower() for argument in commands[-2]))
         self.assertEqual(commands[-2][2], run.PLAYER_BUILD_DIR)
-        self.assertTrue(commands[-1][0].endswith("scratch/bin/toystory2_port"))
+        self.assertTrue(commands[-1][0].endswith("build/player/bin/toystory2_port"))
         launch_environment = host.commands[-1][1]["env"]
         self.assertEqual(launch_environment["PSXPORT_VK_WINDOW"], "1")
         for key in ("PSXPORT_VK_HEADLESS", "PSXPORT_NOAUDIO", "PSXPORT_NOPACE"):
@@ -231,14 +227,13 @@ class LauncherTest(unittest.TestCase):
         self.assertIn("sudo dnf install zlib-devel", stderr)
         self.assertIn("sudo dnf install libzstd-devel", stderr)
 
-    def test_provisioning_failure_stops_before_configure(self) -> None:
-        host = FakeHost(fail_token="tools/recomp_substrate.py")
-        code, _, stderr = self.invoke(host)
-        commands = self.command_list(host)
+    def test_explicit_disc_is_passed_as_runtime_configuration(self) -> None:
+        host = FakeHost()
+        code, _, stderr = self.invoke(host, "game.chd")
 
-        self.assertEqual(code, 1)
-        self.assertIn("provisioning or recompilation failed", stderr)
-        self.assertFalse(any("-S" in command for command in commands))
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, "")
+        self.assertEqual(host.commands[-1][1]["env"]["PSXPORT_TS2_DISC"], "game.chd")
 
     def test_explicit_framework_checkout_skips_auto_resolution(self) -> None:
         host = FakeHost()

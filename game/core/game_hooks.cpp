@@ -15,10 +15,10 @@
 //               stub would let a half-wired path look like it worked, which is
 //               the fake-green the porting doc warns about.
 //
-#include "cfg.h"
 #include "core.h"
 #include "game_iface.h"
 #include "legacy_game_interface.h"
+#include <lucent/log.h>
 #include <stdlib.h>
 
 // Legacy compatibility callbacks.
@@ -50,13 +50,11 @@ static bool ts2_devWarpAllowed(Core *) {
 // ── fail-fast
 // ───────────────────────────────────────────────────────────────────────────────────
 static void unstood_up(const char *what) {
-  cfg_loge("hooks",
-           "%s was called, but this port has not stood that path up yet. "
-           "Reaching it means "
-           "the run entered an un-RE'd framework path — see "
-           "docs/re-frontier.md. Refusing "
-           "to continue with fabricated behaviour.",
-           what);
+  lucent::error("hooks",
+                "{} was called, but this port has not stood that path up yet. Reaching it means "
+                "the run entered an un-RE'd framework path — see docs/re-frontier.md. Refusing "
+                "to continue with fabricated behaviour.",
+                what);
   abort();
 }
 

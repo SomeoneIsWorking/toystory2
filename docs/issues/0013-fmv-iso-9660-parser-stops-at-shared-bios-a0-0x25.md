@@ -3,7 +3,7 @@ id: 13
 title: FMV ISO-9660 parser stops at shared BIOS A0:0x25
 status: resolved
 symptom: Retail headless boot enters FMV/FMV.BIN, calls A0:0x25 from ra=0x800D8E50 with a0=0x74, and aborts before the parser reaches its second path byte
-tags: boot,fmv,bios,framework,recomp
+tags: boot,fmv,bios,framework
 created: 2026-08-22
 updated: 2026-08-22
 ---
@@ -29,6 +29,6 @@ Fresh shared-HEAD build (psxport 0f808dc9) reproduces the fail-fast. Exact retai
 
 ### Resolution (2026-08-22)
 psxport ad5cf802 landed shared BIOS A0:0x25 toupper. Toy Story 2's current pinned framework bc8c8897
-retains it and passes the full Clang/static gate; the last bounded retail gate on d2266f4b observed
+retains it; the last bounded retail gate on d2266f4b observed
 the exact first 15 normalized path bytes plus 62 calls before passing the independently resolved
 renderer boundary.

@@ -1,19 +1,15 @@
 # Toy Story 2: Buzz Lightyear to the Rescue! (SLUS-00893, USA) — a PC-native port built on the psxport
 # framework (external/psxport resolves to the shared checkout or a private clone at psxport.pin).
 #
-# The framework (PSX-generic static-recomp substrate + runtime + HW backends + SBS harness + SDL_GPU
-# renderer) is the reusable `psxport` library; this repo adds the game (game/**) and the generated
-# recompiled SLUS_008.93 substrate (generated/**, provisioned and never tracked). See
-# docs/re-frontier.md and cmake/toystory2_port.cmake for the current verified boundary.
+# The framework owns PSX hardware and runtime translation; this repo owns the authenticated title
+# facts and native subsystems. The user's executable remains runtime data.
 #
 # AND THERE IS NO DECOMP OF THIS GAME (docs/references.md), so there is no symbol map and no function
 # boundaries to start from — every address this port will ever hold comes out of Ghidra on this
 # executable. That does not change the build; it changes how long the ⬜ rows stay ⬜.
 cmake_minimum_required(VERSION 3.21)
 
-# ccache, when available. The recompiled substrate is hundreds of MB of generated C, so compilation is
-# essentially the whole cost of an iteration. Must be set BEFORE project(), which is when CMake probes
-# the compiler.
+# ccache, when available. This must be set before project(), when CMake probes the compiler.
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
   set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
@@ -107,14 +103,6 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_fmv_boundary.py --selftest
   )
   add_test(
-    NAME verify_render_reentry_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_render_reentry.py --selftest
-  )
-  add_test(
-    NAME verify_model_table_reset_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_model_table_reset.py --selftest
-  )
-  add_test(
     NAME verify_pad_buffers_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_pad_buffers.py --selftest
   )
@@ -124,14 +112,6 @@ if(BUILD_TESTING)
       ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_projection_publication.py --selftest
   )
   add_test(
-    NAME verify_frame_fence_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_frame_fence.py --selftest
-  )
-  add_test(
-    NAME verify_vsync_ownership_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_vsync_ownership.py --selftest
-  )
-  add_test(
     NAME raw_unpack_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_unpack.py --selftest
   )
@@ -139,20 +119,8 @@ if(BUILD_TESTING)
     NAME raw_packet_census_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_packet_census.py --selftest
   )
-  if(TARGET toystory2_recomp_boundary)
-    add_test(
-      NAME recomp_substrate_selftest
-      COMMAND
-        ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/tools/recomp_substrate.py --selftest
-    )
-    add_test(
-      NAME recomp_boundary_selftest
-      COMMAND
-        ${Python3_EXECUTABLE} -B ${CMAKE_SOURCE_DIR}/tools/compare_recomp_boundary.py
-        --selftest --oracle $<TARGET_FILE:oracle_trace>
-        --runner $<TARGET_FILE:toystory2_recomp_boundary>
-    )
-  endif()
+  add_test(NAME structure_policy COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_structure.py)
+  add_test(NAME structure_policy_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_structure.py)
   if(TARGET toystory2_projection_boundary)
     add_test(NAME projection_publication_boundary COMMAND toystory2_projection_boundary)
   endif()

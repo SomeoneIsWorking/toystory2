@@ -12,6 +12,6 @@ namespace ts2 {
 void initializeNativePad(Core &core);
 void shutdownNativePad(Core &core);
 uint16_t decodeNativeDigitalPad(Core &core);
-void installNativePadOverrides();
+void installNativePadOverrides(Core &core);
 
 } // namespace ts2

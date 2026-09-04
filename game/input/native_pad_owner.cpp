@@ -2,7 +2,7 @@
 
 #include "core.h"
 #include "game.h"
-#include "recomp_iface.h"
+#include "guest_execution.h"
 
 #include <cstdlib>
 #include <lucent/log.h>
@@ -96,17 +96,10 @@ uint16_t decodeNativeDigitalPad(Core &core) {
   return static_cast<uint16_t>(~core.mem_r16(kPadSlot0 + 2));
 }
 
-void installNativePadOverrides() {
-#ifdef TS2_HAVE_SUBSTRATE
-  const RecompRegistry *const registry = psxport_recomp();
-  if (registry == nullptr || registry->shard_set_override == nullptr) {
-    lucent::error("ts2-pad", "generated override registry is unavailable");
-    std::abort();
-  }
-  registry->shard_set_override(0x8003EEF0u, initializeNativePadOverride);
-  registry->shard_set_override(0x8003EF78u, shutdownNativePadOverride);
-  registry->shard_set_override(0x8003AC58u, decodeNativeDigitalPadOverride);
-#endif
+void installNativePadOverrides(Core &core) {
+  installResidentOverride(core, 0x8003EEF0u, "pad-init", initializeNativePadOverride);
+  installResidentOverride(core, 0x8003EF78u, "pad-shutdown", shutdownNativePadOverride);
+  installResidentOverride(core, 0x8003AC58u, "digital-pad-decode", decodeNativeDigitalPadOverride);
 }
 
 } // namespace ts2

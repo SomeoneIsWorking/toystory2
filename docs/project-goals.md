@@ -40,9 +40,11 @@ Contributing state: S008, S009, S011.
 
 ## Constraints and non-goals
 
-- Generated recompiler output remains regenerable and unedited; restricted game assets remain user
-  supplied.
-- Guest execution stays available as the behavioral oracle while readable native ownership grows.
+- Guest instructions not deliberately owned by verified native subsystems execute from the
+  user-supplied image through psxport's runtime dynarec; no gameplay interpreter or static emitted
+  guest corpus is permitted.
+- An independent emulator or separately built diagnostic oracle remains available for differential
+  verification while native ownership grows.
 - There is no decompilation or matching symbol map for this release. Guest addresses and behavior must
   remain grounded in reproducible evidence from the verified executable and modules.
 - Missing native producers, widescreen policy, or interpolation state remain explicit. Presentation

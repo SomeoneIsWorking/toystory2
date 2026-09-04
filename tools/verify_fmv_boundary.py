@@ -12,7 +12,7 @@ Usage:
   python3 tools/verify_fmv_boundary.py --check
   python3 tools/verify_fmv_boundary.py --selftest
   python3 tools/verify_fmv_boundary.py --check-log scratch/logs/fmv-boundary.log
-  python3 tools/verify_fmv_boundary.py --live --port scratch/bin/toystory2_port
+  python3 tools/verify_fmv_boundary.py --live --port build/player/bin/toystory2_port
 """
 
 from __future__ import annotations

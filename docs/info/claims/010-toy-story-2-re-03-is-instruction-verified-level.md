@@ -4,7 +4,7 @@ kind: claim
 status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
-depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg, game/recomp_seeds.json
+depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg
 reconfirmed: 2026-08-26 22:44:42
 verified_at: 2026-08-26 22:44:42
 ---
@@ -47,7 +47,7 @@ Post-landing Clang CTest 7/7 and overlay_map shipping/selftest gates passed; the
 
 ## Re-confirmed 2026-08-22 14:18:14
 
-2026-08-22 runtime-inheritance migration: overlay_map_selftest passed all controls in the clean Clang scratch/build-runtime CTest suite; immutable overlay facts remained unchanged behind the legacy adapter.
+2026-08-22 runtime-inheritance migration: `overlay_map_selftest` passed all controls in a clean Clang CTest suite; immutable overlay facts remained unchanged behind the legacy adapter.
 
 ## Re-confirmed 2026-08-22 18:46:27
 
@@ -55,7 +55,7 @@ After removing the obsolete resident diagnostic reentry seed, overlay_map shippi
 
 ## Re-confirmed 2026-08-22 19:15:00
 
-Post-commit 3b17154 authoritative Clang CTest passes 9/9; recomp substrate selftest passes with the renderer split seed removed and the existing 22-module overlay model unchanged.
+Post-commit 3b17154 authoritative Clang CTest passed 9/9; the existing 22-module overlay model remained unchanged.
 
 ## Re-confirmed 2026-08-24 20:19:56
 

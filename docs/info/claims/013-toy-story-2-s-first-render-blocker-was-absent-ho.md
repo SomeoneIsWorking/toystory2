@@ -3,7 +3,7 @@ id: C013
 kind: claim
 status: holds
 created: 2026-08-22
-tags: render,vblank,host-turn,recomp
+tags: render,vblank,host-turn
 depends: game/core/toystory2_runtime.cpp#ToyStory2Runtime, game/sync/field_clock.cpp#ts2_field_clock_install, tools/overlay_map.py#loader_contract
 reconfirmed: 2026-08-22 19:46:56
 verified_at: 2026-08-22 19:46:56

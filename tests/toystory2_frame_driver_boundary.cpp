@@ -1,6 +1,6 @@
 // Hermetic boundary for Toy Story 2's native-owned resident loop. It exercises the production
 // sequencing function with a recorder and constructs the real runtime product to prove the shared
-// createFrameDriver seam is populated. No generated code, guest RAM, audio, GPU, disc, or window.
+// createFrameDriver seam is populated. No guest execution, guest RAM, audio, GPU, disc, or window.
 
 #include "game.h"
 #include "game_runtime.h"

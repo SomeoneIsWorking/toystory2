@@ -232,7 +232,7 @@ def check(image: Image, verbose: bool = True) -> list[str]:
                 "MATCH: retail initializer, driver contexts, consumer and all 5 GameConfig bindings agree"
             )
         print(
-            "blind spot: this static gate proves destinations and registration shape, not that a "
+            "blind spot: this source gate proves destinations and registration shape, not that a "
             "particular host input changes live gameplay"
         )
     return failures

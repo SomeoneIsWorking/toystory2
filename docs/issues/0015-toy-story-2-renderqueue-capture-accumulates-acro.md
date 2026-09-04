@@ -31,8 +31,7 @@ renderer must preserve it within the correct field lifetime.
 ToyStory2 `field_turn` called lower-level `gpu_present` instead of the neutral presentation fence, so
 the captured queue never rotated across fields. The title-owned one-field VBlank boundary now calls
 `game->presentation.commit(core, 1)` without a temporal decorator; no queue cap changed and no
-primitives are dropped. Real A/B and title-image discriminators are in
-`tools/verify_frame_fence.py`.
+primitives are dropped. The retained A/B and title-image measurements are recorded in C018.
 
 The current pinned-framework retail trace records 8,320 field commits, a maximum individual flush of
 1,472 and maximum captured field of 3,096, with no overflow. It renders stable 960x720 retail titles

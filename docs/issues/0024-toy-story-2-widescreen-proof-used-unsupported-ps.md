@@ -16,8 +16,7 @@ selected through the video settings file instead: `PSXPORT_SETTINGS` chooses the
 settings file/aspect evidence was present.
 
 Evidence: `scratch/logs/capabilities-product-99a42aa3.log` lines 5, 21, and 29; shipping settings
-contract in `external/psxport/docs/config.md` and loader in
-`external/psxport/runtime/recomp/mods.cpp`.
+contract and loader documented in `external/psxport/docs/config.md`.
 
 A future run must point `PSXPORT_SETTINGS` at a controlled INI containing `aspect=1`, select the
 runtime-verified GTE product path, and capture direct evidence that the loaded aspect and rendered

@@ -31,9 +31,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PSXPORT = Path(os.environ.get("PSXPORT_DIR", ROOT / "external" / "psxport"))
-sys.path.insert(0, str(PSXPORT / "tools" / "recomp"))
+sys.path.insert(0, str(PSXPORT / "tools"))
 
-import psexe
+from formats import psx_exe as psexe
 
 DEFAULT_EXE = ROOT / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
 SHIPPED_FILE = ROOT / "game" / "core" / "game_config.cpp"

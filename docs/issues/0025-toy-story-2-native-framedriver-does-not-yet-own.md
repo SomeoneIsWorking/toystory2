@@ -23,7 +23,8 @@ poll or interactive selection iteration, resident preparation, and normal `0x800
 measured two fields. Every frame owns direct deferred service, input, audio, and one presentation
 commit. MEMORY/display initialization begins inside that first finite
 frame. Graphics init `0x8003A218` is routed to a title-local state-only override which preserves its
-measured buffer effects while omitting both guest VSync calls; the generated super remains unchanged.
+measured buffer effects while omitting both guest VSync calls; the ordinary guest body remains
+reachable through scoped dynarec dispatch.
 Linked libetc VSync `0x80088628` is fatal inside the exact second HLE window. The field mirror is the
 title's measured libetc counter `0x8009FD54`, not another engine's `Timing::frameTick` address.
 
@@ -51,7 +52,7 @@ Its only new presents, 1 and 2, were both 960x720 fully black images.
 Issue #29's source slice now replaces the synchronous 0x8007BEC4/0x8007C344 route with a finite
 resident-preparation owner. It consumes one authored transition field per host frame, preserves the
 retail halfword/byte store widths, and invokes a state-only 512x240 graphics initializer which omits
-0x80039D9C's two guest VSync calls. The generated supers remain unchanged. This correction is
+0x80039D9C's two guest VSync calls. The ordinary guest bodies remain reachable through scoped dynarec calls. This correction is
 Clang-built. Bounded real-disc re21 crosses the correction and exits itself at the explicit 300-frame
 cap. Its ledger reconciles 300/300 frames with zero dropped layers, no guest VSync/fatal/miss/unmapped
 access/watchdog occurs, and presents 45 through 300 visibly show coherent Andy's Room demo gameplay.

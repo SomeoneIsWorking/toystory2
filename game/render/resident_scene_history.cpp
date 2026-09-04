@@ -1,15 +1,11 @@
 #include "render/resident_scene_history.h"
 
 #include "core.h"
-#include "recomp_iface.h"
+#include "guest_execution.h"
 #include "toystory2_context.h"
 
 #include <cstdlib>
 #include <lucent/log.h>
-
-#ifdef TS2_HAVE_SUBSTRATE
-#include "rec_decls.h"
-#endif
 
 namespace ts2 {
 namespace {
@@ -84,13 +80,12 @@ ResidentSceneCandidate readCandidate(Core &core, uint32_t visibilityAddress) {
   return candidate;
 }
 
-#ifdef TS2_HAVE_SUBSTRATE
 void observeSceneOwner(Core *core) {
   ResidentSceneHistory &history = context(*core).scene;
   if (history.capturing()) {
     history.captureOwnerSubmission(*core, core->r[4], core->r[5], core->r[6], core->r[7]);
   }
-  gen_func_8002622C(core);
+  callOriginalToReturn(*core, 0x8002622Cu, "resident scene owner original");
 }
 
 void observeMeshSubmitter(Core *core) {
@@ -98,9 +93,8 @@ void observeMeshSubmitter(Core *core) {
   if (history.capturing()) {
     history.captureMeshSubmission(*core, core->r[4], core->r[5], core->r[6], core->r[7]);
   }
-  gen_func_800100E4(core);
+  callOriginalToReturn(*core, 0x800100E4u, "resident mesh submitter original");
 }
-#endif
 
 } // namespace
 
@@ -326,16 +320,9 @@ const ResidentSceneFrame &ResidentSceneHistory::current() const {
   return current_;
 }
 
-void installResidentSceneObservationOverrides() {
-#ifdef TS2_HAVE_SUBSTRATE
-  const RecompRegistry *const registry = psxport_recomp();
-  if (registry == nullptr || registry->shard_set_override == nullptr) {
-    lucent::error("ts2-scene", "generated override registry is unavailable");
-    std::abort();
-  }
-  registry->shard_set_override(0x8002622Cu, observeSceneOwner);
-  registry->shard_set_override(0x800100E4u, observeMeshSubmitter);
-#endif
+void installResidentSceneObservationOverrides(Core &core) {
+  installResidentOverride(core, 0x8002622Cu, "resident-scene-observer", observeSceneOwner);
+  installResidentOverride(core, 0x800100E4u, "resident-mesh-observer", observeMeshSubmitter);
 }
 
 } // namespace ts2

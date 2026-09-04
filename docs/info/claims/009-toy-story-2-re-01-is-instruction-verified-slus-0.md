@@ -35,7 +35,7 @@ Post-landing Clang CTest 7/7, crt0 verifier, oracle boundary 34/34, and forced-m
 
 ## Re-confirmed 2026-08-22 14:18:13
 
-2026-08-22 runtime-inheritance migration: verify_crt0_selftest passed in the clean Clang scratch/build-runtime CTest suite and the shipping headless route printed 10 AGREE, 0 DISAGREE before dispatching measured gameMain.
+2026-08-22 runtime-inheritance migration: `verify_crt0_selftest` passed in a clean Clang CTest suite and the shipping headless route printed 10 AGREE, 0 DISAGREE before dispatching measured gameMain.
 
 ## Re-confirmed 2026-08-24 20:19:56
 

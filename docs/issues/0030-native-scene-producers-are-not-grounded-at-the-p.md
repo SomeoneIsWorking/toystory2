@@ -58,7 +58,7 @@ remain coherent Andy's Room gameplay.
 Its `0x8002622C` wrapper captures the live list/count, packet pool and view selector plus typed
 visibility/object/resource/instance/mesh candidates; its `0x800100E4` wrapper captures the actual mesh
 pointer, signed header word, scale, material table and coarse-camera pointer. Both then call their
-compiled generated bodies directly. The capture is active only around a resident update, bounded by
+ordinary guest bodies through scoped dynarec dispatch. The capture is active only around a resident update, bounded by
 the retail merge owner's 256-entry batch contract, and retains previous/current frames in the
 per-Core title context. The Clang product builds, the focused boundary passes 13/13 with 110 checks,
 and the full C++ format/tidy policy passes.
@@ -102,7 +102,7 @@ resolved texture/material resource still remain unclaimed.
 remaining canonical 2 MiB RAM range and the retail terminator. `ResidentSceneHistory` retains the
 first decoded primitive and per-mesh opcode/material/blend/primitive-count summary without consuming
 guest GTE, OT, or GP0 output. The census runs inside the `0x800100E4` observation wrapper before its
-generated super-call, so it samples source RAM without replacing guest rendering. Its focused
+scoped call to the ordinary guest body, so it samples source RAM without replacing guest rendering. Its focused
 boundary covers a non-negative state update followed by negative inheritance, plus a separate
 negative-first stream that retains the initial `0xE0` record. This is static decoder evidence pending an authorized real-disc histogram;
 it is not a visible native producer.

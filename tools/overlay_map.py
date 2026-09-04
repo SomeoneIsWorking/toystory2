@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """overlay_map.py — WHERE does the CD loader put each file? Decoded out of the boot executable.
 
-  python3 tools/overlay_map.py                  # the census + the slot arithmetic
-  python3 tools/overlay_map.py --loader 0x...   # census a different callee
-  python3 tools/overlay_map.py --check          # re-derive + compare both shipping consumers
-  python3 tools/overlay_map.py --selftest       # positive/opposite/refusal gates
-
 THE QUESTION, and why this tool and not base_fit.py. `tools/base_fit.py` measures where a module's own
 absolute `jal` targets say it COULD be loaded. That is a fit, and a fit has two limits this tool does
 not: it is 4 KiB-granular, and it can never say HOW the loader arrives at a base. This tool answers the
@@ -16,14 +11,11 @@ mechanism instead, from the one place the answer is unambiguous — the loader's
     jal  0x80082508          # 0x8003DEAC   FileLoadTo(path, dest)
 
 so the DESTINATION is a compile-time constant in the caller, and every file the game loads to a fixed
-address is in the table this prints. A fit that disagrees with this is the fit being coarse.
-
-THE ANCHOR, which is the one thing here that is RE and not derivation: `--loader` defaults to
+address is in the table this prints. A fit that disagrees with this is the fit being coarse. The one
+RE anchor is `--loader`, which defaults to
 0x80082508, the two-argument CD file loader, identified by Ghidra call-flow analysis and independently
 checked instruction chains (C010/I009).
-Everything else on this page is computed from the bytes. Point `--loader` somewhere else and the census
-re-runs against that callee with no other change — which is exactly what --selftest's negative control
-does.
+Everything else is computed from the bytes. `--selftest` also drives a different callee as a negative.
 
 WHAT A NEGATIVE PRINTS, every run, because "the table is empty" and "I never looked" must not read the
 same: the words examined, the `jal` opcodes seen, the call sites found for this callee, and per site
@@ -45,22 +37,18 @@ BLIND SPOTS, printed every run:
     both loads happen in one function on one path (FUN_8003D88C), which the census prints; it is not a
     general property.
 """
-
 import argparse
 import glob
-import json
 import os
 import re
 import struct
 import sys
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLAT = os.path.join(ROOT, "scratch", "flat")
 EXE = os.environ.get("TS2_EXE") or os.path.join(
     ROOT, "scratch", "bin", "toystory2", "SLUS_008.93"
 )
 CONFIG = os.path.join(ROOT, "game", "core", "game_config.cpp")
-SEEDS = os.path.join(ROOT, "game", "recomp_seeds.json")
 MEMORY = os.path.join(FLAT, "BITS__MEMORY.BIN")
 FMV = os.path.join(FLAT, "FMV__FMV.BIN")
 
@@ -351,11 +339,6 @@ def count_calls(exe, lo, hi, target):
         for va in range(lo, hi, 4)
         if exe.word(va) >> 26 == OP_JAL and jal_target(exe, va) == target
     )
-
-
-def read_json_with_comments(path):
-    text = open(path, encoding="utf-8").read()
-    return json.loads(re.sub(r"//[^\n]*", "", text))
 
 
 def memory_prefix_pointers(data):
@@ -939,9 +922,8 @@ def report(loader, out=sys.stdout):
 
 
 def shipping_comparison(measured, out=sys.stdout):
-    """Compare the two proven resident slots with both shipping consumers."""
+    """Compare the two proven resident slots with the runtime title configuration."""
     config = open(CONFIG, encoding="utf-8").read()
-    seeds = read_json_with_comments(SEEDS)
 
     def constant(name):
         match = re.search(
@@ -972,22 +954,6 @@ def shipping_comparison(measured, out=sys.stdout):
         )
     )
     checks.append(("game_config overlaySlots LEVEL+MEMORY", 1 if slots_ok else 0, 1))
-
-    expected_bases = {
-        "BITS__MEMORY": "0x{:08X}".format(measured["memory_base"]),
-        "FMV__FMV": "0x{:08X}".format(measured["memory_base"]),
-    }
-    expected_patterns = [[LEVEL_PATTERN, "0x{:08X}".format(measured["level_base"])]]
-    checks.append(
-        ("recomp_seeds overlay_bases", seeds.get("overlay_bases"), expected_bases)
-    )
-    checks.append(
-        (
-            "recomp_seeds overlay_base_patterns",
-            seeds.get("overlay_base_patterns"),
-            expected_patterns,
-        )
-    )
 
     print("== shipping comparison (proven fields only) ==", file=out)
     failures = []
@@ -1187,7 +1153,7 @@ def selftest():
 
     shipping_failures = shipping_comparison(contract, io.StringIO())
     ck(
-        "SHIPPING: GameConfig and recompiler seeds equal the independently derived slots",
+        "SHIPPING: GameConfig equals the independently derived slots",
         not shipping_failures,
         "0 disagreements" if not shipping_failures else ", ".join(shipping_failures),
     )
@@ -1216,7 +1182,7 @@ def main():
     ap.add_argument(
         "--check",
         action="store_true",
-        help="derive the retail map and fail if GameConfig/recompiler seeds disagree",
+        help="derive the retail map and fail if the runtime GameConfig disagrees",
     )
     a = ap.parse_args()
     if a.selftest:

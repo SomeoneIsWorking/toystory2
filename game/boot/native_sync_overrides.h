@@ -8,6 +8,6 @@ namespace ts2 {
 // functions remain present and callable as supers; only the generated registry's runtime route is
 // changed.
 void initializeResidentGraphicsWithoutGuestVSync(Core &core);
-void installNativeSyncOverrides();
+void installNativeSyncOverrides(Core &core);
 
 } // namespace ts2
