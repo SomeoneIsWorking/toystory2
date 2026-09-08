@@ -6,11 +6,10 @@ the authenticated user-supplied game image remains data.
 
 ## Current state
 
-The former offline translator, emitted guest-source corpus, seed manifest, generated dispatcher, and
-their tests have been removed. The native title layer now uses psxport's typed guest-call and
-image-scoped override APIs. psxport intentionally returns a named `Lightrec dynarec-only backend is
-not linked` fault until its maintained no-interpreter Lightrec dependency is available, so gameplay
-is currently blocked at that one executor boundary. There is no static or interpreter fallback.
+The Linux x86-64 product now links against psxport's maintained Lightrec executor. Native boundary
+tests pass, but retail boot stops at a bounded platform-initialization call before gameplay. The
+exact runtime and remaining verification gaps are recorded in project state below. No offline guest
+source or player-selectable interpreter path is present.
 
 The durable feature inventory and exact gaps are in [project-state](docs/project-state.md). The
 binary evidence frontier is in [re-frontier](docs/re-frontier.md).
@@ -31,9 +30,16 @@ code.
 Run the non-launching checks explicitly:
 
 ```sh
+CC=clang CXX=clang++ uv run --frozen python tools/verify.py
 uv run --frozen python tools/test_run.py
 uv run --frozen python tools/test_structure.py
 uv run --frozen python tools/check_structure.py
 ```
+
+`tools/verify.py` uses psxport's shared consumer verifier to configure the Ninja
+`build/verify` tree, build the product, run the title's complete CTest suite, and inspect the linked
+execution boundary. Maintained dependency overrides use `PSXPORT_LIGHTREC_DIR` and
+`PSXPORT_LIGHTNING_PREFIX`, matching the framework verifier. This asset-free check does not establish
+gameplay compatibility.
 
 Game files, extracted executables, build products, and runtime captures are not tracked or packaged.

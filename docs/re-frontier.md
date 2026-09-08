@@ -30,8 +30,8 @@ runtime.
 - deps: RE-01, RE-03
 - evidence: The title build and source route guest calls and image-scoped overrides through `game/core/guest_execution.*`; `tools/check_structure.py` rejects every retired static product marker and generated artifact.
 - where: `game/core/guest_execution.*`; `external/psxport/runtime/cpu/`
-- gap: Issue #31. psxport intentionally reports that its Lightrec dynarec-only backend is not linked. The maintained fork must eliminate interpreter paths before execution can advance.
-- notes: Do not restore an offline translator, generated corpus, static dispatcher, engine selector, or interpreter fallback.
+- gap: The backend links; current retail platform initialization consumes one execution budget before returning. See S002 in `docs/project-state.md` for the measured checkpoint, unproven cause, and next discriminator.
+- notes: Do not restore an offline translator, generated corpus, static dispatcher, engine selector, or unbounded interpreter fallback.
 
 ### RE-11 — FMV path parser and shared BIOS toupper
 - status: re-verified
@@ -70,7 +70,7 @@ runtime.
 - deps: RE-02, RE-06, RE-13
 - evidence: Earlier runtime scenarios reached Andy's Room, pause/unpause, and camera motion, but used the removed executor and are expectations only.
 - where: future dynarec differential/playthrough evidence
-- gap: Reproduce gameplay entry, pause/unpause, held-camera movement, streamed-module replacement, audio and sustained progression through Lightrec with no interpreter symbols.
+- gap: Reproduce gameplay entry, pause/unpause, held-camera movement, streamed-module replacement, audio and sustained progression through Lightrec with explicit translated and bounded-fallback denominators.
 - notes: Instrument reach and input delivery denominators before interpreting absence of a symptom.
 
 ## overlays

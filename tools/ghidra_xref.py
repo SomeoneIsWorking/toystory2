@@ -2,7 +2,7 @@
 """ghidra_xref.py — WHO references these guest addresses? A Ghidra postScript with TWO independent
 methods and a printed denominator.
 
-  external/psxport/tools/decomp.sh is the importer; run this over an imported project:
+  Import tools/ram_image.py's output at KSEG0, then run this over that Ghidra project:
     pyghidraRun -H scratch/ghidra ts2boot -process -noanalysis \\
         -scriptPath tools -postScript ghidra_xref.py <out.txt> <addr-or-range> [more...]
   A range is `lo..hi` (hi exclusive), a single target is a bare hex address. `--selftest` instead of
@@ -48,7 +48,7 @@ import os
 import struct
 import sys
 
-RAM_BASE = 0x80000000  # the flat image's load base, fixed by decomp.sh's importer
+RAM_BASE = 0x80000000  # the flat image's KSEG0 import base
 # tools/base_fit.py's fitted overlay load base (claim C003). Held here ONLY as the subject of a
 # regression check — it is NOT a resident base and must never be pasted into a GameConfig or an
 # overlay table. This tool once claimed the boot exe forms it; the check below is why it cannot again.

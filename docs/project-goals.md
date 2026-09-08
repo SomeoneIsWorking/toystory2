@@ -41,7 +41,7 @@ Contributing state: S008, S009, S011.
 ## Constraints and non-goals
 
 - Guest instructions not deliberately owned by verified native subsystems execute from the
-  user-supplied image through psxport's runtime dynarec; no gameplay interpreter or static emitted
+  user-supplied image through psxport's runtime dynarec; only classified bounded fallback is permitted, and no interpreter-only gameplay or static emitted
   guest corpus is permitted.
 - An independent emulator or separately built diagnostic oracle remains available for differential
   verification while native ownership grows.

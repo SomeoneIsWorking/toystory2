@@ -12,7 +12,9 @@ from structure import policy, scan_repository
 
 class StructureScannerTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        scratch = Path(__file__).resolve().parents[1] / "scratch/structure-selftest"
+        scratch.mkdir(parents=True, exist_ok=True)
+        self.temporary = tempfile.TemporaryDirectory(dir=scratch)
         self.root = Path(self.temporary.name)
         (self.root / "game/core").mkdir(parents=True)
         (self.root / "game/runtime").mkdir(parents=True)
@@ -33,6 +35,18 @@ class StructureScannerTests(unittest.TestCase):
     def test_static_product_dependency_fires(self) -> None:
         (self.root / "game/runtime/engine.cpp").write_text('#include "recomp_iface.h"\n')
         self.assertIn("static-product-dependency", self.rules())
+
+    def test_every_retired_path_is_rejected(self) -> None:
+        for name in policy.RETIRED_TRACKED_PATHS:
+            with self.subTest(path=name):
+                path = self.root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+                violations = scan_repository(self.root).violations
+                self.assertTrue(
+                    any(item.rule == "retired-static-path" and item.path == Path(name) for item in violations)
+                )
+                path.unlink()
 
     def test_direct_stderr_and_stray_getenv_fire(self) -> None:
         (self.root / "game/runtime/engine.cpp").write_text('fprintf(stderr, "bad"); getenv("BAD");\n')

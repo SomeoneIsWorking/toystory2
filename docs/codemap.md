@@ -28,6 +28,7 @@ ToyStory2Runtime -> native title owners -> guest_execution -> psxport Lightrec e
 | Binary and asset tools | Derive title facts from authenticated game bytes | `tools/` | individual Python CLIs | `docs/re-frontier.md` |
 | Structure policy | Reject retired execution artifacts, direct product stderr, stray environment reads and monolith growth | `tools/structure/`, `tools/check_structure.py` | `scan_repository` | `CLAUDE.md` |
 | Hermetic boundaries | Verify title-owned CD, projection, and finite-frame contracts without gameplay | `tests/` | CTest targets | `README.md` |
+| Product verification | Supply title targets to the framework's shared configure/build/test and execution-boundary verifier | `tools/verify.py` | `main` | `README.md` |
 | PSX platform | Own Lightrec, CPU state, memory, invalidation, native dispatch, hardware and presentation | `external/psxport/` | `psx::cpu::dispatchGuest` | `external/psxport/AGENTS.md` |
 
 ## Where new work goes

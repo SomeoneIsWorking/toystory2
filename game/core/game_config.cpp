@@ -266,8 +266,6 @@ static const GameConfig g_ts2_cfg = {
     .putDrawEnv = 0,
     .drawSync = 0,
     .irqEventClasses = {0, 0, 0},
-    .dualviewRenderOrch = 0,
-    .dualviewSubmit = 0,
 
     // --- scheduler task layout ----------------------------- not used by title FrameDriver --
     // The framework's PcScheduler is not wired for this port: GameHooks'

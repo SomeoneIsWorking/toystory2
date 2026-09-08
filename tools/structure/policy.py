@@ -10,17 +10,17 @@ SOURCE_LINE_LIMIT = 1200
 
 IGNORED_PARTS = frozenset({".git", ".venv", "build", "external", "scratch", "__pycache__"})
 
-RETIRED_PATHS = (
-    Path("generated"),
-    Path("game/recomp_seeds.json"),
-    Path("game/core/recomp_register.cpp"),
-    Path("tests/toystory2_recomp_boundary.cpp"),
-    Path("tools/compare_recomp_boundary.py"),
-    Path("tools/recomp_substrate.py"),
-    Path("tools/verify_frame_fence.py"),
-    Path("tools/verify_model_table_reset.py"),
-    Path("tools/verify_render_reentry.py"),
-    Path("tools/verify_vsync_ownership.py"),
+RETIRED_TRACKED_PATHS = (
+    "generated",
+    "game/recomp_seeds.json",
+    "game/core/recomp_register.cpp",
+    "tests/toystory2_recomp_boundary.cpp",
+    "tools/compare_recomp_boundary.py",
+    "tools/recomp_substrate.py",
+    "tools/verify_frame_fence.py",
+    "tools/verify_model_table_reset.py",
+    "tools/verify_render_reentry.py",
+    "tools/verify_vsync_ownership.py",
 )
 
 PRODUCT_ROOTS = (Path("game"), Path("cmake"))

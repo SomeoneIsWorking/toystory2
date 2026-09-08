@@ -6,7 +6,7 @@
       --overlay scratch/flat/LEVEL01__LEVEL.BIN@0x800D12C0    # + one overlay at RE-03's proven base
   python3 tools/ram_image.py --selftest                       # gates BOTH classes
 
-WHY THIS EXISTS. `external/psxport/tools/decomp.sh` imports a **RAM DUMP** as a flat binary based at
+WHY THIS EXISTS. Ghidra imports this **RAM IMAGE** as a flat binary based at
 0x80000000, so every Ghidra address equals a guest virtual address. This port has no emulator run and
 therefore no dump; what it has is a PS-EXE, whose bytes start 0x800 into the file and land at `t_addr`.
 Importing the PS-EXE *directly* at 0x80000000 would put every instruction 0x8000F800 bytes below its

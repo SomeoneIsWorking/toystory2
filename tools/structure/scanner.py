@@ -39,7 +39,8 @@ def _product_files(root: Path) -> set[Path]:
 def scan_repository(root: Path) -> ScanReport:
     root = root.resolve()
     violations: list[Violation] = []
-    for retired in policy.RETIRED_PATHS:
+    for name in policy.RETIRED_TRACKED_PATHS:
+        retired = Path(name)
         if (root / retired).exists():
             violations.append(Violation(retired, "retired-static-path", "obsolete static execution artifact exists"))
 

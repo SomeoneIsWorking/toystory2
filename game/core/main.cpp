@@ -7,25 +7,23 @@
 //
 // Guest code is consumed directly from the authenticated executable and translated by psxport's
 // dynarec. Native title owners remain explicit runtime overrides.
+#include "c_subsys.h"
 #include "core.h"
 #include "disc.h"
 #include "fs_util.h"
 #include "game.h"
+#include "hw_bind.h"
+#include "psx_exe_image.h"
 #include "toystory2_runtime.h"
 #include <iostream>
 #include <lucent/log.h>
 #include <string_view>
 
 extern "C" {
-void watchdog_init(void);
-void mdec_init(void);
 void spu_init(void);
 }
 
-void load_exe(const char *path, Core *c); // psxport executable loader
-void native_boot_run(Core *c);            // psxport native boot owner
-void gte_init(void);
-int selftest_run(const char *path); // psxport test-only harness
+void native_boot_run(Core *c); // psxport native boot owner
 
 // The retail US executable, as it is named on the disc. SYSTEM.CNF boots it
 // directly
@@ -70,15 +68,6 @@ int main(int argc, char **argv) {
                     "a *.chd in the working directory), or run `uv run --frozen python "
                     "tools/extract_exe.py`");
       return 1;
-    }
-  }
-
-  // PSXPORT_SELFTEST=<name>: run the framework's headless selftest harness
-  // instead of booting.
-  {
-    const char *st = cfg_str("PSXPORT_SELFTEST");
-    if (st && *st) {
-      return selftest_run(path);
     }
   }
 

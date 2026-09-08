@@ -9,12 +9,12 @@ portfolio native/dynarec contract before changing execution architecture.
 - The authenticated executable and streamed modules are runtime data.
 - psxport's per-`Core` Lightrec executor runs every guest instruction not deliberately owned by a
   verified native title subsystem.
-- Gameplay never links, selects, or falls back to an interpreter. An interpreter is permitted only
-  in a separately built diagnostic target.
+- Gameplay offers each cold block to Lightrec first. Only the framework-owned classified and
+  bounded fallback may interpret a refused block; interpreter-only execution stays diagnostic.
 - No offline translator, generated guest-source corpus, seed manifest, generated dispatcher, or
   executable static substrate belongs in this repository.
-- Until psxport's maintained no-interpreter Lightrec fork is integrated, the product must stop at its
-  single named executor-unavailable fault. Do not restore an older execution path to get past it.
+- A bounded execution exit must preserve guest and host lifecycle invariants. Do not bypass a
+  polling/service boundary or inflate its cycle budget to make boot progress.
 
 ## Ownership
 

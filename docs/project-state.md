@@ -13,7 +13,7 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | ID | Capability / observable outcome | State | Dependencies | Goals |
 |---|---|---|---|---|
 | S001 | USA executable, disc files, and loaded modules are reproducibly identified and placed | verified | — | G001 |
-| S002 | psxport executes resident and streamed code through a gameplay dynarec with no interpreter fallback | blocked | S001 | G001 |
+| S002 | psxport executes resident and streamed code through a gameplay dynarec with classified bounded fallback | partial | S001 | G001 |
 | S003 | Native title owners provide finite frame, timing, input, audio, and presentation sequencing | partial | S002 | G001 |
 | S004 | The current product boots through front end and LEVEL01 gameplay | blocked | S002, S003 | G001 |
 | S005 | Host input produces repeatable guest gameplay behavior | partial | S003, S004 | G001 |
@@ -29,8 +29,10 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 
 ## Current focus
 
-S002 is the current focus. Issue #31 tracks the only permitted product blocker: psxport's maintained
-dynarec-only Lightrec dependency is not linked yet.
+S002 is the current focus: recover the body containing the platform-initialization exit and observe
+consecutive bounded execution slices. One exhausted budget does not establish a polling loop or a
+missing service. The maintained backend now links; gameplay remains blocked before the finite frame
+driver starts.
 
 ## Capability details
 
@@ -41,15 +43,31 @@ Evidence: `tools/extract_exe.py` identifies the 598,016-byte executable; exact i
 MEMORY/FMV slot at `0x800D5D20`, and FMV entry `0x800D6628`. The disc census identifies 22 loaded code
 modules without tracking game bytes.
 
-### S002 — Dynarec-only guest execution
+### S002 — Dynarec-first guest execution
 
 The obsolete offline translator, emitted source corpus, seed manifest, generated registry, product
 selector, and static-only tests are absent. Title guest calls and native overrides use psxport's typed
 runtime APIs.
 
-Blocker: psxport's executor currently returns the named `Lightrec dynarec-only backend is not linked`
-fault. Issue #31 owns integration of a maintained Lightrec fork that cannot interpret difficult
-blocks. No gameplay fallback is present.
+The Linux x86-64 Clang/Ninja product and three native boundary binaries link against maintained
+Lightrec `b1457137` through pinned framework `a5a79652`; CMake provenance matches that pin. The linked
+execution-boundary checker passes. The 2026-09-08 reconnect verification passes all 17 CTests across
+two phases: the canonical gate passed 16/17, then the focused `cpp_policy` rerun passed after the
+retired-path declarations adopted the shared strict literal-data contract. The focused structure
+suite passes 7/7 tests, including rejection of every one of the ten retained retired paths; the
+shipping scanner reports zero violations across 38 product files and 68 source files. No runtime
+code changed between those test phases. Both touched C++ translation units also pass clang-tidy.
+
+A silent two-frame-requested retail run reaches the 10/10-field CRT audit, InitHeap, and disc open,
+then aborts during `initializeGuestMain` platform initialization: `budget-exhausted` at `0x80039D04`
+after 564,496 cycles. The called `0x8003A780` owner includes GPU, SPU, CD and pad setup, display
+callback installation, XA discovery and global SFX loading. The native frame driver is not reached.
+The cached caller decompile does not establish what the body containing `0x80039D04` does, and no
+consecutive bounded slices have been observed. Ordinary startup work spanning one budget remains
+possible; neither polling nor a missing interrupt/service is proven. Raising the cycle limit would
+conceal this distinction. The abort does not print translated/fallback
+denominators, so this run does not qualify dynarec coverage, gameplay, or performance. Logs use
+`scratch/logs/reconnect-{verify,build,tests,policy,tidy,runtime}.log`.
 
 ### S003 — Native finite frame ownership
 
@@ -58,7 +76,7 @@ packets, deferred display service, audio step, and one presentation commit witho
 hermetic boundary tests predate the execution migration and the sources now use the typed dynarec
 guest-call adapter.
 
-Gap: runtime behavior has not been reverified through Lightrec because S002 is blocked. MEMORY and
+Gap: the retained boundary tests pass, but the current runtime stops at the S002 boot boundary. MEMORY and
 FMV loop ownership also remain incomplete under issues #26 and #27.
 
 ### S004 — Current boot through gameplay
@@ -75,8 +93,8 @@ Gap: the scenario must be reverified through the current dynarec product after S
 
 ### S006 — Coherent 15-bit presentation
 
-Blocker: S002. The guest GPU/presentation path and native frame owner remain, but no current product
-frame has been produced through Lightrec.
+Blocker: S002. The guest GPU/presentation path and native frame owner remain, but no current title gameplay frame
+has been produced through Lightrec.
 
 ### S007 — Coherent 24-bit MDEC movies
 
@@ -132,7 +150,7 @@ It does not present those Python contracts as a native Linux or macOS build.
 
 | Platform | Applicability | Current CI evidence and exact gap |
 | --- | --- | --- |
-| Linux x86-64 | applicable desktop target | Repository policy is covered; the blocked Lightrec runtime prevents a truthful native product build, runtime test, and package gate. |
+| Linux x86-64 | applicable desktop target | Local native product build and title boundary tests pass; hosted native runtime and package qualification remain missing. |
 | Windows x86-64 | applicable desktop target | Missing: no current Windows native/dynarec build, runtime test, first-run setup, or package boundary exists. |
 | macOS arm64 | applicable desktop target | Missing: no current Apple-Silicon native/dynarec build, runtime test, first-run setup, or application package exists. |
 | Android arm64 | applicable future portable target | Missing: no Android title integration, shared `android-port` consumer, native runtime, APK build, or install test exists. |
