@@ -43,7 +43,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LINK = os.path.join(REPO, "external", "psxport")
 PIN = os.path.join(REPO, "psxport.pin")
-RESOLVED = os.path.join(REPO, "build", "psxport_resolved.txt")
+RESOLVED = os.path.join(REPO, "build", "verify", "psxport_resolved.txt")
 DEFAULT_URL = "https://github.com/SomeoneIsWorking/psxport.git"
 
 # Where a shared clone lives, in preference order. $PSX wins so a differently-laid-out workspace works.
@@ -251,7 +251,7 @@ def do_check(args):
         return 2
     built = read_resolved()
     if not built:
-        print(f"[psxport] check: no build/psxport_resolved.txt — this tree has not been configured, so "
+        print(f"[psxport] check: no build/verify/psxport_resolved.txt — this tree has not been configured, so "
               f"there is nothing to compare the pin against. Asserting nothing (pin {pin[:8]}).")
         return 0
     bdir, bsha = built

@@ -30,7 +30,7 @@ runtime.
 - deps: RE-01, RE-03
 - evidence: The title build and source route guest calls and image-scoped overrides through `game/core/guest_execution.*`; `tools/check_structure.py` rejects every retired static product marker and generated artifact.
 - where: `game/core/guest_execution.*`; `external/psxport/runtime/cpu/`
-- gap: The backend links; current retail platform initialization consumes one execution budget before returning. See S002 in `docs/project-state.md` for the measured checkpoint, unproven cause, and next discriminator.
+- gap: The backend links. Exact resident `0x80039B74` contains finite table loops; the retail graphics initializer now returns across two bounded Lightrec slices. Title-owned MEMORY byte authentication and code-image publication pass synthetic tests and were reached by exact-revision retail execution, including replacement. The next retail exit is a bounded guest call at `0x8002149C` in the first resident outer-loop step; its containing function and cause remain ungrounded. See S002 in `docs/project-state.md`.
 - notes: Do not restore an offline translator, generated corpus, static dispatcher, engine selector, or unbounded interpreter fallback.
 
 ### RE-11 — FMV path parser and shared BIOS toupper

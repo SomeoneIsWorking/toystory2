@@ -6,6 +6,10 @@
 #include <string_view>
 
 class Core;
+namespace psx::cpu {
+struct ExecutionBudget;
+struct ExecutionResult;
+} // namespace psx::cpu
 
 namespace ts2 {
 
@@ -20,6 +24,8 @@ struct GuestCall {
 };
 
 std::uint32_t callGuestToReturn(Core &core, const GuestCall &call);
+psx::cpu::ExecutionResult
+executeFiniteBootCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBudget budget, std::uint32_t maxSlices);
 void callOriginalToReturn(Core &core, std::uint32_t address, std::string_view owner);
 void installResidentOverride(Core &core, std::uint32_t address, std::string_view name, NativeGuestFunction function);
 

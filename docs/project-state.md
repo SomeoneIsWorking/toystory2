@@ -29,10 +29,9 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 
 ## Current focus
 
-S002 is the current focus: recover the body containing the platform-initialization exit and observe
-consecutive bounded execution slices. One exhausted budget does not establish a polling loop or a
-missing service. The maintained backend now links; gameplay remains blocked before the finite frame
-driver starts.
+S002 is the current focus: diagnose the bounded resident outer-loop call after authenticated MEMORY
+publication. The maintained backend links and the native frame driver completes guest main's overlay
+initialization, but gameplay remains blocked before its first completed frame.
 
 ## Capability details
 
@@ -62,12 +61,28 @@ A silent two-frame-requested retail run reaches the 10/10-field CRT audit, InitH
 then aborts during `initializeGuestMain` platform initialization: `budget-exhausted` at `0x80039D04`
 after 564,496 cycles. The called `0x8003A780` owner includes GPU, SPU, CD and pad setup, display
 callback installation, XA discovery and global SFX loading. The native frame driver is not reached.
-The cached caller decompile does not establish what the body containing `0x80039D04` does, and no
-consecutive bounded slices have been observed. Ordinary startup work spanning one budget remains
-possible; neither polling nor a missing interrupt/service is proven. Raising the cycle limit would
-conceal this distinction. The abort does not print translated/fallback
-denominators, so this run does not qualify dynarec coverage, gameplay, or performance. Logs use
-`scratch/logs/reconnect-{verify,build,tests,policy,tidy,runtime}.log`.
+Ghidra's cached decompile of the exact resident function `0x80039B74` containing the old exit shows two
+finite table-construction loops: 0x960 entries, then 8000 entries; the latter returns after its
+counter reaches 8000. This identifies ordinary finite initialization work at that exit, not a
+polling/service wait. The title's boot adapter now resumes the same guest call across individually
+bounded Lightrec slices while preserving the original return sentinel, with a fixed refusal bound
+and no manufactured guest fields. A nested-call synthetic MIPS loop test crosses 35 slices and
+returns with its original outer-call sentinel, 207 executed dynarec blocks, and zero fallback blocks;
+a one-slice negative case refuses as `budget-exhausted`. A bounded retail run through exact
+`SLUS_008.93` then completed graphics initialization in **two slices / 794,382 cycles** and entered
+the native frame driver. It stopped 958 cycles into `finishGuestMainBoot`: the guest's
+`0x8003FCE8` loaded `BITS/MEMORY.BIN` through `0x80082508` at `0x800D5D20`, then called
+`0x800E10E4` without a registered code-image identity. The title now observes that measured loader,
+checks the disc module against the measured retail SHA-256 before its original guest loader runs,
+executes that loader, compares all 63,312 transferred bytes with the authenticated source, invalidates
+the range, publishes a new MEMORY identity, and retires it on replacement. The flat-corpus verifier
+compares the shipping digest with the exact retail module, and hermetic tests reject same-length altered
+bytes while preserving an unchanged active identity. These digest checks have not had a subsequent retail
+run. Before the digest guard was added, a bounded retail run published generation 2, completed guest
+main's overlay initialization, then published a replacement as generation 3.
+It stopped in the first resident outer-loop step: the frame driver's required guest call exhausted
+564,574 cycles at `0x8002149C`. The containing function and whether it is finite work or a
+timing/service boundary have not yet been established. Neither run qualifies gameplay or performance.
 
 ### S003 — Native finite frame ownership
 
@@ -76,8 +91,8 @@ packets, deferred display service, audio step, and one presentation commit witho
 hermetic boundary tests predate the execution migration and the sources now use the typed dynarec
 guest-call adapter.
 
-Gap: the retained boundary tests pass, but the current runtime stops at the S002 boot boundary. MEMORY and
-FMV loop ownership also remain incomplete under issues #26 and #27.
+Gap: the retained boundary tests pass, but the current runtime stops in S002's first resident
+outer-loop call. MEMORY and FMV loop ownership also remain incomplete under issues #26 and #27.
 
 ### S004 — Current boot through gameplay
 

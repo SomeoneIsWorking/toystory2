@@ -19,7 +19,8 @@ ToyStory2Runtime -> native title owners -> guest_execution -> psxport Lightrec e
 | Build graph | Compose title source with psxport; never generate guest code | `CMakeLists.txt`, `cmake/toystory2_port.cmake` | `toystory2_port` | `CLAUDE.md` |
 | Product composition | Install runtime, load authenticated executable, initialize platform services | `game/core/main.cpp` | `main` | `CLAUDE.md` |
 | Title runtime | Compose per-Core title context, frame driver, native overrides and render capabilities | `game/core/toystory2_runtime.*`, `game/core/toystory2_context.*` | `ToyStory2Runtime` | `CLAUDE.md` |
-| Guest execution adapter | Centralize typed guest calls, scoped original calls and resident override registration | `game/core/guest_execution.*` | `callGuestToReturn`, `installResidentOverride` | `CLAUDE.md` |
+| Guest execution adapter | Centralize typed guest calls, bounded finite boot continuation, scoped original calls and resident override registration | `game/core/guest_execution.*` | `callGuestToReturn`, `executeFiniteBootCall`, `installResidentOverride` | `CLAUDE.md` |
+| MEMORY code image | Observe the measured file loader, authenticate the retail source digest before transfer and its loaded bytes after transfer, publish/retire its image generation and invalidate translations | `game/overlay/` (`memory_image.*`) | `installMemoryOverlayObserver`, `MemoryOverlayImage::publish` | `docs/re-frontier.md` |
 | Exact title facts | Hold verified executable, memory, HLE, CD, pad and projection facts pending typed extraction | `game/core/game_config.cpp`, `game/core/game_hooks.cpp`, `game/cd/` | `legacy::measuredConfig` | `docs/re-frontier.md` |
 | Boot synchronization | Preserve measured graphics state without guest-owned timing | `game/boot/` | `initializeGuestMain`, `installNativeSyncOverrides` | `docs/re-frontier.md` |
 | Frame orchestration | Own bounded front-end, transition and resident sequencing | `game/loop/` | `createFrameDriver` | `docs/re-frontier.md` |
@@ -27,7 +28,7 @@ ToyStory2Runtime -> native title owners -> guest_execution -> psxport Lightrec e
 | Rendering | Publish authored projection, constrain widescreen behavior, capture authored camera/visibility/mesh inputs, and decode resident mesh commands | `game/render/` | `guestWidescreenPolicy`, `installResidentSceneObservationOverrides` | `docs/issues/0030-native-scene-producers-are-not-grounded-at-the-p.md` |
 | Binary and asset tools | Derive title facts from authenticated game bytes | `tools/` | individual Python CLIs | `docs/re-frontier.md` |
 | Structure policy | Reject retired execution artifacts, direct product stderr, stray environment reads and monolith growth | `tools/structure/`, `tools/check_structure.py` | `scan_repository` | `CLAUDE.md` |
-| Hermetic boundaries | Verify title-owned CD, projection, and finite-frame contracts without gameplay | `tests/` | CTest targets | `README.md` |
+| Hermetic boundaries | Verify title-owned CD, projection, finite-frame, and image/execution contracts without gameplay | `tests/` | CTest targets | `README.md` |
 | Product verification | Supply title targets to the framework's shared configure/build/test and execution-boundary verifier | `tools/verify.py` | `main` | `README.md` |
 | PSX platform | Own Lightrec, CPU state, memory, invalidation, native dispatch, hardware and presentation | `external/psxport/` | `psx::cpu::dispatchGuest` | `external/psxport/AGENTS.md` |
 

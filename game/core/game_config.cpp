@@ -26,6 +26,7 @@
 #include "cd/stock_libcd_layout.h"
 #include "game_iface.h"
 #include "legacy_game_interface.h"
+#include "overlay/memory_image.h"
 
 // MEASURED, from the PS-EXE header of the extracted SLUS_008.93
 // (tools/extract_exe.py prints it) and from the disc's SYSTEM.CNF. Kept as
@@ -117,7 +118,7 @@ static_assert(kCrt0StackTopBase >= kPsExeTextAddr && kCrt0StackTopBase < kPsExeT
 // proves the call chain, compares these constants with both shipping consumers,
 // and forces the opposite slot-count result by widening the next-slot bound.
 static constexpr uint32_t kLevelOverlayBase = 0x800D12C0u;
-static constexpr uint32_t kMemoryOverlayBase = 0x800D5D20u;
+static constexpr uint32_t kMemoryOverlayBase = ts2::MemoryOverlayImage::kLoadAddress;
 static_assert(kLevelOverlayBase == kCrt0HeapBase,
               "the level overlay slot starts at the independently verified crt0 heap base");
 static_assert(kMemoryOverlayBase - kLevelOverlayBase == 19040u,

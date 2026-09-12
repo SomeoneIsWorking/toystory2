@@ -34,6 +34,7 @@ PSXPORT = Path(os.environ.get("PSXPORT_DIR", ROOT / "external" / "psxport"))
 sys.path.insert(0, str(PSXPORT / "tools"))
 
 from formats import psx_exe as psexe
+from overlay_shipping import memory_load_address
 
 DEFAULT_EXE = ROOT / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
 SHIPPED_FILE = ROOT / "game" / "core" / "game_config.cpp"
@@ -691,7 +692,11 @@ def parse_shipping(path: Path = SHIPPED_FILE, text: str | None = None) -> Shippi
             raise Refused(f"shipping file {path} is missing — NOTHING was compared")
         text = path.read_text(encoding="utf-8")
     source = _strip_comments(text)
-    constants: dict[str, int] = {}
+    try:
+        memory_base = memory_load_address()
+    except (OSError, ValueError) as exc:
+        raise Refused(f"MEMORY image address cannot be resolved: {exc}") from exc
+    constants: dict[str, int] = {"ts2::MemoryOverlayImage::kLoadAddress": memory_base}
     for match in CONST_RE.finditer(source):
         constants[match.group(1)] = _evaluate(
             match.group(2), constants, f"{path}:{match.group(1)}"
@@ -893,6 +898,24 @@ def selftest(exe_path: Path, cross: Path | None) -> int:
                 "mutation negative: changed shipping gameMain is rejected",
                 any("kCrt0GameMain" in failure for failure in source_failures),
                 f"{len(source_failures)} disagreement(s)",
+            )
+        )
+
+        unbound_source = shipping.raw.replace(
+            "kMemoryOverlayBase = ts2::MemoryOverlayImage::kLoadAddress;",
+            "kMemoryOverlayBase = unverifiedMemoryAddress;",
+            1,
+        )
+        try:
+            parse_shipping(SHIPPED_FILE, unbound_source)
+            unbound_refused = False
+        except Refused:
+            unbound_refused = True
+        results.append(
+            (
+                "mutation negative: an unverified MEMORY address alias refuses",
+                unbound_source != shipping.raw and unbound_refused,
+                f"unbound alias refused={unbound_refused}",
             )
         )
 

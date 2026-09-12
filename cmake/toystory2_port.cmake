@@ -17,6 +17,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/loop/resident_frame.cpp
   game/loop/resident_preparation.cpp
   game/loop/toystory2_frame_driver.cpp
+  game/overlay/memory_image.cpp
   game/render/guest_widescreen.cpp
   game/render/resident_camera_history.cpp
   game/render/resident_mesh_format.cpp
@@ -70,9 +71,18 @@ add_executable(
 toystory2_configure_target(toystory2_frame_driver_boundary)
 target_include_directories(toystory2_frame_driver_boundary PRIVATE ${PSXPORT_DIR}/tests)
 
+add_executable(
+  toystory2_execution_boundary
+  tests/toystory2_execution_boundary.cpp
+  ${TOYSTORY2_RUNTIME_SOURCES}
+)
+toystory2_configure_target(toystory2_execution_boundary)
+target_include_directories(toystory2_execution_boundary PRIVATE ${PSXPORT_DIR}/tests)
+
 foreach(target IN ITEMS
     toystory2_projection_boundary
     toystory2_cd_hle_boundary
-    toystory2_frame_driver_boundary)
+    toystory2_frame_driver_boundary
+    toystory2_execution_boundary)
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 endforeach()

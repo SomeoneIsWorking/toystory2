@@ -39,16 +39,18 @@ BLIND SPOTS, printed every run:
 """
 import argparse
 import glob
+import hashlib
 import os
 import re
 import struct
 import sys
+from overlay_shipping import shipping_comparison, shipping_selftest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLAT = os.path.join(ROOT, "scratch", "flat")
 EXE = os.environ.get("TS2_EXE") or os.path.join(
     ROOT, "scratch", "bin", "toystory2", "SLUS_008.93"
 )
-CONFIG = os.path.join(ROOT, "game", "core", "game_config.cpp")
 MEMORY = os.path.join(FLAT, "BITS__MEMORY.BIN")
 FMV = os.path.join(FLAT, "FMV__FMV.BIN")
 
@@ -440,6 +442,7 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         )
     memory_size = len(memory_data)
     memory_end = next_base + memory_size
+    memory_sha256 = hashlib.sha256(memory_data).hexdigest()
 
     fmv_data = open(FMV, "rb").read() if os.path.isfile(FMV) else None
     if fmv_data is None:
@@ -591,6 +594,7 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         "memory_base": next_base,
         "memory_size": memory_size,
         "memory_end": memory_end,
+        "memory_sha256": memory_sha256,
         "memory_frontier": memory_frontier,
         "memory_size_mask": memory_size_mask,
         "memory_frontier_bias": memory_frontier_bias,
@@ -921,54 +925,6 @@ def report(loader, out=sys.stdout):
     }
 
 
-def shipping_comparison(measured, out=sys.stdout):
-    """Compare the two proven resident slots with the runtime title configuration."""
-    config = open(CONFIG, encoding="utf-8").read()
-
-    def constant(name):
-        match = re.search(
-            rf"\b{re.escape(name)}\s*=\s*(0x[0-9A-Fa-f]+|[0-9]+)u?\s*;", config
-        )
-        return int(match.group(1), 0) if match else None
-
-    checks = [
-        (
-            "game_config kLevelOverlayBase",
-            constant("kLevelOverlayBase"),
-            measured["level_base"],
-        ),
-        (
-            "game_config kMemoryOverlayBase",
-            constant("kMemoryOverlayBase"),
-            measured["memory_base"],
-        ),
-    ]
-    slot_text = re.search(r"\.overlaySlots\s*=\s*\{\{(.*?)\}\},", config, re.DOTALL)
-    slots_ok = bool(
-        slot_text
-        and re.search(
-            r"\{\s*kLevelOverlayBase\s*,\s*\"LEVEL\"\s*\}", slot_text.group(0)
-        )
-        and re.search(
-            r"\{\s*kMemoryOverlayBase\s*,\s*\"MEMORY\"\s*\}", slot_text.group(0)
-        )
-    )
-    checks.append(("game_config overlaySlots LEVEL+MEMORY", 1 if slots_ok else 0, 1))
-
-    print("== shipping comparison (proven fields only) ==", file=out)
-    failures = []
-    for name, actual, expected in checks:
-        ok = actual == expected
-        print(
-            "   %-4s %-43s ships %-32r measured %r"
-            % ("ok" if ok else "FAIL", name, actual, expected),
-            file=out,
-        )
-        if not ok:
-            failures.append(name)
-    return failures
-
-
 # ---------------------------------------------------------------------------------------------------
 # THE GATE. Anchors measured 2026-08-12 and used ONLY here, so the reporting path cannot be biased by
 # them. Each is something a BROKEN fold gets wrong in a specific way.
@@ -1157,6 +1113,7 @@ def selftest():
         not shipping_failures,
         "0 disagreements" if not shipping_failures else ", ".join(shipping_failures),
     )
+    shipping_selftest(contract, ck)
 
     print("[selftest] %d/%d passed" % (len(checks) - len(fails), len(checks)))
     print(
