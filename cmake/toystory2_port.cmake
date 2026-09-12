@@ -17,7 +17,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/loop/resident_frame.cpp
   game/loop/resident_preparation.cpp
   game/loop/toystory2_frame_driver.cpp
-  game/overlay/memory_image.cpp
+  game/overlay/shared_slot_image.cpp
   game/render/guest_widescreen.cpp
   game/render/resident_camera_history.cpp
   game/render/resident_mesh_format.cpp

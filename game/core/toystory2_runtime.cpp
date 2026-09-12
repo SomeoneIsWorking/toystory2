@@ -7,7 +7,7 @@
 #include "input/native_pad_owner.h"
 #include "legacy_game_interface.h"
 #include "loop/toystory2_frame_driver.h"
-#include "overlay/memory_image.h"
+#include "overlay/shared_slot_image.h"
 #include "render/guest_widescreen.h"
 #include "render/resident_scene_history.h"
 #include "toystory2_context.h"
@@ -40,7 +40,7 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   // The title FrameDriver owns field delivery directly. In particular, no graphics-init override
   // registers a host turn and no host path dispatches guest VBlank 0x80039D60.
   installNativeSyncOverrides(game.core);
-  installMemoryOverlayObserver(game.core);
+  installSharedSlotImageObserver(game.core);
   installNativePadOverrides(game.core);
   installResidentSceneObservationOverrides(game.core);
 }

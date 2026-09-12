@@ -29,9 +29,8 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 
 ## Current focus
 
-S002 is the current focus: authenticate and publish the FMV image before the front-end dispatch reaches
-its `0x800D6628` entry. The finite LEVEL00 asset load now returns, but the first frame still stops
-before completion.
+S002 is the current focus: classify the CD refusal and strict guest-call budget exit reached after
+the exact FMV image was published. No first frame is yet verified.
 
 ## Capability details
 
@@ -65,9 +64,20 @@ construction; a synthetic non-returning call is refused after two slices. The ne
 run completed graphics initialization in two slices and the cold front-end asset load in **28 slices /
 15,245,664 cycles**, returning to `0x8007A9E8`.
 
-The same run then entered FMV at `0x800D6628` without an active FMV code-image identity and refused
-after 46 cycles. It did not complete a frame; no whole-run fallback ledger, gameplay, or performance
-claim follows from this prefix.
+That run then entered FMV at `0x800D6628` without an active FMV code-image identity and refused after
+46 cycles. The title's shared-slot owner now observes the exact `fmv\\fmv.bin` file load at `0x800D5D20`,
+authenticates the 510,960-byte source digest and transferred bytes, retires the replaced MEMORY
+identity, invalidates the shared executable slot, and publishes one FMV generation. Synthetic tests
+reject a wrong path, destination, source digest, length, and transferred byte and verify
+MEMORY→FMV→MEMORY replacement. The retail corpus verifier compares the shipping FMV path, size, and
+digest against the executable and file.
+
+A new bounded retail run reached authenticated MEMORY generations 2 and 3, returned from the finite
+RAW load in 28 slices / 15,245,664 cycles, and published authenticated `FMV/FMV.BIN` generation 4 at
+`0x800D5D20`. The next log line refused `CdRead(1 sectors) with NO Setloc`; the subsequent strict
+frame-driver guest call exhausted 564,482 cycles at `0x800940F4`. The relationship between those
+observations is not established. No frame completed, so there is no whole-run fallback ledger,
+gameplay, or performance claim.
 
 ### S003 — Native finite frame ownership
 
@@ -76,9 +86,9 @@ packets, deferred display service, audio step, and one presentation commit witho
 hermetic boundary tests predate the execution migration and the sources now use the typed dynarec
 guest-call adapter.
 
-Gap: the retained boundary tests pass, but the current runtime stops at the missing FMV image identity
-before its first completed frame. MEMORY and FMV loop ownership also remain incomplete under issues
-#26 and #27.
+Gap: the retained boundary tests pass, but the runtime now stops after FMV image publication at a
+CD refusal and strict guest-call budget exit before its first completed frame. MEMORY and FMV loop
+ownership also remain incomplete under issues #26 and #27.
 
 ### S004 — Current boot through gameplay
 

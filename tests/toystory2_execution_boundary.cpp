@@ -6,7 +6,7 @@
 #include "guest_execution.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
-#include "overlay/memory_image.h"
+#include "overlay/shared_slot_image.h"
 #include "testutil.h"
 #include "toystory2_runtime.h"
 
@@ -80,41 +80,44 @@ static void test_memory_overlay_publication_authenticates_bytes_and_retires_repl
   psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
   Core &core = game->core;
+  using Image = ts2::SharedSlotImage;
+  constexpr auto memory = Image::Kind::Memory;
 
   constexpr std::uint32_t guestPath = 0x80160000u;
-  for (std::size_t index = 0; index < ts2::MemoryOverlayImage::kGuestPath.size(); ++index) {
-    core.mem_w8(guestPath + static_cast<std::uint32_t>(index), ts2::MemoryOverlayImage::kGuestPath[index]);
+  const auto path = Image::spec(memory).guestPath;
+  for (std::size_t index = 0; index < path.size(); ++index) {
+    core.mem_w8(guestPath + static_cast<std::uint32_t>(index), path[index]);
   }
-  core.mem_w8(guestPath + static_cast<std::uint32_t>(ts2::MemoryOverlayImage::kGuestPath.size()), 0);
-  CHECK(ts2::MemoryOverlayImage::matchesLoad(core, guestPath, ts2::MemoryOverlayImage::kLoadAddress));
-  CHECK(!ts2::MemoryOverlayImage::matchesLoad(core, guestPath, ts2::MemoryOverlayImage::kLoadAddress + 4u));
+  core.mem_w8(guestPath + static_cast<std::uint32_t>(path.size()), 0);
+  CHECK(Image::matchLoad(core, guestPath, Image::kLoadAddress) == memory);
+  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress + 4u));
   core.mem_w8(guestPath, 'x');
-  CHECK(!ts2::MemoryOverlayImage::matchesLoad(core, guestPath, ts2::MemoryOverlayImage::kLoadAddress));
+  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress));
 
-  std::vector<std::uint8_t> discBytes(ts2::MemoryOverlayImage::kFileBytes);
+  std::vector<std::uint8_t> discBytes(Image::kMemoryFileBytes);
   for (std::size_t index = 0; index < discBytes.size(); ++index) {
     discBytes[index] = static_cast<std::uint8_t>(index * 73u + 9u);
   }
   const auto fixtureSha256 = lucent::content::sha256_hex(lucent::content::sha256(std::as_bytes(std::span(discBytes))));
-  ts2::MemoryOverlayImage image{fixtureSha256};
-  ts2::MemoryOverlayImage retailImage;
+  Image image{fixtureSha256};
+  Image retailImage;
   std::string why;
-  CHECK(!retailImage.publish(core, discBytes, why));
+  CHECK(!retailImage.publish(core, memory, discBytes, why));
   CHECK(why.find("SHA-256") != std::string::npos);
   CHECK(!retailImage.activeIdentity().has_value());
 
-  constexpr std::uint32_t physical = ts2::MemoryOverlayImage::kLoadAddress & 0x1FFFFFFFu;
+  constexpr std::uint32_t physical = Image::kLoadAddress & 0x1FFFFFFFu;
   std::copy(discBytes.begin(), discBytes.end(), core.ram + physical);
   const auto beforeInvalidations = core.lightrecExecutor().counters().invalidations;
-  CHECK(image.publish(core, discBytes, why));
+  CHECK(image.publish(core, memory, discBytes, why));
   const auto first = image.activeIdentity();
   CHECK(first.has_value());
   CHECK(core.imageCatalog().resolve(0x800E10E4u) == first);
   CHECK_EQ(core.lightrecExecutor().counters().invalidations, beforeInvalidations + 1u);
 
-  // The same retail image can be loaded again; its new residency gets a new generation.
+  // The same authenticated image can be loaded again; its new residency gets a new generation.
   std::copy(discBytes.begin(), discBytes.end(), core.ram + physical);
-  CHECK(image.publish(core, discBytes, why));
+  CHECK(image.publish(core, memory, discBytes, why));
   const auto second = image.activeIdentity();
   CHECK(second.has_value());
   CHECK(first != second);
@@ -124,7 +127,7 @@ static void test_memory_overlay_publication_authenticates_bytes_and_retires_repl
   auto alteredDiscBytes = discBytes;
   alteredDiscBytes[100] ^= 1u;
   const auto beforeRejectedInvalidations = core.lightrecExecutor().counters().invalidations;
-  CHECK(!image.publish(core, alteredDiscBytes, why));
+  CHECK(!image.publish(core, memory, alteredDiscBytes, why));
   CHECK(why.find("SHA-256") != std::string::npos);
   CHECK(image.activeIdentity() == second);
   CHECK(core.imageCatalog().resolve(0x800E10E4u) == second);
@@ -133,17 +136,104 @@ static void test_memory_overlay_publication_authenticates_bytes_and_retires_repl
   image.retire(core); // the other module sharing this slot must not inherit MEMORY's identity
   CHECK(!image.activeIdentity().has_value());
   CHECK(!core.imageCatalog().resolve(0x800E10E4u).has_value());
-  CHECK(image.publish(core, discBytes, why));
+  CHECK(image.publish(core, memory, discBytes, why));
 
-  core.mem_w8(ts2::MemoryOverlayImage::kLoadAddress + 100u, discBytes[100] ^ 1u);
-  CHECK(!image.publish(core, discBytes, why));
-  CHECK(why.find("transferred MEMORY bytes") != std::string::npos);
+  core.mem_w8(Image::kLoadAddress + 100u, discBytes[100] ^ 1u);
+  CHECK(!image.publish(core, memory, discBytes, why));
+  CHECK(why.find("transferred BITS/MEMORY.BIN bytes") != std::string::npos);
   CHECK(!image.activeIdentity().has_value());
   CHECK(!core.imageCatalog().resolve(0x800E10E4u).has_value());
+}
+
+static void test_shared_slot_authenticates_fmv_and_replaces_memory_without_identity_leak() {
+  static ts2::ToyStory2Runtime runtime;
+  psxport_install_game(runtime);
+  auto game = std::make_unique<Game>();
+  Core &core = game->core;
+  using Image = ts2::SharedSlotImage;
+  constexpr auto memory = Image::Kind::Memory;
+  constexpr auto fmv = Image::Kind::Fmv;
+  constexpr std::uint32_t guestPath = 0x80160000u;
+  constexpr std::uint32_t fmvEntry = 0x800D6628u;
+  constexpr std::uint32_t fmvOnlyAddress = 0x80100000u;
+  constexpr std::uint32_t physical = Image::kLoadAddress & 0x1FFFFFFFu;
+
+  const auto setPath = [&](std::string_view path) {
+    for (std::size_t offset = 0; offset < path.size(); ++offset) {
+      core.mem_w8(guestPath + static_cast<std::uint32_t>(offset), path[offset]);
+    }
+    core.mem_w8(guestPath + static_cast<std::uint32_t>(path.size()), 0);
+  };
+  setPath(Image::spec(fmv).guestPath);
+  CHECK(Image::matchLoad(core, guestPath, Image::kLoadAddress) == fmv);
+  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress + 4u));
+  setPath("fmv\\fmv.bix");
+  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress));
+  setPath(Image::spec(memory).guestPath);
+  CHECK(Image::matchLoad(core, guestPath, Image::kLoadAddress) == memory);
+
+  std::vector<std::uint8_t> memoryBytes(Image::kMemoryFileBytes);
+  std::vector<std::uint8_t> fmvBytes(Image::kFmvFileBytes);
+  for (std::size_t offset = 0; offset < memoryBytes.size(); ++offset) {
+    memoryBytes[offset] = static_cast<std::uint8_t>(offset * 73u + 9u);
+  }
+  for (std::size_t offset = 0; offset < fmvBytes.size(); ++offset) {
+    fmvBytes[offset] = static_cast<std::uint8_t>(offset * 29u + 17u);
+  }
+  const auto digestHex = [](std::span<const std::uint8_t> bytes) {
+    return lucent::content::sha256_hex(lucent::content::sha256(std::as_bytes(bytes)));
+  };
+  Image image{digestHex(memoryBytes), digestHex(fmvBytes)};
+  Image retailImage;
+  std::string why;
+  CHECK(!retailImage.publish(core, fmv, fmvBytes, why));
+  CHECK(why.find("SHA-256") != std::string::npos);
+  CHECK(!retailImage.activeIdentity());
+
+  std::copy(memoryBytes.begin(), memoryBytes.end(), core.ram + physical);
+  CHECK(image.publish(core, memory, memoryBytes, why));
+  const auto memoryIdentity = image.activeIdentity();
+  CHECK(memoryIdentity.has_value());
+  CHECK(!core.imageCatalog().resolve(fmvOnlyAddress));
+
+  std::copy(fmvBytes.begin(), fmvBytes.end(), core.ram + physical);
+  CHECK(image.publish(core, fmv, fmvBytes, why));
+  const auto fmvIdentity = image.activeIdentity();
+  CHECK(fmvIdentity.has_value());
+  CHECK(fmvIdentity != memoryIdentity);
+  CHECK(core.imageCatalog().resolve(fmvEntry) == fmvIdentity);
+  CHECK(core.imageCatalog().resolve(fmvOnlyAddress) == fmvIdentity);
+  CHECK_EQ(core.imageCatalog().activeCount(), 1u);
+
+  auto alteredSource = fmvBytes;
+  alteredSource[100] ^= 1u;
+  const auto invalidations = core.lightrecExecutor().counters().invalidations;
+  CHECK(!image.publish(core, fmv, alteredSource, why));
+  CHECK(why.find("SHA-256") != std::string::npos);
+  CHECK(image.activeIdentity() == fmvIdentity);
+  CHECK_EQ(core.lightrecExecutor().counters().invalidations, invalidations);
+  CHECK(!image.publish(core, fmv, std::span(fmvBytes).first(fmvBytes.size() - 1u), why));
+  CHECK(why.find("length") != std::string::npos);
+  CHECK(image.activeIdentity() == fmvIdentity);
+
+  core.mem_w8(Image::kLoadAddress + 100u, fmvBytes[100] ^ 1u);
+  CHECK(!image.publish(core, fmv, fmvBytes, why));
+  CHECK(why.find("transferred FMV") != std::string::npos);
+  CHECK(!image.activeIdentity());
+  CHECK(!core.imageCatalog().resolve(fmvEntry));
+
+  std::copy(fmvBytes.begin(), fmvBytes.end(), core.ram + physical);
+  CHECK(image.publish(core, fmv, fmvBytes, why));
+  std::copy(memoryBytes.begin(), memoryBytes.end(), core.ram + physical);
+  CHECK(image.publish(core, memory, memoryBytes, why));
+  CHECK(core.imageCatalog().resolve(fmvEntry) == image.activeIdentity());
+  CHECK(!core.imageCatalog().resolve(fmvOnlyAddress));
+  CHECK_EQ(core.imageCatalog().activeCount(), 1u);
 }
 
 int main() {
   RUN(finite_guest_call_continues_guest_state_and_preserves_return_sentinel);
   RUN(memory_overlay_publication_authenticates_bytes_and_retires_replaced_identity);
+  RUN(shared_slot_authenticates_fmv_and_replaces_memory_without_identity_leak);
   return pt_summary();
 }

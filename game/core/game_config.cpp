@@ -26,7 +26,7 @@
 #include "cd/stock_libcd_layout.h"
 #include "game_iface.h"
 #include "legacy_game_interface.h"
-#include "overlay/memory_image.h"
+#include "overlay/shared_slot_image.h"
 
 // MEASURED, from the PS-EXE header of the extracted SLUS_008.93
 // (tools/extract_exe.py prints it) and from the disc's SYSTEM.CNF. Kept as
@@ -118,7 +118,7 @@ static_assert(kCrt0StackTopBase >= kPsExeTextAddr && kCrt0StackTopBase < kPsExeT
 // proves the call chain, compares these constants with both shipping consumers,
 // and forces the opposite slot-count result by widening the next-slot bound.
 static constexpr uint32_t kLevelOverlayBase = 0x800D12C0u;
-static constexpr uint32_t kMemoryOverlayBase = ts2::MemoryOverlayImage::kLoadAddress;
+static constexpr uint32_t kMemoryOverlayBase = ts2::SharedSlotImage::kLoadAddress;
 static_assert(kLevelOverlayBase == kCrt0HeapBase,
               "the level overlay slot starts at the independently verified crt0 heap base");
 static_assert(kMemoryOverlayBase - kLevelOverlayBase == 19040u,
@@ -283,9 +283,9 @@ static const GameConfig g_ts2_cfg = {
 
     // --- overlay router slots -------------------------------- RE-03 re-verified --
     // LEVEL{,1,2,3}.BIN are mutually exclusive contents of the first slot.
-    // BITS/MEMORY.BIN occupies the second slot concurrently. FMV/FMV.BIN also
-    // loads at the second address in other call paths, but its file class is
-    // still unresolved under RE-04 and is therefore not represented as code.
+    // BITS/MEMORY.BIN occupies the second slot concurrently with LEVEL. FMV/FMV.BIN
+    // replaces it at the same address; SharedSlotImage owns their image generations.
+    // This legacy slot table records only the base, not the active image.
     .overlaySlots = {{kLevelOverlayBase, "LEVEL"}, {kMemoryOverlayBase, "MEMORY"}, {0, nullptr}},
 
     // --- CD chokepoints ----------------------------------------- RE-04 verified --

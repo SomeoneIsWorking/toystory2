@@ -24,6 +24,9 @@ Ghidra decompilation and exact retail instructions show that 0x800D7088 performs
 
 After the exact LEVEL00 RAW transaction returned through bounded Lightrec execution, the next strict
 front-end call reached FMV entry `0x800D6628` and refused after 46 cycles: no active code-image identity
-covered that address. The title must authenticate the loaded FMV bytes, retire the previous MEMORY
-identity for the shared slot, invalidate stale translations, and publish the FMV generation before
-dispatch. This precedes the independent movie-loop ownership above; the run completed no frame.
+covered that address. The title now has a shared-slot observer that authenticates the FMV source and
+transferred bytes, retires MEMORY, invalidates stale translations, and publishes an FMV generation.
+That owner passes synthetic identity transitions and a bounded retail run published authenticated
+FMV generation 4. The run next logged `CdRead(1 sectors) with NO Setloc` and exhausted a strict guest
+call at `0x800940F4`; their relationship is not yet established. This precedes the independent
+movie-loop ownership above; the run completed no frame.

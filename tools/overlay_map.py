@@ -450,6 +450,7 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
             f"REFUSED: no {FMV}; extract the retail corpus before verifying FMV.BIN"
         )
     fmv_size = len(fmv_data)
+    fmv_sha256 = hashlib.sha256(fmv_data).hexdigest()
     fmv_entry_offset = FMV_ENTRY - next_base
     if not (0 <= fmv_entry_offset <= fmv_size - 4):
         raise ValueError("FMV entry does not land inside the loader-derived file placement")
@@ -593,6 +594,7 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         "level_base": slot,
         "memory_base": next_base,
         "memory_size": memory_size,
+        "memory_guest_path": memory_rows[0][2],
         "memory_end": memory_end,
         "memory_sha256": memory_sha256,
         "memory_frontier": memory_frontier,
@@ -600,6 +602,8 @@ def loader_contract(exe, rows, slot, next_base, out=sys.stdout):
         "memory_frontier_bias": memory_frontier_bias,
         "memory_prefix_pointers": pointers,
         "fmv_size": fmv_size,
+        "fmv_guest_path": fmv_rows[0][2],
+        "fmv_sha256": fmv_sha256,
         "fmv_entry": FMV_ENTRY,
         "fmv_entry_offset": fmv_entry_offset,
         "fmv_entry_word": fmv_entry_word,

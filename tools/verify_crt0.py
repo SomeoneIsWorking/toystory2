@@ -34,7 +34,7 @@ PSXPORT = Path(os.environ.get("PSXPORT_DIR", ROOT / "external" / "psxport"))
 sys.path.insert(0, str(PSXPORT / "tools"))
 
 from formats import psx_exe as psexe
-from overlay_shipping import memory_load_address
+from overlay_shipping import shared_slot_load_address
 
 DEFAULT_EXE = ROOT / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
 SHIPPED_FILE = ROOT / "game" / "core" / "game_config.cpp"
@@ -693,10 +693,10 @@ def parse_shipping(path: Path = SHIPPED_FILE, text: str | None = None) -> Shippi
         text = path.read_text(encoding="utf-8")
     source = _strip_comments(text)
     try:
-        memory_base = memory_load_address()
+        memory_base = shared_slot_load_address()
     except (OSError, ValueError) as exc:
         raise Refused(f"MEMORY image address cannot be resolved: {exc}") from exc
-    constants: dict[str, int] = {"ts2::MemoryOverlayImage::kLoadAddress": memory_base}
+    constants: dict[str, int] = {"ts2::SharedSlotImage::kLoadAddress": memory_base}
     for match in CONST_RE.finditer(source):
         constants[match.group(1)] = _evaluate(
             match.group(2), constants, f"{path}:{match.group(1)}"
@@ -902,7 +902,7 @@ def selftest(exe_path: Path, cross: Path | None) -> int:
         )
 
         unbound_source = shipping.raw.replace(
-            "kMemoryOverlayBase = ts2::MemoryOverlayImage::kLoadAddress;",
+            "kMemoryOverlayBase = ts2::SharedSlotImage::kLoadAddress;",
             "kMemoryOverlayBase = unverifiedMemoryAddress;",
             1,
         )
