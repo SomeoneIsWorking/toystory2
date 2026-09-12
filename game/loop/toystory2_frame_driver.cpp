@@ -131,7 +131,15 @@ public:
   void restartColdFrontEnd() override {
     core_.mem_w32(kPlaybackMode, 0);
     core_.mem_w32(kFrontEndEvent, 0);
-    callGuest(core_, kMemoryDispatcher, 10, 0);
+    // Retail 0x8007BC74(10,0) loads the finite LEVEL00/LEVEL.RAW asset corpus through
+    // 0x8003D88C -> 0x8003B544 -> 0x80021190. The exact 160,484-byte input decodes seven
+    // CRC-verified chunks; one guest-turn budget cuts a live back-reference decode mid-chunk.
+    // Continue this initialization transaction with its original return sentinel. Ordinary
+    // per-frame guest calls still require a return within one turn.
+    const std::array loadArguments{10u, 0u};
+    callFiniteGuestToReturn(core_,
+                            {kMemoryDispatcher, 0x8007A9E8u, loadArguments, std::nullopt, "cold front-end asset load"},
+                            kFiniteInitializationSliceLimit);
     if (core_.mem_r32(kFrontEndEvent) != 9 && callGuest(core_, kMemoryStatus, 2, 0) == 0 &&
         callGuest(core_, kMemoryStatus, 0, 0) == 0 && callGuest(core_, kMemoryStatus, 1, 0) == 0) {
       callGuest(core_, kQueueScreen, 0, 0, 1);

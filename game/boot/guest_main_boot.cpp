@@ -1,12 +1,10 @@
 #include "boot/guest_main_boot.h"
 
 #include "core.h"
-#include "execution_exit.h"
 #include "guest_execution.h"
 
 #include <array>
 #include <cstdint>
-#include <cstdlib>
 #include <lucent/log.h>
 
 namespace ts2 {
@@ -59,14 +57,8 @@ void initializeGuestMain(Core &core) {
   // The guest's graphics initialization generates two finite lookup tables (0x960 and 8000
   // elements). Continue its exact guest state across bounded Lightrec slices; a non-returning
   // service or a fault still refuses boot. No guest clock or field is advanced by this host call.
-  constexpr std::uint32_t kInitializationSliceBound = 64;
   const ts2::GuestCall graphicsInit{kGraphicsInit, 0x8007AA64u, {}, std::nullopt, "graphics initialization"};
-  if (!psx::cpu::requireGuestReturn(
-          executeFiniteBootCall(
-              core, graphicsInit, psx::cpu::ExecutionBudget::currentTurn(core), kInitializationSliceBound),
-          graphicsInit.owner)) {
-    std::abort();
-  }
+  callFiniteGuestToReturn(core, graphicsInit, kFiniteInitializationSliceLimit);
 
   core.r[16] = kMemoryMode;
   core.mem_w16(kMemoryMode, 1);

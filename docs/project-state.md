@@ -29,9 +29,9 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 
 ## Current focus
 
-S002 is the current focus: diagnose the bounded resident outer-loop call after authenticated MEMORY
-publication. The maintained backend links and the native frame driver completes guest main's overlay
-initialization, but gameplay remains blocked before its first completed frame.
+S002 is the current focus: authenticate and publish the FMV image before the front-end dispatch reaches
+its `0x800D6628` entry. The finite LEVEL00 asset load now returns, but the first frame still stops
+before completion.
 
 ## Capability details
 
@@ -48,41 +48,26 @@ The obsolete offline translator, emitted source corpus, seed manifest, generated
 selector, and static-only tests are absent. Title guest calls and native overrides use psxport's typed
 runtime APIs.
 
-The Linux x86-64 Clang/Ninja product and three native boundary binaries link against maintained
-Lightrec `b1457137` through pinned framework `a5a79652`; CMake provenance matches that pin. The linked
-execution-boundary checker passes. The 2026-09-08 reconnect verification passes all 17 CTests across
-two phases: the canonical gate passed 16/17, then the focused `cpp_policy` rerun passed after the
-retired-path declarations adopted the shared strict literal-data contract. The focused structure
-suite passes 7/7 tests, including rejection of every one of the ten retained retired paths; the
-shipping scanner reports zero violations across 38 product files and 68 source files. No runtime
-code changed between those test phases. Both touched C++ translation units also pass clang-tidy.
+The Linux x86-64 Clang/Ninja product links maintained Lightrec `b1457137`. The obsolete static
+executor is absent, and linked execution-boundary, structure, and title tests exercise the runtime
+dispatch path. The title authenticates `BITS/MEMORY.BIN` against the exact disc SHA-256, checks all
+63,312 transferred bytes, invalidates the translated range, and publishes a new image generation on
+replacement. A real retail run reached MEMORY generations 2 and 3.
 
-A silent two-frame-requested retail run reaches the 10/10-field CRT audit, InitHeap, and disc open,
-then aborts during `initializeGuestMain` platform initialization: `budget-exhausted` at `0x80039D04`
-after 564,496 cycles. The called `0x8003A780` owner includes GPU, SPU, CD and pad setup, display
-callback installation, XA discovery and global SFX loading. The native frame driver is not reached.
-Ghidra's cached decompile of the exact resident function `0x80039B74` containing the old exit shows two
-finite table-construction loops: 0x960 entries, then 8000 entries; the latter returns after its
-counter reaches 8000. This identifies ordinary finite initialization work at that exit, not a
-polling/service wait. The title's boot adapter now resumes the same guest call across individually
-bounded Lightrec slices while preserving the original return sentinel, with a fixed refusal bound
-and no manufactured guest fields. A nested-call synthetic MIPS loop test crosses 35 slices and
-returns with its original outer-call sentinel, 207 executed dynarec blocks, and zero fallback blocks;
-a one-slice negative case refuses as `budget-exhausted`. A bounded retail run through exact
-`SLUS_008.93` then completed graphics initialization in **two slices / 794,382 cycles** and entered
-the native frame driver. It stopped 958 cycles into `finishGuestMainBoot`: the guest's
-`0x8003FCE8` loaded `BITS/MEMORY.BIN` through `0x80082508` at `0x800D5D20`, then called
-`0x800E10E4` without a registered code-image identity. The title now observes that measured loader,
-checks the disc module against the measured retail SHA-256 before its original guest loader runs,
-executes that loader, compares all 63,312 transferred bytes with the authenticated source, invalidates
-the range, publishes a new MEMORY identity, and retires it on replacement. The flat-corpus verifier
-compares the shipping digest with the exact retail module, and hermetic tests reject same-length altered
-bytes while preserving an unchanged active identity. These digest checks have not had a subsequent retail
-run. Before the digest guard was added, a bounded retail run published generation 2, completed guest
-main's overlay initialization, then published a replacement as generation 3.
-It stopped in the first resident outer-loop step: the frame driver's required guest call exhausted
-564,574 cycles at `0x8002149C`. The containing function and whether it is finite work or a
-timing/service boundary have not yet been established. Neither run qualifies gameplay or performance.
+The earlier first-frame stop at `0x8002149C` was inside the resident RAW decoder `0x80021190`,
+called by front-end asset loading. A debugger snapshot showed the live 160,484-byte source buffer was
+byte-identical to the exact LEVEL00 `LEVEL.RAW`; its source cursor had advanced to the first chunk
+boundary and its destination cursor was advancing. The file's seven chunks decode 886,376 bytes with
+both CRCs and a terminal sentinel. A debugger-only continuation preserved the original return
+sentinel and returned through Lightrec with zero fallback. The title now applies the existing 64-slice
+finite initialization refusal contract only to that front-end load and the earlier graphics-table
+construction; a synthetic non-returning call is refused after two slices. The next bounded retail
+run completed graphics initialization in two slices and the cold front-end asset load in **28 slices /
+15,245,664 cycles**, returning to `0x8007A9E8`.
+
+The same run then entered FMV at `0x800D6628` without an active FMV code-image identity and refused
+after 46 cycles. It did not complete a frame; no whole-run fallback ledger, gameplay, or performance
+claim follows from this prefix.
 
 ### S003 — Native finite frame ownership
 
@@ -91,8 +76,9 @@ packets, deferred display service, audio step, and one presentation commit witho
 hermetic boundary tests predate the execution migration and the sources now use the typed dynarec
 guest-call adapter.
 
-Gap: the retained boundary tests pass, but the current runtime stops in S002's first resident
-outer-loop call. MEMORY and FMV loop ownership also remain incomplete under issues #26 and #27.
+Gap: the retained boundary tests pass, but the current runtime stops at the missing FMV image identity
+before its first completed frame. MEMORY and FMV loop ownership also remain incomplete under issues
+#26 and #27.
 
 ### S004 — Current boot through gameplay
 

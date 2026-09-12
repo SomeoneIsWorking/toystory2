@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-static void test_finite_boot_call_continues_guest_state_and_preserves_return_sentinel() {
+static void test_finite_guest_call_continues_guest_state_and_preserves_return_sentinel() {
   static ts2::ToyStory2Runtime runtime;
   psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
@@ -41,8 +41,9 @@ static void test_finite_boot_call_continues_guest_state_and_preserves_return_sen
   core.mem_w32(inner + 24u, 0u);
   core.mem_w32(returnAddress, 0x24177BADu); // must not execute
 
-  const ts2::GuestCall call{entry, returnAddress, {}, std::nullopt, "synthetic finite boot"};
-  const auto result = ts2::executeFiniteBootCall(core, call, psx::cpu::ExecutionBudget::fromCycles(32), 64);
+  const ts2::GuestCall call{entry, returnAddress, {}, std::nullopt, "synthetic finite call"};
+  const auto result = ts2::executeFiniteGuestCall(
+      core, call, psx::cpu::ExecutionBudget::fromCycles(32), ts2::kFiniteInitializationSliceLimit);
   CHECK(result.returned());
   CHECK_EQ(result.guestPc, returnAddress);
   CHECK_EQ(core.r[2], 200u);
@@ -54,10 +55,24 @@ static void test_finite_boot_call_continues_guest_state_and_preserves_return_sen
 
   core.r[2] = 0;
   core.r[23] = 0;
-  const auto bounded = ts2::executeFiniteBootCall(core, call, psx::cpu::ExecutionBudget::fromCycles(32), 1);
+  const auto bounded = ts2::executeFiniteGuestCall(core, call, psx::cpu::ExecutionBudget::fromCycles(32), 1);
   CHECK_EQ(bounded.reason, psx::cpu::ExecutionExitReason::BudgetExhausted);
-  CHECK(bounded.detail == "finite boot call exceeded its slice bound");
+  CHECK(bounded.detail == "finite guest call exceeded its slice bound");
   CHECK_EQ(core.r[23], 0u);
+
+  constexpr std::uint32_t nonReturning = entry + 0x80u;
+  core.mem_w32(nonReturning, 0x26520001u);                                             // addiu s2, s2, 1
+  core.mem_w32(nonReturning + 4u, 0x08000000u | ((nonReturning >> 2u) & 0x03FFFFFFu)); // j nonReturning
+  core.mem_w32(nonReturning + 8u, 0u);
+  core.r[18] = 0;
+  const ts2::GuestCall nonReturningCall{nonReturning, returnAddress, {}, std::nullopt, "synthetic non-return"};
+  const auto refused =
+      ts2::executeFiniteGuestCall(core, nonReturningCall, psx::cpu::ExecutionBudget::fromCycles(32), 2);
+  CHECK_EQ(refused.reason, psx::cpu::ExecutionExitReason::BudgetExhausted);
+  CHECK(refused.detail == "finite guest call exceeded its slice bound");
+  CHECK(core.r[18] > 0u);
+  CHECK_EQ(core.r[23], 0u);
+  CHECK_EQ(core.lightrecExecutor().counters().fallback.calls, 0u);
 }
 
 static void test_memory_overlay_publication_authenticates_bytes_and_retires_replaced_identity() {
@@ -128,7 +143,7 @@ static void test_memory_overlay_publication_authenticates_bytes_and_retires_repl
 }
 
 int main() {
-  RUN(finite_boot_call_continues_guest_state_and_preserves_return_sentinel);
+  RUN(finite_guest_call_continues_guest_state_and_preserves_return_sentinel);
   RUN(memory_overlay_publication_authenticates_bytes_and_retires_replaced_identity);
   return pt_summary();
 }

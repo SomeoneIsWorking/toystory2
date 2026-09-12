@@ -19,3 +19,11 @@ updated: 2026-08-27
 
 ### Note (2026-08-27)
 Ghidra decompilation and exact retail instructions show that 0x800D7088 performs the entire STR open/demux/MDEC/upload/display loop and calls VSync at return PC 0x800D7590 once per movie frame. Its only direct caller is 0x800D6628. psxport `Fmv::play` is a native blocking movie owner, but it returns frame count and does not expose the guest contract's playback-mode skip result; do not substitute it until the title seam preserves that outcome.
+
+### Live boundary (2026-09-12)
+
+After the exact LEVEL00 RAW transaction returned through bounded Lightrec execution, the next strict
+front-end call reached FMV entry `0x800D6628` and refused after 46 cycles: no active code-image identity
+covered that address. The title must authenticate the loaded FMV bytes, retire the previous MEMORY
+identity for the shared slot, invalidate stale translations, and publish the FMV generation before
+dispatch. This precedes the independent movie-loop ownership above; the run completed no frame.

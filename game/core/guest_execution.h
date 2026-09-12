@@ -23,9 +23,12 @@ struct GuestCall {
   std::string_view owner{};
 };
 
+inline constexpr std::uint32_t kFiniteInitializationSliceLimit = 64;
+
 std::uint32_t callGuestToReturn(Core &core, const GuestCall &call);
+std::uint32_t callFiniteGuestToReturn(Core &core, const GuestCall &call, std::uint32_t maxSlices);
 psx::cpu::ExecutionResult
-executeFiniteBootCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBudget budget, std::uint32_t maxSlices);
+executeFiniteGuestCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBudget budget, std::uint32_t maxSlices);
 void callOriginalToReturn(Core &core, std::uint32_t address, std::string_view owner);
 void installResidentOverride(Core &core, std::uint32_t address, std::string_view name, NativeGuestFunction function);
 
