@@ -9,9 +9,8 @@ on:
 permissions:
   contents: read
 
-# The shared Lightrec runtime is not yet linked, so this Linux-hosted job checks
-# asset-free launcher/structure policy without claiming a native product on the
-# host operating system.
+# This Linux-hosted job checks the asset-free launcher and structure policy. Native
+# product and package qualification remain separate capabilities in project state.
 jobs:
   policy:
     name: Asset-free policy (Linux host)
@@ -34,6 +33,8 @@ jobs:
         run: test "$(git rev-parse --is-shallow-repository)" = false
       - name: Install locked Python environment
         run: uv sync --locked
+      - name: Resolve the exact pinned framework
+        run: uv run --frozen python tools/psxport_sync.py --clone
       - name: Run launcher and structure contracts
         run: |
           uv run --frozen python tools/test_run.py

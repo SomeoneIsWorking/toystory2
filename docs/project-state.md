@@ -146,7 +146,10 @@ been rerun for this migration.
 
 Partial capability: `.github/workflows/ci.yml` runs the asset-free launcher and structure contracts
 on one Linux host with full history, read-only permissions, pinned actions, and an explicit timeout.
-It does not present those Python contracts as a native Linux or macOS build.
+The workflow resolves the exact framework recorded in `psxport.pin` before those tests; the prior
+hosted run (`34223500014`) failed because `external/psxport` had not been created, while a fresh
+checkout run of that resolution and the launcher tests now passes locally. It does not present
+those Python contracts as a native Linux or macOS build.
 
 | Platform | Applicability | Current CI evidence and exact gap |
 | --- | --- | --- |
