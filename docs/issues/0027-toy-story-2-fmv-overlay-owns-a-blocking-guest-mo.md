@@ -30,3 +30,32 @@ That owner passes synthetic identity transitions and a bounded retail run publis
 FMV generation 4. The run next logged `CdRead(1 sectors) with NO Setloc` and exhausted a strict guest
 call at `0x800940F4`; their relationship is not yet established. This precedes the independent
 movie-loop ownership above; the run completed no frame.
+
+### CD result path (2026-09-12, static and bounded live)
+
+The first FMV `CdRead(1)` call at `0x800D879C` follows `FUN_80090850(1, 0x800EB758)`.
+That boot function builds a track table by sending GetTN (`0x13`) and GetTD (`0x14`) through
+`FUN_80090FA4`, which directly calls the stock command entry `0x80091DE4` and then waits at
+`0x80091898` with the same result pointer. The FMV caller takes the first track's returned
+BCD minute/second bytes from `0x800EB75D/E`, computes its sector base, adds `0x10`, converts
+that sector to MSF in `0x800D8594`, and calls `0x80090E78(0x15, MSF)`. The latter sends
+Setloc (`0x02`) before SeekL (`0x15`) when its non-null position pointer is supplied.
+
+The configured native `cd_command_stock_sync` and `cd_sync_stock_sync` both zero their result
+buffers; neither implements GetTN/GetTD output. A bounded debugger run against the existing
+Clang binary (SHA-256 `2ec3355455ca3f24a0efa2e1d9c3f5e4344e974e5b15036ca5a427f11b039461`,
+build receipt psxport `8b210329`) reached authenticated FMV generation 4 and observed one
+GetTN plus two GetTD commands, all returning `00 00 00 00`. The guest then **did** send Setloc
+with `00 00 16 01` (BCD MSF `00:00:16`), which changed `Cd::setloc_lba` from 1141 to -1;
+SeekL followed, and the exact FMV `CdRead(1, mode 0x80)` caller `0x800D87A4` saw LBA -1.
+The stop was the seventh stock read after six earlier reads with valid Setloc positions;
+30 native commands had included seven Setloc, seven SeekL, one GetTN, and two GetTD calls.
+The same probe therefore demonstrated both outcomes. The “NO Setloc” diagnostic conflates
+invalid position with absent command.
+
+The missing TOC command/completion result lifecycle is the CD refusal's root cause. Its
+title-neutral owner belongs in psxport, whose `DiscState` already carries parsed CHD track
+metadata; filling only the command result would still be erased by the current sync handler.
+The fixed binary predates the current shared executor edits and is diagnostic evidence, not
+pin-qualified product verification. The later `0x800940F4` budget exit remains a separate,
+unclassified queue wait until this CD result path is corrected and retested.
