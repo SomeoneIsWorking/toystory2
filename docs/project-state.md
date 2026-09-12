@@ -29,8 +29,8 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 
 ## Current focus
 
-S002 is the current focus: classify the CD refusal and strict guest-call budget exit reached after
-the exact FMV image was published. No first frame is yet verified.
+S002 is the current focus: classify the strict guest-call budget exit at `0x80094158` after the
+corrected TOC response let FMV CdRead progress. No first frame is yet verified.
 
 ## Capability details
 
@@ -72,12 +72,15 @@ reject a wrong path, destination, source digest, length, and transferred byte an
 MEMORY→FMV→MEMORY replacement. The retail corpus verifier compares the shipping FMV path, size, and
 digest against the executable and file.
 
-A new bounded retail run reached authenticated MEMORY generations 2 and 3, returned from the finite
-RAW load in 28 slices / 15,245,664 cycles, and published authenticated `FMV/FMV.BIN` generation 4 at
-`0x800D5D20`. The next log line refused `CdRead(1 sectors) with NO Setloc`; the subsequent strict
-frame-driver guest call exhausted 564,482 cycles at `0x800940F4`. The relationship between those
-observations is not established. No frame completed, so there is no whole-run fallback ledger,
-gameplay, or performance claim.
+An earlier bounded run published authenticated `FMV/FMV.BIN` generation 4, then refused
+`CdRead(1 sectors)` and exhausted its strict call budget at `0x800940F4`. Issue #27 identifies
+the refused read's cause as zeroed GetTN/GetTD results across the native command and CdSync
+boundary. With psxport `9c7dd098`, a new authentic-disc run again published FMV generation 4,
+returned the first FMV `CdRead(1)` successfully from LBA 16, reached two further FMV read
+entries, and switched display to 24-bit. Its next stop was a strict frame-driver guest-call
+budget exhaustion at `0x80094158` after 564,492 cycles. The cause of that budget exit remains
+unclassified. No frame completed, so there is no whole-run fallback ledger, gameplay, or
+performance claim.
 
 ### S003 — Native finite frame ownership
 
@@ -86,9 +89,9 @@ packets, deferred display service, audio step, and one presentation commit witho
 hermetic boundary tests predate the execution migration and the sources now use the typed dynarec
 guest-call adapter.
 
-Gap: the retained boundary tests pass, but the runtime now stops after FMV image publication at a
-CD refusal and strict guest-call budget exit before its first completed frame. MEMORY and FMV loop
-ownership also remain incomplete under issues #26 and #27.
+Gap: the retained boundary tests pass and FMV CD reads progress, but the runtime stops at a strict
+guest-call budget exit before its first completed frame. MEMORY and FMV loop ownership also remain
+incomplete under issues #26 and #27.
 
 ### S004 — Current boot through gameplay
 

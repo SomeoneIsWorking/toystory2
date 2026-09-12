@@ -53,9 +53,18 @@ The stop was the seventh stock read after six earlier reads with valid Setloc po
 The same probe therefore demonstrated both outcomes. The “NO Setloc” diagnostic conflates
 invalid position with absent command.
 
-The missing TOC command/completion result lifecycle is the CD refusal's root cause. Its
-title-neutral owner belongs in psxport, whose `DiscState` already carries parsed CHD track
-metadata; filling only the command result would still be erased by the current sync handler.
-The fixed binary predates the current shared executor edits and is diagnostic evidence, not
-pin-qualified product verification. The later `0x800940F4` budget exit remains a separate,
-unclassified queue wait until this CD result path is corrected and retested.
+The missing TOC command/completion result lifecycle was the CD refusal's root cause. Shared
+psxport now derives GetTN/GetTD from `DiscState` track metadata and retains that result through
+CdSync; filling only the command result would have been erased by the old sync handler.
+
+A single bounded authentic-disc run of the Toy Story 2 Clang binary (SHA-256
+`e985970d8fe355271d2ac437d09c878155caaec7e6dea3570b3cdce3cd81d406`, build receipt
+psxport `9c7dd098`) reached authenticated FMV generation 4. Command **and CdSync** returned
+`02 01 01 00` for GetTN, `02 59 51 00` for GetTD(0) lead-out, and `02 00 02 00` for GetTD(1).
+The guest sent Setloc `00 02 16 01`, changing LBA 1141 to 16. The first FMV `CdRead(1)` at
+return PC `0x800D87A4` returned `v0=1` and advanced LBA 16 to 17. Two further FMV read entries
+were reached (`0x800D886C`, `0x800D8C0C`), and the guest switched display to 24-bit.
+The trace counted 9 native reads (6 pre-FMV, 3 FMV), 10 Setloc, 10 SeekL, 1 GetTN, 2 GetTD,
+3 TOC CdSync, and 39 native commands. It then stopped at a distinct strict frame-driver
+budget exhaustion, PC `0x80094158` after 564,492 cycles. That stop's cause is unclassified;
+no frame completed and no whole-run fallback or movie-playback claim follows from this run.
