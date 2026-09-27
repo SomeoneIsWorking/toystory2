@@ -381,7 +381,10 @@ def launch(
 
     executable = root / PLAYER_BUILD_DIR / "bin" / "toystory2_port"
     policy = runpy.run_path(str(framework / "tools/port/launch_environment.py"))
-    run_environment = policy["player_environment"](run_environment)
+    # `product` names this title's run-log directory under the OS user-data location, and psxport
+    # requires it: the log is the only copy of what the product said, and it must not land in another
+    # title's file. Omitting it raised `TypeError`, so the windowed path could not launch at all.
+    run_environment = policy["player_environment"](run_environment, product="toystory2")
     run_environment.setdefault("PSXPORT_ASSET_DIR", str(framework))
     emit_line(f"launching {executable.relative_to(root)}", stdout)
     try:
