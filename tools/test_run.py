@@ -115,7 +115,7 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(stderr, "")
         self.assertIn("launching build/player/bin/toystory2_port", stdout)
-        self.assertIn([LOCKED_PYTHON, "tools/psxport_sync.py", "--auto"], commands)
+        self.assertIn([LOCKED_PYTHON, "tools/psxport_fetch.py", "--auto"], commands)
         configure = next(command for command in commands if "-S" in command)
         self.assertEqual(configure[configure.index("-B") + 1], run.PLAYER_BUILD_DIR)
         self.assertIn("-DBUILD_TESTING=OFF", configure)
@@ -249,7 +249,7 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(stderr, "")
         self.assertNotIn(
-            [LOCKED_PYTHON, "tools/psxport_sync.py", "--auto"],
+            [LOCKED_PYTHON, "tools/psxport_fetch.py", "--auto"],
             self.command_list(host),
         )
 

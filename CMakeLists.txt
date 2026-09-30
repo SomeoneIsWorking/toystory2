@@ -23,7 +23,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
 # PSXPORT_DIR — WHERE THE FRAMEWORK SOURCE COMES FROM. Defaults to external/psxport, which is no
-# longer a git submodule (2026-08-16): tools/psxport_sync.py --auto (called by run.sh) makes it a
+# longer a git submodule (2026-08-16): tools/psxport_fetch.py --auto (called by run.sh) makes it a
 # SYMLINK to the workspace's shared framework clone when one exists, or a private clone at this
 # repo's psxport.pin on a fresh machine. So a fresh clone of this repo alone still builds standalone:
 # that property is what "each game is its own project using psxport as the framework" means, and it
@@ -40,7 +40,7 @@ set(PSXPORT_DIR "${CMAKE_SOURCE_DIR}/external/psxport" CACHE PATH
     "psxport framework source directory (default: external/psxport)")
 if(NOT EXISTS "${PSXPORT_DIR}/cmake/psxport.cmake")
   message(FATAL_ERROR "PSXPORT_DIR=${PSXPORT_DIR} has no cmake/psxport.cmake — "
-                      "run `uv run --frozen python tools/psxport_sync.py --auto`, or point PSXPORT_DIR at a psxport checkout.")
+                      "run `uv run --frozen python tools/psxport_fetch.py --auto`, or point PSXPORT_DIR at a psxport checkout.")
 endif()
 message(STATUS "psxport framework: ${PSXPORT_DIR}")
 
