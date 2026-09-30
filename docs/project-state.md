@@ -32,9 +32,9 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 **S002**, in parallel with the active Spyro 1 title; nothing it lands may regress Spyro 1's gates.
 Finish list, in order:
 
-1. **Classify the strict guest-call budget exit at `0x80094158`** reached after the corrected TOC
-   response let FMV CdRead progress: a legitimately long finite body, an undelivered event, or a
-   divergence. Fix the cause in its owner.
+1. ~~**Classify the strict guest-call budget exit at `0x80094158`**~~ — **DONE, issue #27**: an
+   undelivered CD/DMA completion. Fix it in its owners: bind the measured per-channel DMA callback
+   table (title), and give a `GameConfig` runtime a CD data-ready delivery owner (framework).
 2. **First verified frame**: one completed presentation fence with a whole-run translated/fallback
    ledger (S002, S003).
 3. **Front end**: FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
@@ -88,9 +88,22 @@ the refused read's cause as zeroed GetTN/GetTD results across the native command
 boundary. With psxport `9c7dd098`, a new authentic-disc run again published FMV generation 4,
 returned the first FMV `CdRead(1)` successfully from LBA 16, reached two further FMV read
 entries, and switched display to 24-bit. Its next stop was a strict frame-driver guest-call
-budget exhaustion at `0x80094158` after 564,492 cycles. The cause of that budget exit remains
-unclassified. No frame completed, so there is no whole-run fallback ledger, gameplay, or
-performance claim.
+budget exhaustion at `0x80094158` after 564,492 cycles.
+
+**That exit is now classified: an undelivered event, not a long body and not a divergence.**
+A gdb backtrace at the abort names the call — `0x8003EE4C(2, 0)` (`kMemoryStatus`,
+`toystory2_frame_driver.cpp:143`) — and the guest registers at the exit are
+`pc=0x80094158, ra=0x800D6DEC`, i.e. the FMV overlay's per-frame queue fetch. Disassembly over
+the header-driven RAM image shows `0x80094158` is the tail of the queue-pop function entered at
+`0x800940F4` (head `0x800C9504`, base pointer `0x800CE1B0`, 32-byte stride, state words 1 and
+2), and its caller at `0x800D6DC8` spins it a **bounded 0x8000 = 32,768 times** before giving
+up. Two delivery owners are measurably dead in the same run: `[dmairq] owed ch4 -> callback
+00000000 (guest slot 00000000)` (1 of 1) because `.dmaCallbackTable` is 0, and
+`[irq] CD raised IRQ2 -> I_STAT=0x004 (mask=0x00D, ENABLED)` (1 of 1) with **0 `cdirq`
+deliveries**, because the framework's CD-ROM interrupt arm is gated off for any `GameConfig`
+runtime and no product code calls `Cd::pumpStream`. No fix is landed and **no frame completed**,
+so there is still no whole-run fallback ledger, gameplay, or performance claim. Full evidence
+and the two required changes (one title-side, one framework-side) are in issue #27.
 
 ### S003 — Native finite frame ownership
 
@@ -100,8 +113,10 @@ hermetic boundary tests predate the execution migration and the sources now use 
 guest-call adapter.
 
 Gap: the retained boundary tests pass and FMV CD reads progress, but the runtime stops at a strict
-guest-call budget exit before its first completed frame. MEMORY and FMV loop ownership also remain
-incomplete under issues #26 and #27.
+guest-call budget exit before its first completed frame. That exit is classified (issue #27: an
+undelivered CD/DMA completion, not a long body) but **not fixed** — one title-side measurement
+and one framework change are outstanding. MEMORY and FMV loop ownership also remain incomplete
+under issues #26 and #27.
 
 ### S004 — Current boot through gameplay
 
