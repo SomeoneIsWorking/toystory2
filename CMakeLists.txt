@@ -119,6 +119,10 @@ if(BUILD_TESTING)
     NAME raw_packet_census_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_packet_census.py --selftest
   )
+  add_test(
+    NAME verify_str_completion_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_str_completion.py --selftest
+  )
   add_test(NAME structure_policy COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_structure.py)
   add_test(NAME structure_policy_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_structure.py)
   if(TARGET toystory2_projection_boundary)

@@ -162,38 +162,150 @@ never arrives, and the guest's own bounded give-up is what exhausts the budget.
 `w DICR0[4] = 00920000 -> 00920000 (armed channel mask 12) ra=800D7130`, `display depth ->
 24-BIT (GP1(08)=08000010, 256x240)`, then the give-up spin.
 
-**AND THE STREAM'S STATE IS SET UP BUT NEVER ADVANCES.** A hardware watchpoint over a
-whole run, taken from a live `core->ram` pointer at a frame where that symbol exists, is the
-measurement (a watchpoint on the guest address `0x800A0808` itself cannot be inserted — the guest
-RAM is a host buffer, and asking gdb for that address fails with "Cannot access memory"):
+**AND THE RING'S OWN STATE IS NOW SETTLED.** A hardware watchpoint over a whole run, placed with
+explicit `unsigned int *` casts from a frame where `core` is real, gives:
 
-* `[0x800CE1B0]` (the queue base pointer) is written **exactly once** in the run, to `0x801421E0`.
-  The queue base **is** initialised once, by the stream.
-* `[0x800A0808]` (the CD ready-callback slot) is written **twice**, and the last write is
-  `0x80093D84` — the guest installing **its own** STR ready callback through its own setter
-  `0x80090D28` from the call site `0x80093D50 lui $a0,0x8009 / 0x80093D54 addiu $a0,$a0,0x3d84`.
+* `[0x800CE1B0]` (the ring base pointer) is written **exactly once**, to `0x801421E0`, and **never
+  changes again** — the high-halfword watchpoint never fires either, so no narrow store hides. That
+  retires the "0x801421E0 in one run, 0xE0 in another" discrepancy: there was only ever one value,
+  and the `0xE0` was the low **byte** of it (see the retraction below).
+* `[0x800CE148]` (guard 1) **never changes value** in a whole run. Its one writer stores `$zero`, so
+  a value watchpoint cannot fire on it — which means "no fires" is "no change", not "no writer".
+  It is 0 from boot and stays 0.
+* `[0x800C1170]` (guard 2) **never changes value** either, so the FMV's end-of-stream setter at
+  `0x800949C0` **never runs**: the last sector is never reached.
 
-So the stream *does* start: base pointer written once, ready callback registered, and at the
-abort the framework still reports `cd stream_active=1 setloc_lba=12718` with the CD data-ready
-interrupt pending and enabled. What it never does is post a completion, and the head that selects
-the post slot is never written at all (`0x800C9504`: zero writers, `0` throughout) — so the guest
-is polling entry 0 and waiting for something that should have been posted there.
+**Which closes the chain, and points the undelivered event at the CD read rather than at the DMA or
+the guard.** The ring is initialised (base pointer written, head reset), the pop then waits for the
+end-of-stream post, and the post requires the stream to have finished its last sector — which
+requires the CD data-ready delivery that this port's framework currently does not perform for a
+`GameConfig` runtime. At the abort the framework reports `cd stream_active=1 setloc_lba=12718` with
+`I_STAT=0x00000004` (CD data-ready) and `I_MASK=0x0000000d` (enabled): the sector was owed and the
+interrupt was raised and enabled, and nothing served it. That is the same conclusion the earlier
+`[irq] CD raised IRQ2 ... 0 cdirq deliveries` measurement reached, now with the guest's own chain
+measured end to end behind it.
 
 ### RETRACTION — the `0x00000084` in the section above was MY OWN BAD READ, not a guest fact
 
 An earlier debugger capture printed `[0x800A0808]=0x00000084` at the abort and this issue used it
-to warn that `cdReadyCbPtr` might be the wrong address. **That is withdrawn.** The capture read
-`$core->ram[...]` from frame 2 of the `abort()` backtrace, which is not the `callGuestToReturn`
-frame on that path (`No symbol "core" in current context`), so it read an adjacent word of an
-unrelated object. With the watchpoint placed from a frame where `core` is real, the slot holds
-`0x80093D84` — a valid guest code address, installed by the guest. **`GameConfig::cdReadyCbPtr =
-0x800A0808` (`game/cd/stock_libcd_layout.h:30`, bound at `game/core/game_config.cpp:316`) is
-CONFIRMED correct**, by three independent things: the static store census, the decoded setter
-`0x80090D28 lw $v0,0x808($v0) / sw $a0,0x808($at) / jr $ra` with 11 direct `jal` call sites, and the
-live watchpoint. The lesson is the one this workspace has already paid for twice: a value read at
-the wrong frame is a measurement, and it is not a measurement of the thing it names.
+to warn that `cdReadyCbPtr` might be the wrong address. **That is withdrawn, and the cause is now
+known exactly.** `Core::ram` is `uint8_t ram[0x200000]` (`runtime/psx/core.h:36`), so in gdb
+`$core->ram[0xA0808]` yields **one byte**, and the script printed that byte with `%08x`. `0x84` is
+the low byte of `0x80093D84` — the value a hardware watchpoint placed with an explicit
+`*(unsigned int *)($core->ram + 0xA0808)` reports. The same bug produced the other phantom value
+below: `0xE0` is the low byte of `0x801421E0`.
 
-**One more framework-owned observation, measured in the same run.** The sibling slot
+**`GameConfig::cdReadyCbPtr = 0x800A0808` (`game/cd/stock_libcd_layout.h:30`, bound at
+`game/core/game_config.cpp:316`) is CONFIRMED correct**, by three independent things: the static
+store census, the decoded setter `0x80090D28 lw $v0,0x808($v0) / sw $a0,0x808($at) / jr $ra` with
+11 direct `jal` call sites, and the live watchpoint. The lesson is the one this workspace has
+already paid for twice: a value read at the wrong frame is a measurement, and it is not a
+measurement of the thing it names. Here it was worse — a value read at the wrong **width**, from a
+perfectly good frame, which is a variant nothing in the existing notes warned about.
+
+### MEASURED 2026-09-30 — THE STR COMPLETION CHAIN, and the DMA callback table that does not exist
+
+**The blocked edge is now located to a single `beqz`, from the retail bytes.**
+
+The FMV's bounded pop at `0x800D6DC8` reads a 32-byte-stride ring, and exactly one routine in the
+reachable images can satisfy it. All 52 instruction words below are asserted by
+`tools/verify_str_completion.py`, which refuses on any change and is gated by its own selftest.
+
+| step | instruction | what it does |
+|---|---|---|
+| `0x800D72B4`/`0x800D72B8` | `lui $a0,0x8015` / `lw $a0,0x2908($a0)` | the FMV reads its ring descriptor at `[0x80152908]` |
+| `0x800D72BC` | `jal 0x800D7F58`, `$a1 = 0x4000` | the module allocator produces the ring |
+| `0x800D72CC` | `jal 0x800907FC` | the ring init, with the allocation and entry count 1 |
+| `0x80090808` | `sw $a0,-0x1e50($at)` | **the image's only writer of `[0x800CE1B0]`** |
+| `0x80093DB8` | `sw $zero,-0x6afc($at)` | the init clears the head `[0x800C9504]` |
+| `0x80094104` | `lw $v1,-0x1e50($v1)` | the pop reads the same base pointer |
+| `0x80094108` | `0x00021140` `sll $v0,$v0,5` | stride 32 |
+| `0x80094110` | `lhu $v0,($a2)` | the pop reads the entry's state halfword |
+| `0x80093E94` | `lw $v1,-0x1e50($v1)` | the post reads **the same** base pointer |
+| `0x80093EA0` | `0x00021140` | the post scales by the **same stride word** |
+| `0x80093EA8`/`0x80093EAC` | `addiu $v0,$zero,2` / `sh $v0,($v1)` | **the post writes 2 — "complete" — into that halfword** |
+| `0x80094B04`/`0x80094B14` | `lw $v1,-0x1eb8($v1)` / `beqz $v1,0x80094b38` | **guard 1: `[0x800CE148] == 0` skips the post** |
+| `0x80094B20`/`0x80094B28` | `lw $v0,0x1170($v0)` / `beqz $v0,0x80094b38` | **guard 2: `[0x800C1170] == 0` skips the post** |
+| `0x80094B30` | `jal 0x80093E88` | the only call to the post |
+
+So the completion is not missing because of a CD or DMA delivery path: the guest writes it
+**itself, synchronously**, from `0x800941D8`'s channel setup. The two guards are why it never does.
+
+**Guard 1 has no setter.** A `lui`-formed-store census over all three images (292,560 words) finds
+exactly **one** writer of `[0x800CE148]` — `0x80093FA8 sw $zero,-0x1eb8($at)`, the stream open, which
+**clears** it. The census states its own blind spot (a store through a register loaded from a pointer
+is not counted) and the tool **refuses** if it ever returns zero for a word it knows is written, so
+a zero here cannot be a broken read. What it cannot yet exclude is a store through a loaded base, or
+a writer in code that does not exist in any of the three images.
+
+**Guard 2 is the end-of-stream flag, and that is by design.** Its only non-zero store is
+`0x800949C0 sw $v1,0x1170($at)`, reached only when the sector counter runs out
+(`0x800949A0`–`0x800949AC`). It is zero mid-stream and 1 on the last sector, so the run dying with
+`[0x800C1170] = 0` is *correct* guest state, not a lost write. The real question is guard 1.
+
+**THE PER-CHANNEL DMA CALLBACK TABLE: measured to not exist for this title.** psxport's
+`dma_irq.h:112` documents the contract: the table is the one the **BIOS** keeps, which the guest
+fills through the SDK's `DMACallback(ch, fn)` — a BIOS B0-vector entry. The guest reaches the BIOS
+only as `addiu $t2,$zero,0xB0` / `jr $t2` with the function number in `$t1` in the delay slot
+(`0x800893B4`, `0x800893B8`, `0x800893BC`; **24** such gate sites counted in the executable), so
+filling that table needs the BIOS ROM's DMA interrupt handler, which this port does not have.
+
+Two independent measurements back that, and one of them caught a false positive worth recording.
+Both are now tool output (`--ram-bss` / `--ram-top` on a runtime dump), not prose:
+
+* The census of the two RAM regions such a table could occupy (`0x800A0000`–`0x800D0000`,
+  196,608 bytes, and `0x801F0000`–`0x80200000`, 65,536 bytes) matches **3 runs** in the first and
+  **0 runs** in the second. Entries are then **classified**, not filtered, because a filter cannot
+  separate the two kinds of thing that live in the text's address range:
+  * `0x800A082C`, 160 bytes: **28 `ascii`, 12 `other`** — this is the Sony library's own symbol
+    **strings** (`"CdSync"`, `"CdReady"`, `"CdGetSector"`, `"CdStSync"`, `"CdNolop"`, `"DiskError"`,
+    `"DataEnd"`, `"AckNol"`, at `0x80023608`+). They pass any "is it a code pointer" range test, and
+    the tool says so in its own output.
+  * `0x800A0AF0`, 16 bytes: 3 `other`, 1 `ascii` — mixed, so not a table.
+  * `0x800A0CB4`, 20 bytes: **3 `function`, 2 `other`** — the only real entries, and two of the five
+    words are mid-function addresses. Not a 4-entry or 7-entry channel table.
+  * **So: no run of real function entries of a DMA-channel-table's shape exists in either region.**
+* The title does not need one: its completion is the synchronous chain above.
+
+The census's own controls are in its selftest, because a zero is worthless without them: it plants
+an ASCII run and requires the `ascii` classification, plants a mixed run and requires exactly
+`['function', 'other', 'other']`, and plants a store and requires the census to find it. The static
+census additionally **refuses** if it ever returns zero for a word it knows is written — which is
+what caught two of this tool's own defects during this work (an unsigned displacement comparison
+and a missing `sw` opcode, either of which made it report a clean zero).
+
+**Therefore `.dmaCallbackTable` stays 0, with the reasoning recorded in `game/core/game_config.cpp`
+rather than left as a bare zero.** Binding an unmeasured address would dispatch a garbage pointer,
+which is strictly worse than the framework's documented "no dispatch at all". The boundary test
+asserts both halves — that the declared base is 0 and yields no slot for any of the 7 channels, and
+that a non-zero base addresses the per-channel stride — so a future change cannot slip in as an
+invisible improvement.
+
+**AND THE DISPUTED `[0x800CE1B0]` VALUE IS RESOLVED.** Measured by watchpoint: written exactly
+once, to `0x801421E0`, never changed again. There was never a second value — see the retraction
+below.
+
+### MEASURED 2026-09-30 — the guard words never change, so the missing edge is the CD READ
+
+The decisive run watched `[0x800CE1B0]` (word and high halfword), `[0x800CE148]` and
+`[0x800C1170]` with explicit `unsigned int *` casts, from a frame where `core` is real.
+
+* `[0x800CE1B0]`: **one write, `0x801421E0`, no change afterwards.** The halfword watchpoint never
+  fires, so no narrow store is hiding. The earlier "0xE0" was the low **byte** of this same value.
+* `[0x800CE148]`: **never changes value.** Its only writer stores `$zero`, so a value watchpoint
+  cannot fire — "no fires" means "no change", not "no writer". It is 0 from boot and stays 0.
+* `[0x800C1170]`: **never changes value**, so the FMV's end-of-stream setter at `0x800949C0` **never
+  runs**: the last sector is never reached.
+
+That last point is what re-aims the whole diagnosis. The FMV's pop waits for the **end-of-stream**
+post, the post requires the last sector, and the last sector requires the CD data-ready delivery
+this port's framework does not perform for a `GameConfig` runtime. At the abort the framework
+itself reports `cd stream_active=1 setloc_lba=12718` with `I_STAT=0x00000004` (CD data-ready) and
+`I_MASK=0x0000000d` (enabled): the sector was owed, the interrupt was raised and enabled, and
+nothing served it. Guard 1 is 0 because the stream was never opened, not because a registration
+was lost — so **"find guard 1's setter" is the wrong next step**, and this section supersedes it.
+
+**One framework-owned observation, measured in the same run.** The sibling slot
 `[0x800A0804]` is written **50 times**, every write from `cd_command_stock_sync`
 (`psxport/runtime/psx/cd_override.cpp:254`) or `cd_sync_stock_sync` (same file `:273`), alternating
 `0x80090B0C` and `0x00000000`. The framework's stock-libcd owner is deliberately installing and
@@ -211,25 +323,20 @@ It does **not** make the movie loop finite by itself — issue 0027's own findin
 one-turn budget can hold), so the loop still has to become a title-owned finite owner. **No fix is
 landed and no frame completed: S002 and S003 stay `partial`.**
 
-**NEXT STEP, NAMED.** Three items, in two owners:
+**NEXT STEP, NAMED.** Two items, in two checkouts, and the title-side one is done:
 
-* *Title side, one measurement first*: **the queue entry the guest is actually polling.** The head
-  is 0 and never written, so the wait is on `lhu` at `base + 0`, where `base` is the value of
-  `[0x800CE1B0]` — and that value is not settled (see the unattributed-change bullet). Resolve the
-  base first (watch it from a frame where `core` is real, with the CD worker stopped or a
-  per-thread watchpoint), then read the entry's state halfword and its remaining 30 bytes. That
-  single read names what the guest expects the port to have posted.
-* *Title side, `game/cd/stock_libcd_layout.h`*: measure Toy Story 2's per-channel DMA callback
-  table and bind `.dmaCallbackTable` (`game/core/game_config.cpp:321`, currently 0) to it, so the
-  completions the framework already dispatches (`dma_irq.h:112 dma_callback_slot`,
-  `hle_interrupt.cpp:94`) reach the guest's callbacks. The address is still to be measured; a wrong
-  address is worse than the honest zero because it would dispatch a garbage pointer.
-* *Framework side, `runtime/psx/cd_ready_delivery.cpp:78-84`*: the `if (core.cfg) return false;`
-  gate means no `GameConfig` title can ever use the framework's own CD-ROM interrupt handler,
-  and nothing in the product calls `Cd::pumpStream`. Either the gate must consult a declared
-  layout even when `cfg` is set (psxport issue 0124 already records that half of the gate as
-  "defence-in-depth no test can currently reach"), or the product's host turn must pump the
-  stream. This port cannot make that call from its own tree.
-* *Do not "fix" the CD ready slot*: it is already right. What the watchpoint did find is that the
-  guest's STR ready callback `0x80093D84` is installed and never invoked, because the framework's
-  CD data-ready arm is gated off for this title (item 3).
+* *Title side — DONE and gated.* `.dmaCallbackTable` is measured to have no table to bind; the
+  reasoning is recorded in `game/core/game_config.cpp`, the 52-word chain is asserted by
+  `tools/verify_str_completion.py` with its own selftest, the ring facts are typed as
+  `ts2::cd::kStrCompletionLayout`, and the boundary test asserts the declared zero in both
+  directions. Nothing further here.
+* *Framework side, and now the ONLY open item: `runtime/psx/cd_ready_delivery.cpp:78-84`.* The
+  `if (core.cfg) return false;` gate means no `GameConfig` title can ever use the framework's own
+  CD-ROM interrupt handler, and nothing in the product calls `Cd::pumpStream`. The guest-side chain
+  behind it is now measured end to end: the FMV waits for an end-of-stream post, the post needs the
+  last sector, and the last sector is owed with the data-ready interrupt raised and enabled and
+  nothing serving it. Assigned to the psxport cd-complete agent; this port cannot make that call
+  from its own tree.
+* *Explicitly NOT the next step, and recorded so nobody re-derives it:* looking for a static setter
+  of `[0x800CE148]`. The stream is never opened in this run, so guard 1's zero is correct state,
+  not a lost registration. If a later run opens the stream, that question becomes live again.

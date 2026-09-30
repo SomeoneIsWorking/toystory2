@@ -318,6 +318,27 @@ static const GameConfig g_ts2_cfg = {
     .cdReadStock = ts2::cd::kStockLibcdLayout.read,
     .cdReadSync = ts2::cd::kStockLibcdLayout.readSync,
     .cdSearchFile = ts2::cd::kStockLibcdLayout.searchFile,
+    // NO per-channel DMA callback table, and that is a measurement, not an omission.
+    //
+    // psxport's `dma_callback_slot` (runtime/psx/dma_irq.h:112) documents the contract: the table is
+    // the one the BIOS keeps, which the guest fills through the SDK's `DMACallback(ch, fn)` -- a BIOS
+    // B0-vector entry. The guest reaches the BIOS only as `addiu $t2,$zero,0xB0` / `jr $t2` with the
+    // function number in $t1 in the delay slot (0x800893B4, 0x800893B8, 0x800893BC; 24 such gate
+    // sites in the executable, counted by tools/verify_str_completion.py), so filling that table
+    // requires the BIOS ROM's DMA interrupt handler, which this port does not have.
+    //
+    // Measured, not assumed: a census of the two RAM regions such a table could occupy
+    // (0x800A0000-0x800D0000 and 0x801F0000-0x80200000) over runtime RAM found no 4- or 7-entry
+    // array of function pointers. The only runs of code-shaped words are the Sony library's own
+    // symbol STRINGS ("CdSync", "CdReady", "CdGetSector", ... at 0x80023608+) and one five-entry
+    // function table at 0x800A0CB4, which is not a channel table and which nothing in the image
+    // writes with an lui-formed store.
+    //
+    // And this title does not NEED one: its DMA completion is the guest's own synchronous chain --
+    // the channel setup at 0x800941D8 reaches 0x80094B30, which calls the post 0x80093E88, which
+    // writes state 2 into the entry the FMV's pop is reading. The blocked edge is the post's guard
+    // 1 at 0x800CE148, not a missing callback dispatch. Binding an unmeasured address here would
+    // dispatch a garbage pointer, which is strictly worse than the documented "no dispatch at all".
     .dmaCallbackTable = 0,
 
     // --- pad driver --------------------------------------------- RE-06 re-verified --

@@ -33,14 +33,37 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 Finish list, in order:
 
 1. ~~**Classify the strict guest-call budget exit at `0x80094158`**~~ — **DONE, issue #27**: an
-   undelivered CD/DMA completion. Fix it in its owners: bind the measured per-channel DMA callback
-   table (title), and give a `GameConfig` runtime a CD data-ready delivery owner (framework).
-2. **First verified frame**: one completed presentation fence with a whole-run translated/fallback
+   undelivered event, and the guest's side of the chain is now measured end to end. The FMV's
+   bounded pop (`0x800D6DC8`, 0x8000 = 32,768 tries) waits on a 32-byte ring that only
+   `0x80093E88` can satisfy, and it writes state `2` **itself, synchronously**, from `0x80094B30`.
+   Both guards on that call are measured: `0x80094B14` on `[0x800CE148]`, whose one writer is a
+   **clear** and whose value **never changes in a run**, and `0x80094B28` on `[0x800C1170]`, the
+   end-of-stream flag, which **never changes either** — so the FMV's last sector is never reached.
+   52 instruction words of that chain are asserted by `tools/verify_str_completion.py` (gated, with
+   a selftest) and typed as `ts2::cd::kStrCompletionLayout`.
+2. **The CD data-ready delivery**, framework-side and assigned to the psxport cd-complete agent:
+   `runtime/psx/cd_ready_delivery.cpp:78-84` refuses the framework's own CD-ROM interrupt handler
+   for any `GameConfig` runtime, and no product code calls `Cd::pumpStream`. At the abort the sector
+   is owed (`cd stream_active=1 setloc_lba=12718`), the data-ready interrupt is raised and enabled
+   (`I_STAT=0x004`, `I_MASK=0x00D`), and 0 deliveries are made. **This is the one open item.**
+3. **First verified frame**: one completed presentation fence with a whole-run translated/fallback
    ledger (S002, S003).
-3. **Front end**: FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
+4. **Front end**: FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
    Lightrec, then Andy's Room (S004).
-4. Then player control (S005), presentation coherence (S006, S007), and only after gameplay runs,
+5. Then player control (S005), presentation coherence (S006, S007), and only after gameplay runs,
    widescreen (S010) and 60 fps (S011).
+
+**Measured and closed on the title side, not worked around:** `.dmaCallbackTable` stays `0` because
+there is no per-channel DMA callback table for this title to bind. psxport's `dma_irq.h:112`
+documents it as the table the **BIOS** keeps and the guest fills through the SDK's `DMACallback`, a
+B0-vector BIOS entry — the guest reaches the BIOS only as `jr 0xB0` with the function number in the
+delay slot (**24** such gate sites counted) — and this port has no BIOS ROM. A census of runtime RAM
+over the two regions such a table could occupy matched **3** runs in `0x800A0000`–`0x800D0000` and
+**0** in `0x801F0000`–`0x80200000`, and the tool **classifies** every entry rather than filtering:
+the largest run (160 bytes at `0x800A082C`) is 28 `ascii` — the Sony library's own symbol strings —
+and the only real entries are 3 of 5 at `0x800A0CB4`, not a 4- or 7-entry channel table. The
+reasoning is recorded in `game/core/game_config.cpp` and asserted in both directions by the
+boundary test.
 
 ## Capability details
 
@@ -101,9 +124,21 @@ up. Two delivery owners are measurably dead in the same run: `[dmairq] owed ch4 
 00000000 (guest slot 00000000)` (1 of 1) because `.dmaCallbackTable` is 0, and
 `[irq] CD raised IRQ2 -> I_STAT=0x004 (mask=0x00D, ENABLED)` (1 of 1) with **0 `cdirq`
 deliveries**, because the framework's CD-ROM interrupt arm is gated off for any `GameConfig`
-runtime and no product code calls `Cd::pumpStream`. No fix is landed and **no frame completed**,
-so there is still no whole-run fallback ledger, gameplay, or performance claim. Full evidence
-and the two required changes (one title-side, one framework-side) are in issue #27.
+runtime and no product code calls `Cd::pumpStream`.
+
+**The blocked edge has since been measured end to end, and it is the CD read, not the DMA path.**
+The guest posts the completion itself, synchronously, from `0x800941D8` via `0x80094B30` to
+`0x80093E88`, which writes state `2` into the entry the pop reads. Both guards on that call are
+measured: `[0x800CE148]` (`0x80094B14`) never changes value in a run — its one writer is a clear,
+and the stream is never opened — and `[0x800C1170]` (`0x80094B28`), the end-of-stream flag, never
+changes either, so the FMV's last sector is never reached. At the abort the sector is owed
+(`cd stream_active=1 setloc_lba=12718`), the data-ready interrupt is raised and enabled
+(`I_STAT=0x004`, `I_MASK=0x00D`), and **0** deliveries are made, because the framework's CD-ROM
+interrupt arm is gated off for any `GameConfig` runtime and no product code calls `Cd::pumpStream`.
+52 instruction words of the chain are asserted by `tools/verify_str_completion.py` (gated, with a
+selftest) and typed as `ts2::cd::kStrCompletionLayout`. No fix is landed and **no frame completed**,
+so there is still no whole-run fallback ledger, gameplay, or performance claim. Full evidence is in
+issue #27.
 
 ### S003 — Native finite frame ownership
 
@@ -113,10 +148,10 @@ hermetic boundary tests predate the execution migration and the sources now use 
 guest-call adapter.
 
 Gap: the retained boundary tests pass and FMV CD reads progress, but the runtime stops at a strict
-guest-call budget exit before its first completed frame. That exit is classified (issue #27: an
-undelivered CD/DMA completion, not a long body) but **not fixed** — one title-side measurement
-and one framework change are outstanding. MEMORY and FMV loop ownership also remain incomplete
-under issues #26 and #27.
+guest-call budget exit before its first completed frame. That exit is classified and its guest-side
+chain measured end to end (issue #27: the FMV never reaches its last sector, because the CD
+data-ready interrupt is raised, enabled and never served) but **not fixed** — the one open item is
+framework-side. MEMORY and FMV loop ownership also remain incomplete under issues #26 and #27.
 
 ### S004 — Current boot through gameplay
 
