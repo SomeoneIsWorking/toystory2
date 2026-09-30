@@ -29,8 +29,18 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 
 ## Current focus
 
-S002 is the current focus: classify the strict guest-call budget exit at `0x80094158` after the
-corrected TOC response let FMV CdRead progress. No first frame is yet verified.
+**S002**, in parallel with the active Spyro 1 title; nothing it lands may regress Spyro 1's gates.
+Finish list, in order:
+
+1. **Classify the strict guest-call budget exit at `0x80094158`** reached after the corrected TOC
+   response let FMV CdRead progress: a legitimately long finite body, an undelivered event, or a
+   divergence. Fix the cause in its owner.
+2. **First verified frame**: one completed presentation fence with a whole-run translated/fallback
+   ledger (S002, S003).
+3. **Front end**: FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
+   Lightrec, then Andy's Room (S004).
+4. Then player control (S005), presentation coherence (S006, S007), and only after gameplay runs,
+   widescreen (S010) and 60 fps (S011).
 
 ## Capability details
 
