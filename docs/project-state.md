@@ -26,6 +26,7 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | S012 | Traveller's Tales `.RAW` assets are reproducibly framed and decompressed | verified | S001 | G001 |
 | S013 | The fresh-clone launcher builds and starts the intended product | partial | S001, S002 | G001 |
 | S014 | Hosted CI truthfully distinguishes repository policy from native product support on Linux, Windows, macOS, and Android | partial | S002 | G001 |
+| S015 | Toy Story 2: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | missing | S002 | G004 |
 
 ## Current focus
 
@@ -235,3 +236,10 @@ those Python contracts as a native Linux or macOS build.
 Gap: add each platform job when the matching redistributable runtime/package boundary exists and is
 asset-free. The same launcher-policy tests on multiple hosted operating systems would not prove
 platform support.
+
+### S015 — Toy Story 2 loading removal
+
+Missing. No load operation has been censused or classified for Toy Story 2. Gap: enumerate its load
+issuers and the wait and presentation each drives, then complete each through the title's own load
+mechanics without its loading-only wait, with payload and terminal state compared against retail
+and the absence of loading presentation captured.
