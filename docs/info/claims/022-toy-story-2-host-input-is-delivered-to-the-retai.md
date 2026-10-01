@@ -4,7 +4,7 @@ kind: claim
 status: holds
 created: 2026-08-26
 tags: input,boot
-depends: game/core/game_config.cpp#kPadSlot0Buffer, game/sync/field_clock.cpp#field_turn
+depends: game/core/guest_facts.h#kPadSlot0Buffer, game/sync/field_clock.cpp#field_turn
 ---
 
 ## Claim

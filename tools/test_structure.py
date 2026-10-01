@@ -62,7 +62,7 @@ class StructureScannerTests(unittest.TestCase):
         self.assertIn("direct-product-diagnostic", self.rules())
 
     def test_config_owner_may_ingest_environment(self) -> None:
-        (self.root / "game/core/game_config.cpp").write_text('auto value = std::getenv("SETTING");\n')
+        (self.root / "game/core/guest_facts.h").write_text('auto value = std::getenv("SETTING");\n')
         self.assertNotIn("stray-environment-read", self.rules())
 
     def test_line_limit_reports_exact_file_and_measurement(self) -> None:

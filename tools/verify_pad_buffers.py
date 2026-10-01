@@ -2,7 +2,7 @@
 """Derive Toy Story 2's pad-buffer wiring from the retail executable.
 
 This checker answers one narrow question: where does the shipping pad initializer register its two
-output buffers, and does GameConfig route host samples to those exact destinations?  It derives the
+output buffers, and does the pad layout route host samples to those exact destinations?  It derives the
 answer from the unique call, the initializer's pointer stores/context step, and the game's independent
 packet consumer.  Missing evidence is a refusal, never a zero-match pass.
 """
@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EXE = ROOT / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
-SHIPPING_SOURCE = ROOT / "game" / "core" / "game_config.cpp"
+SHIPPING_SOURCE = ROOT / "game" / "core" / "guest_facts.h"
 
 PAD_INIT = 0x800971D8
 PAD_CONSUMER = 0x8003AC58
@@ -53,7 +53,7 @@ class Measurement:
 
 
 CONSTANT_RE = re.compile(
-    r"^static constexpr uint32_t (kPad\w+) = (0x[0-9A-Fa-f]+|[0-9]+)u;",
+    r"^inline constexpr uint32_t (kPad\w+) = (0x[0-9A-Fa-f]+|[0-9]+)u;",
     re.MULTILINE,
 )
 
@@ -173,18 +173,17 @@ def shipping_state(path: Path = SHIPPING_SOURCE) -> tuple[dict[str, int], list[s
 
     uncommented = re.sub(r"//[^\n]*|/\*.*?\*/", "", text, flags=re.DOTALL)
     bindings = {
-        "padSlot0Buf": "kPadSlot0Buffer",
-        "padSlot1Buf": "kPadSlot1Buffer",
-        "padDriverFn": "0",
-        "padSlotPtrTable": "kPadDriverPointerTable",
-        "padSlotPtrStride": "kPadDriverContextStride",
+        "slot0Buffer": "kPadSlot0Buffer",
+        "slot1Buffer": "kPadSlot1Buffer",
+        "slotPointerTable": "kPadDriverPointerTable",
+        "slotPointerStride": "kPadDriverContextStride",
     }
     failures = []
     for field, expected in bindings.items():
         match = re.search(rf"\.{field}\s*=\s*([^,\n]+)", uncommented)
         actual = match.group(1).strip() if match else "<absent>"
         if actual != expected:
-            failures.append(f"GameConfig .{field} ships {actual}, expected {expected}")
+            failures.append(f"GuestPadBufferLayout .{field} ships {actual}, expected {expected}")
     return constants, failures
 
 
@@ -229,7 +228,7 @@ def check(image: Image, verbose: bool = True) -> list[str]:
             print(f"MISMATCH: {failure}")
         if not failures:
             print(
-                "MATCH: retail initializer, driver contexts, consumer and all 5 GameConfig bindings agree"
+                "MATCH: retail initializer, driver contexts, consumer and all 4 GuestPadBufferLayout bindings agree"
             )
         print(
             "blind spot: this source gate proves destinations and registration shape, not that a "

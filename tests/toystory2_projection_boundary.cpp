@@ -4,11 +4,10 @@
 
 #include "core.h"
 #include "game.h"
-#include "game_iface.h"
 #include "hw_bind.h"
-#include "legacy_game_interface.h"
 #include "platform_hle.h"
 #include "testutil.h"
+#include "toystory2_runtime.h"
 
 #include <memory>
 
@@ -25,7 +24,8 @@ constexpr uint32_t kVSync = 0x80088628u;
 constexpr uint32_t kVSyncBodyEnd = 0x80088770u;
 
 std::unique_ptr<Game> freshGame() {
-  psxport_install_game(&ts2::legacy::measuredConfig, &ts2::legacy::compatibilityHooks);
+  static ts2::ToyStory2Runtime runtime;
+  psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
   gte_bind(&game->core);
   game->platform_hle.initBuiltins();

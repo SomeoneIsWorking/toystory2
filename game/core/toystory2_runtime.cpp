@@ -4,8 +4,8 @@
 #include "boot/native_sync_overrides.h"
 #include "core.h"
 #include "game.h"
+#include "guest_facts.h"
 #include "input/native_pad_owner.h"
-#include "legacy_game_interface.h"
 #include "loop/toystory2_frame_driver.h"
 #include "overlay/shared_slot_image.h"
 #include "render/guest_widescreen.h"
@@ -14,14 +14,40 @@
 
 namespace ts2 {
 
-ToyStory2Runtime::ToyStory2Runtime() : LegacyGameRuntimeAdapter(legacy::measuredConfig, legacy::compatibilityHooks) {}
-
 void *ToyStory2Runtime::createContext(Core &) {
   return new ToyStory2Context();
 }
 
 void ToyStory2Runtime::destroyContext(void *context) {
   delete static_cast<ToyStory2Context *>(context);
+}
+
+const GuestProgramImage *ToyStory2Runtime::guestProgramImage() const {
+  return &facts::kProgramImage;
+}
+
+const PlatformHlePlan *ToyStory2Runtime::platformHlePlan() const {
+  return &facts::kPlatformHlePlan;
+}
+
+const GuestPadBufferLayout *ToyStory2Runtime::guestPadBufferLayout() const {
+  return &facts::kPadBufferLayout;
+}
+
+const GuestCdStreamCallbackLayout *ToyStory2Runtime::guestCdStreamCallbackLayout() const {
+  return &facts::kCdStreamCallbackLayout;
+}
+
+const char *ToyStory2Runtime::discEnvVar() const {
+  return facts::kDiscEnvVar;
+}
+
+bool ToyStory2Runtime::guestVramIsPicture(const Game &) const {
+  // The measured FrameDriver still dispatches the resident guest renderer and presents guest
+  // DrawOTag/VRAM output, including upload-only screens, without dispatching guest VBlank, so guest
+  // VRAM is the picture throughout the verified route. A native producer would replace this with a
+  // dynamic answer rather than a second copy of the rule.
+  return true;
 }
 
 RenderCapabilities ToyStory2Runtime::renderCapabilities() const {

@@ -1,4 +1,4 @@
-// Toy Story 2 stock-libcd ownership boundary. The shipping GameConfig must install the framework's
+// Toy Story 2 stock-libcd ownership boundary. The shipping runtime's PlatformHlePlan must install the framework's
 // synchronous CD owners at the measured retail entries, and their real command/sync handlers must
 // complete without reaching the mandatory guest-VSync trap.
 
@@ -7,17 +7,18 @@
 #include "core.h"
 #include "dma_irq.h"
 #include "game.h"
-#include "game_iface.h"
-#include "legacy_game_interface.h"
+#include "guest_cd_stream_callback_layout.h"
 #include "platform_hle.h"
 #include "testutil.h"
+#include "toystory2_runtime.h"
 
 #include <memory>
 
 namespace {
 
 std::unique_ptr<Game> freshGame() {
-  psxport_install_game(&ts2::legacy::measuredConfig, &ts2::legacy::compatibilityHooks);
+  static ts2::ToyStory2Runtime runtime;
+  psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
   game->cd.overridesInit();
   game->platform_hle.initBuiltins();
@@ -136,22 +137,38 @@ static void test_str_ring_code_is_outside_the_natively_owned_window() {
 }
 
 // The title declares NO per-channel DMA callback table, and the reason is measured (see
-// game/core/game_config.cpp): the SDK's DMACallback is a BIOS B0-vector entry and the table is the
-// BIOS's. The negative case is the point -- with a zero base the framework must yield NO slot for
-// any channel, never a slot pointing at something arbitrary, and a non-zero base must address the
-// per-channel stride the BIOS uses. Both halves are asserted, because a census that can only say
-// "zero" cannot tell those apart from a broken read.
+// game/core/guest_facts.h): the SDK's DMACallback is a BIOS B0-vector entry and the table is the
+// BIOS's. A direct runtime has no table fact at all, so a fresh game's callback registry must yield
+// no callback for any channel, never one pointing at something arbitrary. The positive half keeps the
+// framework's slot arithmetic honest: a real table's slots are 4 bytes apart, one per channel, and a
+// zero base yields no slot. Both halves are asserted, because a census that can only say "zero"
+// cannot tell those apart from a broken read.
 static void test_no_dma_callback_table_is_declared_and_yields_no_slot() {
-  CHECK_EQ(ts2::legacy::measuredConfig.dmaCallbackTable, 0u);
+  auto game = freshGame();
   for (int channel = 0; channel < 7; ++channel) {
-    CHECK_EQ(dma_callback_slot(ts2::legacy::measuredConfig.dmaCallbackTable, channel), 0u);
+    CHECK_EQ(game->dmaCallbacks.current(static_cast<DmaChannel>(channel)), 0u);
+    CHECK_EQ(dma_callback_slot(0, channel), 0u);
   }
-  // The positive half: a real table's slots are 4 bytes apart, one per channel, and a channel
-  // outside the table never addresses into the next structure.
   const uint32_t table = ring_table_probe();
   CHECK_EQ(dma_callback_slot(table, 0), table);
   CHECK_EQ(dma_callback_slot(table, 3), table + 12u);
-  CHECK_EQ(dma_callback_slot(0, 3), 0u);
+}
+
+// The CD data-ready delivery contract that this title's FMV depends on, asserted on the shipping
+// runtime: the guest's own CdReadyCallback slot, delivered by the guest-interrupt owner (so the
+// framework acknowledges the controller and calls the slot's CURRENT value), with the default libcd
+// completion code, and NO completion owed for a synchronous stock read. The last two are the
+// negatives: opting a libstr title into stockReadRaisesCompletion would run its per-sector callback
+// once per stock read.
+static void test_cd_ready_delivery_is_declared_for_the_guest_interrupt_owner() {
+  static ts2::ToyStory2Runtime runtime;
+  const GuestCdStreamCallbackLayout *layout = runtime.guestCdStreamCallbackLayout();
+  CHECK(layout != nullptr);
+  CHECK(layout->valid());
+  CHECK_EQ(layout->readyCallbackPointer, ts2::cd::kStockLibcdLayout.readyCallback);
+  CHECK(layout->owner == GuestCdStreamCallbackLayout::DeliveryOwner::GuestInterrupt);
+  CHECK_EQ(static_cast<unsigned>(layout->readyStatus), 1u);
+  CHECK(!layout->stockReadRaisesCompletion);
 }
 
 int main() {
@@ -161,5 +178,6 @@ int main() {
   RUN(str_completion_facts_are_distinct_and_in_guest_ram);
   RUN(str_ring_code_is_outside_the_natively_owned_window);
   RUN(no_dma_callback_table_is_declared_and_yields_no_slot);
+  RUN(cd_ready_delivery_is_declared_for_the_guest_interrupt_owner);
   return pt_summary();
 }

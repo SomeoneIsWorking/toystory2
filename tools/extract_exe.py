@@ -20,7 +20,7 @@ runtime consumes the original executable directly; `tools/overlay_map.py` indepe
 overlay layout against the same identity and exact module corpus.
 
 WHAT THE HEADER PRINT IS FOR: entry pc0 / t_addr / t_size / initial sp / gp0 are independently checked
-by tools/verify_crt0.py against game/core/game_config.cpp. They are printed here too because this tool's
+by tools/verify_crt0.py against game/core/guest_facts.h. They are printed here too because this tool's
 job is to report what the extracted bytes say before any RE instrument consumes them.
 """
 

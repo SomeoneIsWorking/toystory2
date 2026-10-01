@@ -4,7 +4,7 @@ kind: claim
 status: holds
 created: 2026-08-21
 tags:
-depends: tools/verify_crt0.py#analyze, game/core/game_config.cpp#g_ts2_cfg
+depends: tools/verify_crt0.py#analyze, game/core/guest_facts.h#kProgramImage
 reconfirmed: 2026-08-26 22:44:42
 verified_at: 2026-08-26 22:44:42
 ---

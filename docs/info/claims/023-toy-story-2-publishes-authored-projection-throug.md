@@ -4,7 +4,7 @@ kind: claim
 status: holds
 created: 2026-08-26
 tags: render,projection,re07,widescreen,interpolation
-depends: game/core/game_config.cpp#kSetGeomOffset
+depends: game/core/guest_facts.h#kSetGeomOffset
 reconfirmed: 2026-08-26 22:44:44
 verified_at: 2026-08-26 22:44:44
 ---

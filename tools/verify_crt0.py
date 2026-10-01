@@ -7,7 +7,7 @@ those words to construct ``sp``. This purpose-built symbolic walk follows the re
 through both returning ``jal`` calls and the ``break`` while treating the referenced words as data.
 
 Every measured GameConfig field is printed beside the instruction chain that proves it. ``--check``
-also parses the shipping ``game/core/game_config.cpp`` and compares its constants and designated
+also parses the shipping ``game/core/guest_facts.h`` and compares its constants and designated
 initialiser against this run. There is no second expected-address table in this tool.
 
 Exit 0 means a complete agreeing group. Exit 1 means real bytes were analysed but disagree with the
@@ -37,7 +37,7 @@ from formats import psx_exe as psexe
 from overlay_shipping import shared_slot_load_address
 
 DEFAULT_EXE = ROOT / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
-SHIPPED_FILE = ROOT / "game" / "core" / "game_config.cpp"
+SHIPPED_FILE = ROOT / "game" / "core" / "guest_facts.h"
 IDENTITY_FILE = ROOT / "docs" / "info" / "exe-identity.txt"
 
 REG = (
@@ -164,15 +164,15 @@ HEADER_CONST = {
 CFG_CONST = {
     "bssZeroLo": "kCrt0BssZeroLo",
     "bssZeroHi": "kCrt0BssZeroHi",
-    "stackTopBase": "kCrt0StackTopBase",
-    "stackTopBase2": "kCrt0StackTopBase2",
+    "stackTopWordAddress": "kCrt0StackTopBase",
+    "stackReserveWordAddress": "kCrt0StackTopBase2",
     "heapBase": "kCrt0HeapBase",
-    "heapSizePtr": "kCrt0HeapSizePtr",
-    "heapBasePtr": "kCrt0HeapBasePtr",
-    "gp": "kCrt0Gp",
-    "libcInit": "kCrt0LibcInit",
-    "gameMain": "kCrt0GameMain",
-    "crt0": "kCrt0Entry",
+    "heapSizeStoreAddress": "kCrt0HeapSizePtr",
+    "heapBaseStoreAddress": "kCrt0HeapBasePtr",
+    "globalPointer": "kCrt0Gp",
+    "libcInitEntry": "kCrt0LibcInit",
+    "gameMainEntry": "kCrt0GameMain",
+    "crt0Entry": "kCrt0Entry",
 }
 
 
@@ -662,10 +662,11 @@ def _validate_shape(exe, out: dict) -> None:
 
 
 CONST_RE = re.compile(
-    r"^\s*static\s+constexpr\s+(?:u?int32_t)\s+(\w+)\s*=\s*([^;]+);",
+    r"^\s*(?:static|inline)\s+constexpr\s+(?:std::)?(?:u?int32_t)\s+(\w+)\s*=\s*([^;]+);",
     re.MULTILINE,
 )
-CFG_OPEN_RE = re.compile(r"\bg_ts2_cfg\s*=\s*\{")
+CFG_OPEN_RE = re.compile(r"\bkProgramImage\s*\{")
+BSS_RE = re.compile(r"\.bss\s*=\s*\{([^}]*)\}")
 FIELD_RE = re.compile(r"\.(\w+)\s*=\s*([^,\n]*)")
 STACK_BIAS_RE = re.compile(r"\.stackBias\s*=\s*\{([^}]*)\}")
 
@@ -703,7 +704,7 @@ def parse_shipping(path: Path = SHIPPED_FILE, text: str | None = None) -> Shippi
         )
     start = CFG_OPEN_RE.search(source)
     if start is None:
-        raise Refused(f"{path} has no g_ts2_cfg initialiser")
+        raise Refused(f"{path} has no kProgramImage initialiser")
     index, depth, end = start.end(), 1, None
     while index < len(source):
         if source[index] == "{":
@@ -715,9 +716,13 @@ def parse_shipping(path: Path = SHIPPED_FILE, text: str | None = None) -> Shippi
                 break
         index += 1
     if end is None:
-        raise Refused(f"{path}: unbalanced g_ts2_cfg braces")
+        raise Refused(f"{path}: unbalanced kProgramImage braces")
     body = source[start.end() : end]
     fields = {name: value.strip() for name, value in FIELD_RE.findall(body)}
+    bss_match = BSS_RE.search(body)
+    if bss_match:
+        low, _, high = (item.strip() for item in bss_match.group(1).partition(","))
+        fields["bssZeroLo"], fields["bssZeroHi"] = low, high
     bias_match = STACK_BIAS_RE.search(body)
     bias = (
         tuple(item.strip() for item in bias_match.group(1).split(","))
@@ -756,10 +761,10 @@ def compare_shipping(
     for field, constant in CFG_CONST.items():
         token = shipping.fields.get(field)
         if token != constant:
-            failures.append(f"g_ts2_cfg .{field} must name {constant}; got {token!r}")
-    if shipping.stack_bias != ("1", "kCrt0StackBias"):
+            failures.append(f"kProgramImage .{field} must name {constant}; got {token!r}")
+    if shipping.stack_bias != ("true", "kCrt0StackBias"):
         failures.append(
-            f"g_ts2_cfg .stackBias must be {{1, kCrt0StackBias}}; got {shipping.stack_bias!r}"
+            f"kProgramImage .stackBias must be {{true, kCrt0StackBias}}; got {shipping.stack_bias!r}"
         )
 
     expected_sha, _, _ = identity()
@@ -769,7 +774,7 @@ def compare_shipping(
             f"analysed image sha1 {actual_sha} is not recorded target {expected_sha}"
         )
     if expected_sha not in shipping.raw:
-        failures.append("game_config.cpp does not cite the verified executable sha1")
+        failures.append("guest_facts.h does not cite the verified executable sha1")
     return failures, lines
 
 
@@ -886,7 +891,7 @@ def selftest(exe_path: Path, cross: Path | None) -> int:
             )
 
         poisoned_source = re.sub(
-            r"(static\s+constexpr\s+uint32_t\s+kCrt0GameMain\s*=\s*)([^;]+)",
+            r"((?:static|inline)\s+constexpr\s+(?:std::)?uint32_t\s+kCrt0GameMain\s*=\s*)([^;]+)",
             r"\g<1>0x80999999u",
             shipping.raw,
             count=1,
@@ -1011,7 +1016,7 @@ def main() -> int:
     )
     parser.add_argument("--exe", type=Path, default=DEFAULT_EXE, help="target PS-X EXE")
     parser.add_argument(
-        "--shipped", type=Path, default=SHIPPED_FILE, help="shipping GameConfig source"
+        "--shipped", type=Path, default=SHIPPED_FILE, help="shipping typed-facts header"
     )
     parser.add_argument(
         "--check",

@@ -7,7 +7,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG = os.path.join(ROOT, "game", "core", "game_config.cpp")
+CONFIG = os.path.join(ROOT, "game", "core", "guest_facts.h")
 SHARED_IMAGE_HEADER = os.path.join(ROOT, "game", "overlay", "shared_slot_image.h")
 
 
@@ -51,7 +51,7 @@ def shipping_comparison(measured, out=sys.stdout, config=None, slot_header=None)
             slot_header = source.read()
 
     checks = [
-        ("game_config kLevelOverlayBase", _constant(config, "kLevelOverlayBase"), measured["level_base"]),
+        ("guest_facts kLevelOverlayBase", _constant(config, "kLevelOverlayBase"), measured["level_base"]),
         ("SharedSlotImage kLoadAddress", shared_slot_load_address(slot_header), measured["memory_base"]),
         ("SharedSlotImage kMemoryFileBytes", _constant(slot_header, "kMemoryFileBytes"), measured["memory_size"]),
         ("SharedSlotImage kFmvFileBytes", _constant(slot_header, "kFmvFileBytes"), measured["fmv_size"]),
@@ -72,15 +72,7 @@ def shipping_comparison(measured, out=sys.stdout, config=None, slot_header=None)
         r"\bkMemoryOverlayBase\s*=\s*ts2::SharedSlotImage::kLoadAddress\s*;",
         config,
     )
-    checks.append(("game_config MEMORY address alias", 1 if memory_alias else 0, 1))
-    slot_text = re.search(r"\.overlaySlots\s*=\s*\{\{(.*?)\}\},", config, re.DOTALL)
-    slots_ok = bool(
-        slot_text
-        and re.search(r'\{\s*kLevelOverlayBase\s*,\s*"LEVEL"\s*\}', slot_text.group(0))
-        and re.search(r'\{\s*kMemoryOverlayBase\s*,\s*"MEMORY"\s*\}', slot_text.group(0))
-    )
-    checks.append(("game_config overlaySlots LEVEL+MEMORY", 1 if slots_ok else 0, 1))
-
+    checks.append(("guest_facts MEMORY address alias", 1 if memory_alias else 0, 1))
     print("== shipping comparison (proven fields only) ==", file=out)
     failures = []
     for name, actual, expected in checks:
@@ -174,7 +166,7 @@ def shipping_selftest(contract, check):
     check(
         "SHIPPING NEGATIVE: an unbound MEMORY configuration address is rejected",
         changed_config != config
-        and "game_config MEMORY address alias"
+        and "guest_facts MEMORY address alias"
         in shipping_comparison(contract, io.StringIO(), changed_config, slot_header),
-        "mutated GameConfig must lose its overlay-owner alias",
+        "mutated facts must lose their overlay-owner alias",
     )

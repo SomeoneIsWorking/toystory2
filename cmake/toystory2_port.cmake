@@ -7,8 +7,6 @@ include(${PSXPORT_DIR}/cmake/psxport.cmake)
 set(TOYSTORY2_RUNTIME_SOURCES
   game/boot/guest_main_boot.cpp
   game/boot/native_sync_overrides.cpp
-  game/core/game_config.cpp
-  game/core/game_hooks.cpp
   game/core/guest_execution.cpp
   game/core/toystory2_context.cpp
   game/core/toystory2_runtime.cpp
@@ -48,8 +46,7 @@ endif()
 add_executable(
   toystory2_projection_boundary
   tests/toystory2_projection_boundary.cpp
-  game/core/game_config.cpp
-  game/core/game_hooks.cpp
+  ${TOYSTORY2_RUNTIME_SOURCES}
 )
 toystory2_configure_target(toystory2_projection_boundary)
 target_include_directories(toystory2_projection_boundary PRIVATE ${PSXPORT_DIR}/tests)
@@ -57,8 +54,7 @@ target_include_directories(toystory2_projection_boundary PRIVATE ${PSXPORT_DIR}/
 add_executable(
   toystory2_cd_hle_boundary
   tests/toystory2_cd_hle_boundary.cpp
-  game/core/game_config.cpp
-  game/core/game_hooks.cpp
+  ${TOYSTORY2_RUNTIME_SOURCES}
 )
 toystory2_configure_target(toystory2_cd_hle_boundary)
 target_include_directories(toystory2_cd_hle_boundary PRIVATE ${PSXPORT_DIR}/tests)

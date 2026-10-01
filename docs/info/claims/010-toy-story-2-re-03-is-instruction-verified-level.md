@@ -4,7 +4,7 @@ kind: claim
 status: holds
 created: 2026-08-21
 tags: overlays,memory-map,loader
-depends: tools/overlay_map.py#loader_contract, game/core/game_config.cpp#g_ts2_cfg
+depends: tools/overlay_map.py#loader_contract, game/core/guest_facts.h#kProgramImage
 reconfirmed: 2026-08-26 22:44:42
 verified_at: 2026-08-26 22:44:42
 ---

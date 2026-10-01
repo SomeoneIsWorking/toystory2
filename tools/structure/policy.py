@@ -48,4 +48,4 @@ CPP_STDERR_PATTERNS = (
     r"\bstd::cerr\b",
     r"\bcfg_log[a-z]*\s*\(",
 )
-CONFIG_OWNER_FILES = frozenset({Path("game/core/game_config.cpp")})
+CONFIG_OWNER_FILES = frozenset({Path("game/core/guest_facts.h")})

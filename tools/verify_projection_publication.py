@@ -3,7 +3,7 @@
 
 The native camera, widescreen policy, and future transform interpolation all need the projection the
 game actually authored. This checker proves the two linked libgte leaves directly from SLUS_008.93,
-proves the title initializer calls them with its retail values, and checks that GameConfig binds them
+proves the title initializer calls them with its retail values, and checks that the PlatformHlePlan binds them
 through the measured shared SDK window. Registration remains exact-address and is covered at the C++
 boundary; the window is only the admission envelope. Missing or changed evidence is a refusal, never
 a match.
@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_EXE = ROOT / "scratch" / "bin" / "toystory2" / "SLUS_008.93"
-SHIPPING_SOURCE = ROOT / "game" / "core" / "game_config.cpp"
+SHIPPING_SOURCE = ROOT / "game" / "core" / "guest_facts.h"
 
 EXPECTED_SHA1 = "f90c9cd6b4fc9845adfe34e306b7df393bf9154c"
 GRAPHICS_INIT = 0x8003A650
@@ -45,7 +45,7 @@ SCREEN_BODY = (
 )
 
 CONSTANT_RE = re.compile(
-    r"^static constexpr uint32_t (k(?:ProjectionLeaves(?:Lo|Hi)|SetGeom(?:Offset|Screen))) "
+    r"^inline constexpr uint32_t (k(?:ProjectionLeaves(?:Lo|Hi)|SetGeom(?:Offset|Screen))) "
     r"= (0x[0-9A-Fa-f]+|[0-9]+)u;",
     re.MULTILINE,
 )
@@ -185,12 +185,12 @@ def shipping_state(text: str) -> tuple[dict[str, int], list[str]]:
     bindings = (
         (
             "windowLo",
-            "{kSdkGraphicsWindowLo, ts2::cd::kStockLibcdLayout.libraryWindowLo}",
+            "{kSdkGraphicsWindowLo, cd::kStockLibcdLayout.libraryWindowLo}",
             r"\{[^}\n]+\}",
         ),
         (
             "windowHi",
-            "{kSdkGraphicsWindowHi, ts2::cd::kStockLibcdLayout.libraryWindowHi}",
+            "{kSdkGraphicsWindowHi, cd::kStockLibcdLayout.libraryWindowHi}",
             r"\{[^}\n]+\}",
         ),
         ("setGeomOffset", "kSetGeomOffset", r"[^,}\n]+"),
@@ -201,10 +201,10 @@ def shipping_state(text: str) -> tuple[dict[str, int], list[str]]:
         actual = re.sub(r"\s+", "", match.group(1)) if match else "<absent>"
         wanted = re.sub(r"\s+", "", expected_value)
         if actual != wanted:
-            failures.append(f"GameConfig .{field} ships {actual}, expected {wanted}")
+            failures.append(f"PlatformHlePlan .{field} ships {actual}, expected {wanted}")
     for relation in (
-        "static constexpr uint32_t kSdkGraphicsWindowLo = kProjectionLeavesLo;",
-        "static constexpr uint32_t kSdkGraphicsWindowHi = kVSyncBodyHi;",
+        "inline constexpr uint32_t kSdkGraphicsWindowLo = kProjectionLeavesLo;",
+        "inline constexpr uint32_t kSdkGraphicsWindowHi = kVSyncBodyHi;",
     ):
         if relation not in uncommented:
             failures.append(f"shipping source is missing measured SDK window relation: {relation}")
