@@ -140,10 +140,16 @@ GUEST_FIELD = re.compile(r"(\w+)=(\d+)")
 
 def parse_guest_ledger(reply: str) -> dict[str, int]:
     """The `guest:` line of the control channel as counters; an absent line is a refusal, not zeros."""
+    counters: dict[str, int] | None = None
     for line in reply.splitlines():
         if line.startswith("guest:"):
-            return {name: int(value) for name, value in GUEST_FIELD.findall(line)}
-    raise ValueError("control channel reply carries no 'guest:' line")
+            counters = {name: int(value) for name, value in GUEST_FIELD.findall(line)}
+    if counters is None:
+        raise ValueError("control channel reply carries no 'guest:' line")
+    for line in reply.splitlines():
+        if line.startswith("invalidations_by_source:"):
+            counters.update({f"invalidated_by_{name}": int(value) for name, value in GUEST_FIELD.findall(line)})
+    return counters
 
 
 def poll_ledger(process: subprocess.Popen, port: int, scenario: Scenario) -> tuple[dict[str, int] | None, Scenario]:
@@ -238,6 +244,11 @@ class HeadlessRunTest(unittest.TestCase):
         self.assertEqual(got["faults"], 0)
         with self.assertRaises(ValueError):
             parse_guest_ledger("guest: no core in this frame is not a ledger\nother: 1\n".replace("guest:", "x:"))
+
+    def test_guest_ledger_carries_invalidations_by_source(self):
+        got = parse_guest_ledger("guest: calls=3 invalidations=9\ninvalidations_by_source: cpu=1 dma=8\n")
+        self.assertEqual(got["invalidated_by_dma"], 8)
+        self.assertEqual(got["invalidations"], 9)
 
     def test_taps_parse_and_malformed_ones_are_refused(self):
         self.assertEqual(parse_tap("600:start"), Tap(600, "start", 4))
