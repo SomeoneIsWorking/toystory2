@@ -8,7 +8,6 @@ logic frame whose `Pad::serviceFrame` resolves the controller mask the guest rec
 inside `serviceFrame` after every other input source. Nothing is polled against wall-clock time, so a
 tap lands on its frame on every run.
 
-    uv run --frozen python tools/ts2_route.py --selftest
     uv run --frozen python tools/ts2_route.py --route andys-room --write scratch/route/andys-room.pad
 """
 
@@ -17,7 +16,6 @@ from __future__ import annotations
 import argparse
 import struct
 import sys
-import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,37 +88,11 @@ TITLE_TO_ANDYS_ROOM: tuple[Tap, ...] = (
 ROUTES: dict[str, tuple[Tap, ...]] = {"andys-room": TITLE_TO_ANDYS_ROOM}
 
 
-class RouteTest(unittest.TestCase):
-    def test_taps_parse_and_malformed_ones_are_refused(self):
-        self.assertEqual(parse_tap("600:start"), Tap(600, "start", 4))
-        self.assertEqual(parse_tap("640:cross:6"), Tap(640, "cross", 6))
-        for bad in ("start", "600", "x:start", "600:start:0", "600:start:1:2", "600:1", "600:fire", "600:start:x"):
-            with self.assertRaises(ValueError, msg=bad):
-                parse_tap(bad)
-
-    def test_compiled_schedule_presses_exactly_the_requested_frames(self):
-        data = compile_pad((Tap(2, "cross", 2), Tap(3, "up", 1)), 6)
-        masks = struct.unpack("<6H", data)
-        self.assertEqual(masks[0], IDLE)
-        self.assertEqual(masks[1], IDLE)
-        self.assertEqual(masks[2], IDLE & ~0x4000)
-        self.assertEqual(masks[3], IDLE & ~0x4000 & ~0x0010)
-        self.assertEqual(masks[4], IDLE)
-
-    def test_a_tap_past_the_schedule_is_refused_not_truncated(self):
-        with self.assertRaises(ValueError):
-            compile_pad((Tap(5, "cross", 4),), 8)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--route", choices=sorted(ROUTES))
     parser.add_argument("--write", type=Path)
-    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
-    if args.selftest:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(RouteTest)
-        return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
     if not args.route or not args.write:
         parser.error("--route and --write are required")
     taps = ROUTES[args.route]

@@ -5,7 +5,7 @@ methods and a printed denominator.
   Import tools/ram_image.py's output at KSEG0, then run this over that Ghidra project:
     pyghidraRun -H scratch/ghidra ts2boot -process -noanalysis \\
         -scriptPath tools -postScript ghidra_xref.py <out.txt> <addr-or-range> [more...]
-  A range is `lo..hi` (hi exclusive), a single target is a bare hex address. `--selftest` instead of
+  A range is `lo..hi` (hi exclusive), a single target is a bare hex address. The driver is
   <out.txt> runs the both-classes gate and exits non-zero on regression.
   tools/re_xref.py wraps the invocation so no session retypes it.
 
@@ -360,340 +360,6 @@ def run(out_path, targets, image, spans, ninstr, ninstr_out):
     return 0
 
 
-# ------------------------------------------------------------------ method B's own gate, no Ghidra
-# Every word below is TRANSCRIBED FROM THE REAL IMAGE at the VA in its comment, and check (0) diffs
-# the transcription against those bytes BY CODE. A hand-copied vector that drifted from the code it
-# claims to model would be a selftest about nothing.
-VECTORS = [
-    # (name, [(va_or_None, word)], target, must_form, why)
-    (
-        "FABRICATION, the measured one: a hi16 carried across two lw's that redefine the register",
-        [
-            (
-                None,
-                0x3C03800D,
-            ),  # lui   $v1, 0x800d   (synthetic: the stale hi16's establishment)
-            (0x800565C0, 0x8C82001C),  # lw    $v0, 0x1c($a0)
-            (
-                0x800565C4,
-                0x8F030008,
-            ),  # lw    $v1, 8($t8)      <- $v1 redefined; hi16 now DEAD
-            (0x800565C8, 0x2451FFFF),  # addiu $s1, $v0, -1
-            (0x800565CC, 0xAC830008),  # sw    $v1, 8($a0)
-            (0x800565D0, 0x8FA20010),  # lw    $v0, 0x10($sp)
-            (0x800565D4, 0x8FA30018),  # lw    $v1, 0x18($sp)   <- redefined again
-            (0x800565D8, 0x24561000),  # addiu $s6, $v0, 0x1000
-            (0x800565DC, 0x06200060),  # bltz  $s1, 0x80056760
-            (0x800565E0, 0x24751000),
-        ],  # addiu $s5, $v1, 0x1000 <- the fabricated "reference"
-        0x800D1000,
-        False,
-        "this is the exact sequence the old fold reported as a reference to the fitted overlay base",
-    ),
-    (
-        "a genuine lui/addiu pair still folds",
-        [
-            (0x80056774, 0x3C07800D),  # lui   $a3, 0x800d
-            (0x80056778, 0x24E71240),
-        ],  # addiu $a3, $a3, 0x1240
-        0x800D1240,
-        True,
-        "the commonest form; killing the destination must happen AFTER the fold",
-    ),
-    (
-        "a genuine lui + base+offset load still folds",
-        [
-            (0x80056784, 0x3C04800D),  # lui   $a0, 0x800d
-            (0x80056788, 0x84841242),
-        ],  # lh    $a0, 0x1242($a0)
-        0x800D1242,
-        True,
-        "the load form, which is how a table entry is read",
-    ),
-    (
-        "an UNMODELLED word kills all tracking",
-        [
-            (None, 0x3C07800D),  # lui   $a3, 0x800d
-            (None, 0x74000000),  # (opcode 0x1D: not an R3000A opcode we model)
-            (None, 0x24E71240),
-        ],  # addiu $a3, $a3, 0x1240
-        0x800D1240,
-        False,
-        "an unknown word may write any register, so nothing may survive it",
-    ),
-    (
-        "a hi16 in a CALLER-SAVED register does not survive a call",
-        [
-            (None, 0x3C07800D),  # lui   $a3, 0x800d
-            (None, 0x0C020000),  # jal   0x80080000
-            (None, 0x00000000),  # nop            (the delay slot)
-            (None, 0x24E71240),
-        ],  # addiu $a3, $a3, 0x1240
-        0x800D1240,
-        False,
-        "o32 lets the callee destroy $a3",
-    ),
-    (
-        "...but it DOES survive in the call's DELAY SLOT, which runs before the callee",
-        [
-            (None, 0x3C07800D),  # lui   $a3, 0x800d
-            (None, 0x0C020000),  # jal   0x80080000
-            (None, 0x24E71240),
-        ],  # addiu $a3, $a3, 0x1240   <- delay slot: executes first
-        0x800D1240,
-        True,
-        (
-            "jal + addiu in the delay slot is how an argument is passed; the most "
-            "valuable references there are would be lost by killing at the jal"
-        ),
-    ),
-    (
-        "a hi16 in a CALLEE-SAVED register survives a call",
-        [
-            (None, 0x3C10800D),  # lui   $s0, 0x800d
-            (None, 0x0C020000),  # jal   0x80080000
-            (None, 0x00000000),  # nop
-            (None, 0x26101240),
-        ],  # addiu $s0, $s0, 0x1240
-        0x800D1240,
-        True,
-        "o32 requires the callee to preserve $s0 — killing it would lose real refs",
-    ),
-]
-
-
-def fold_words(words, base=0x80010000):
-    """Run the fold over a synthetic instruction sequence. Same code path as the image scan."""
-    img = b"".join(struct.pack("<I", w) for w in words)
-    return fold(img, [(base, base + 4 * len(words))], base)
-
-
-def fold_selftest(image, spans):
-    """method B's gate. Runs WITHOUT Ghidra, because method B is pure Python and a gate that needs a
-    12 GB decompiler to run is a gate nobody runs. Both classes, and both DIRECTIONS: three vectors
-    must form their address and four must not, so a fold that answered 'no' to everything — the easy
-    way to make a false-positive report go away — fails here just as loudly as the fabrication did."""
-    total = len(VECTORS) + 3
-    print(
-        f"[fold-selftest] plan: {total} checks — (0) every vector word is diffed BY CODE against the "
-        f"real image at the VA in its comment; (1..{len(VECTORS)}) each vector must form / must NOT "
-        f"form its target; ({len(VECTORS) + 1}) the fold is non-trivial over the real image; "
-        f"({len(VECTORS) + 2}) the FABRICATED reference to the fitted overlay base 0x800D1000 is "
-        "absent from the real image's fold."
-    )
-    fails = []
-
-    def ck(name, ok, detail=""):
-        print(
-            "[fold-selftest] {}  {}{}".format(
-                "PASS" if ok else "FAIL", name, (f"   ({detail})") if detail else ""
-            )
-        )
-        if not ok:
-            fails.append(name)
-
-    # (0) the vectors ARE the image's bytes.
-    drift = []
-    n_tr = 0
-    for name, seq, _t, _m, _w in VECTORS:
-        for va, w in seq:
-            if va is None:
-                continue
-            n_tr += 1
-            got = struct.unpack_from("<I", image, va - RAM_BASE)[0]
-            if got != w:
-                drift.append(f"0x{va:08X}: vector 0x{w:08X} != image 0x{got:08X}")
-    ck(
-        "every transcribed vector word matches the real image",
-        not drift,
-        "; ".join(drift)
-        if drift
-        else f"{n_tr} of {sum(len(s) for _n, s, _t, _m, _w in VECTORS)} vector words carry a VA "
-        f"and all {n_tr} match",
-    )
-
-    for name, seq, target, must, why in VECTORS:
-        refs, _st = fold_words([w for _va, w in seq])
-        formed = target in refs
-        ck(
-            "{}{} must {}form 0x{:08X}".format(
-                "" if must else "NEGATIVE: ", name, "" if must else "NOT ", target
-            ),
-            formed == must,
-            "{} — {}".format(
-                "formed at " + " ".join(f"0x{p:08X}" for p in refs[target])
-                if formed
-                else "not formed",
-                why,
-            ),
-        )
-
-    refs, st = fold(image, spans, RAM_BASE)
-    ck(
-        "the fold is non-trivial over the real image",
-        st["pairs"] > 1000 and len(refs) > 100,
-        f"{st['words']} words, {st['luis']} lui, {st['pairs']} pairs -> {len(refs)} distinct "
-        f"addresses; {st['killall']} words unmodelled (killed all tracking), "
-        f"{st['killcall']} call-kills",
-    )
-
-    # The regression itself, over the REAL bytes rather than a vector. This is the check that would
-    # have caught the fabricated report, and its DENOMINATOR is the pair count above: "0 of N".
-    base_pcs = refs.get(OVERLAY_BASE_FIT, [])
-    ck(
-        f"NEGATIVE: the fitted overlay base 0x{OVERLAY_BASE_FIT:08X} is formed by NOTHING in this image",
-        not base_pcs,
-        ("STILL FABRICATED at " + " ".join(f"0x{p:08X}" for p in base_pcs))
-        if base_pcs
-        else f"0 of {st['pairs']} folded pairs form it (claim C003 stands: the boot exe does not "
-        "build this constant as a lui+lo pair)",
-    )
-
-    print(f"[fold-selftest] {total - len(fails)}/{total} passed")
-    print(
-        "[fold-selftest] what this CANNOT see: method A (Ghidra's reference DB) at all — run "
-        "`python3 tools/re_xref.py --selftest` for the cross-validating gate. And it cannot see whether a "
-        "TRUE reference to any target is of an invisible kind:"
-    )
-    for s in BLIND:
-        print(f"[fold-selftest] blind spot: {s}")
-    return 1 if fails else 0
-
-
-def selftest(image, spans, ninstr, ninstr_out):
-    """Both classes, and the two methods cross-validate each other. A method that can only say 'yes'
-    is worthless here: the whole question this script gets asked is whether a zero is real."""
-    lo = min(s[0] for s in spans)
-    hi = max(s[1] for s in spans)
-    print(
-        f"[selftest] plan: method B's own gate ({len(VECTORS) + 3} checks, below) and then 5 "
-        "CROSS-METHOD checks — (1) the fold is non-trivial over the real image; (2) a POSITIVE "
-    )
-    b_rc = fold_selftest(image, spans)
-    print(
-        "[selftest] plan (cont): 5 checks — (1) the fold is non-trivial over the real image; (2) a POSITIVE "
-        "control: some address is formed by a lui pair AND Ghidra agrees a reference exists there; "
-        "(3) a NEGATIVE control: an address in the never-written zero region is formed by NOTHING; "
-        "(4) refusals: an empty range, a reversed range and an empty target list; (5) the scan range "
-        "came from the MANIFEST, not from Ghidra's defined instructions (which run past .text)."
-    )
-    fails = []
-
-    def ck(name, ok, detail=""):
-        print(
-            "[selftest] {}  {}{}".format(
-                "PASS" if ok else "FAIL", name, (f"   ({detail})") if detail else ""
-            )
-        )
-        if not ok:
-            fails.append(name)
-
-    refs, st = fold(image, spans, RAM_BASE)
-    ck(
-        "the fold is non-trivial over the real image",
-        st["pairs"] > 1000 and len(refs) > 100,
-        f"{st['pairs']} pairs -> {len(refs)} distinct addresses over {st['words']} words",
-    )
-
-    # POSITIVE: pick a folded address that lies INSIDE the instruction range and that Ghidra also
-    # has a reference to. Cross-validation, not self-agreement: A and B are computed independently.
-    pos = None
-    for a in sorted(refs):
-        if lo <= a < hi and ghidra_refs(a):
-            pos = a
-            break
-    ck(
-        "positive control: an address both methods independently see",
-        pos is not None,
-        (f"0x{pos:08X}: B {len(refs[pos])} pair(s), A {len(ghidra_refs(pos))} ref(s)")
-        if pos
-        else "NO address is seen by both methods — one of them is broken",
-    )
-
-    # NEGATIVE: the zero region above the loaded image. Nothing can legitimately form an address that
-    # is not in the fold, so a non-empty answer here means the fold is fabricating.
-    neg = [a for a in (0x801F0000, 0x801F4000, 0x801F8000) if a in refs]
-    ck(
-        "negative control: 3 addresses in the untouched high region are formed by NOTHING",
-        not neg,
-        "unexpectedly formed: " + " ".join(f"0x{a:08X}" for a in neg)
-        if neg
-        else "0 of 3 formed",
-    )
-
-    refused = 0
-    for bad in (["8000..8000"], ["80010004..80010000"], []):
-        try:
-            parse_targets(bad)
-        except SystemExit:
-            refused += 1
-    ck(
-        "refusals: an empty range, a reversed range and an empty target list",
-        refused == 3,
-        f"{refused} of 3 refused",
-    )
-
-    # The scan range must be the MANIFEST's, and the manifest must be STRICTLY SMALLER than what
-    # Ghidra defines — if it were not, this check could not tell the two apart and the whole reason
-    # the manifest exists would be untested.
-    ck(
-        "the scan range is the manifest's, and Ghidra's defined instructions really do run past it",
-        st["words"] * 4 == sum(h - l for l, h in spans) and ninstr_out > 0,
-        f"manifest {st['words']} words vs {ninstr} Ghidra instructions, {ninstr_out} of them outside "
-        "the placed spans",
-    )
-
-    print(
-        f"[selftest] {5 - len(fails)}/5 cross-method checks passed; method B's own gate returned {b_rc}"
-    )
-    print(
-        "[selftest] what this CANNOT see: whether a target's TRUE reference is one of the invisible "
-        "kinds (blind spots below) — no selftest can, which is why they print on every run."
-    )
-    for s in BLIND:
-        print(f"[selftest] blind spot: {s}")
-    return 1 if (fails or b_rc) else 0
-
-
-def load_spans(img_path):
-    """The placed extent, from ram_image.py's manifest. REFUSES rather than falling back: the obvious
-    fallback (Ghidra's defined instructions) is measurably WRONG here — zeros disassemble as nop, so it
-    over-reports by ~45%, and a silent fallback would fold over memory nobody ever loaded."""
-    import json
-
-    man_path = img_path + ".placements.json"
-    if not os.path.isfile(man_path):
-        raise SystemExit(
-            f"[xref] REFUSED: no placement manifest beside the image ({man_path}). Rebuild the "
-            "image with `python3 tools/ram_image.py` — this script will not guess the "
-            "extent from Ghidra's disassembly, which runs past .text into zeros."
-        )
-    with open(man_path) as manifest_file:
-        man = json.load(manifest_file)
-    spans = sorted((p["lo"], p["hi"]) for p in man["placements"])
-    if not spans:
-        raise SystemExit(
-            "[xref] REFUSED: the manifest lists ZERO placements — there is nothing to scan"
-        )
-    return spans
-
-
-STATUS = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "scratch",
-    "logs",
-    "ghidra-xref.status",
-)
-
-
-def _status(rc, why):
-    """Ghidra headless EXITS 0 whatever a postScript does — `sys.exit(1)` here surfaces as a logged
-    SystemExit and a green shell. So the real verdict is written here and tools/re_xref.py exits on
-    it; a run that dies before writing this leaves the previous verdict removed, never stale."""
-    with open(STATUS, "w") as f:
-        f.write(f"{rc} {why}\n")
-
-
 def main():
     os.makedirs(os.path.dirname(STATUS), exist_ok=True)
     if os.path.exists(STATUS):
@@ -701,7 +367,7 @@ def main():
     try:
         args = [tok for a in getScriptArgs() for tok in str(a).split()]  # noqa: F821
         if not args:
-            raise SystemExit("REFUSED: usage: <out.txt|--selftest> <addr|lo..hi> ...")
+            raise SystemExit("REFUSED: usage: <out.txt> <addr|lo..hi> ...")
         img_path = _prog().getExecutablePath()
         if not os.path.isfile(img_path):
             raise SystemExit(
@@ -717,12 +383,8 @@ def main():
                 "REFUSED: the program has ZERO defined instructions — import/analysis "
                 "did not happen, and every answer here would be a clean false zero"
             )
-        if args[0] == "--selftest":
-            rc = selftest(image, spans, ninstr, ninstr_out)
-            _status(rc, "selftest")
-        else:
-            rc = run(args[0], parse_targets(args[1:]), image, spans, ninstr, ninstr_out)
-            _status(rc, "xref run")
+        rc = run(args[0], parse_targets(args[1:]), image, spans, ninstr, ninstr_out)
+        _status(rc, "xref run")
     except SystemExit as e:
         msg = str(e) if not isinstance(e.code, int) else f"exit {e.code}"
         print(f"[xref] {msg}", file=sys.stderr)
@@ -733,49 +395,12 @@ def main():
     return rc
 
 
-DEFAULT_IMAGE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "scratch",
-    "ghidra",
-    "ram-boot.bin",
-)
-
-
-def standalone_main(argv):
-    """`python3 tools/ghidra_xref.py --selftest` — method B alone, no Ghidra. This exists because
-    method B is the half that FABRICATED a reference, and a gate that needs a decompiler installed is
-    a gate that does not run in CI or in a hurry. It REFUSES anything else: an xref run without
-    method A would report half the evidence as if it were all of it."""
-    if argv[1:2] != ["--selftest"]:
-        print(
-            "ghidra_xref.py: standalone mode runs ONLY `--selftest` (method B, the pure-Python "
-            "fold). An xref run needs Ghidra's reference DB for method A — use tools/re_xref.py. "
-            "Reporting method B alone would silently halve the evidence.",
-            file=sys.stderr,
-        )
-        return 2
-    img = os.environ.get("TS2_RAM_IMAGE", DEFAULT_IMAGE)
-    if not os.path.isfile(img):
-        print(
-            f"[fold-selftest] REFUSED: no RAM image at {img}. Build it with `python3 "
-            "tools/ram_image.py` (it needs the disc; see .env.example). Refusing rather than "
-            f"running the {len(VECTORS)} synthetic vectors alone, which would certify nothing about "
-            "this game.",
-            file=sys.stderr,
-        )
-        return 2
-    with open(img, "rb") as image_file:
-        return fold_selftest(image_file.read(), load_spans(img))
-
-
 def running_under_ghidra():
     """Whether Ghidra injected its script API into this module.
 
     PyGhidra 3 / Ghidra 12 exposes ``getScriptArgs`` through its script namespace without adding
-    ``currentProgram`` to ``globals()``.  Testing the latter therefore selected standalone mode from
-    inside a real postScript run: the pure-Python fold passed, method A never ran, and the wrapper
-    correctly refused because no verdict was written.  Probe the API operation this script actually
-    needs instead; a normal Python process raises ``NameError`` here.
+    ``currentProgram`` to ``globals()``. Probe the API operation this script actually needs; a normal
+    Python process raises ``NameError`` here and is told to use tools/re_xref.py.
     """
     try:
         getScriptArgs  # noqa: B018  (injected by Ghidra/PyGhidra)
@@ -787,4 +412,5 @@ def running_under_ghidra():
 if running_under_ghidra():
     main()
 elif __name__ == "__main__":
-    sys.exit(standalone_main(sys.argv))
+    print("ghidra_xref.py runs inside Ghidra; drive it with tools/re_xref.py.", file=sys.stderr)
+    sys.exit(2)

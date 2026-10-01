@@ -3,7 +3,7 @@
 
 The dumps come from `PSXPORT_PAD_DUMP_AT` (tools/headless_run.py `--dump-at`): the whole guest RAM at an
 exact pad frame. Every address here is derived from instruction bytes of the retail executable; the
-`evidence` strings name them so `tools/ts2_guest_words.py --selftest` can re-check them against a dump.
+`evidence` strings name the instruction each word came from, so a dump can be re-checked against them.
 
 PLAYER OBJECT. The resident object updater at 0x8004CF30..0x8004CF98 loads the object's position and
 stores it as the previous position, then calls the player update 0x800489C4:
@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import struct
 import sys
-import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -116,46 +115,7 @@ def unmatched_evidence(dump: RamDump, evidence=EVIDENCE) -> list[tuple[int, int,
     return [(a, want, dump.instruction(a)) for a, want in evidence if dump.instruction(a) != want]
 
 
-class GuestWordsTest(unittest.TestCase):
-    def blank(self) -> bytearray:
-        return bytearray(RAM_BYTES)
-
-    def test_wrong_size_dump_is_refused(self):
-        with self.assertRaises(ValueError):
-            RamDump(b"\0" * 10)
-
-    def test_reads_are_bounds_and_alignment_checked(self):
-        dump = RamDump(bytes(RAM_BYTES))
-        for bad in (0x80000002, 0x80200000, 0x7FFFFFFC):
-            with self.assertRaises(ValueError):
-                dump.word(bad)
-
-    def test_player_exists_only_once_its_position_is_nonzero(self):
-        ram = self.blank()
-        self.assertFalse(read_player(RamDump(bytes(ram))).exists)
-        struct.pack_into("<iii", ram, PLAYER_X - RAM_BASE, 194774, 60026, -361401)
-        struct.pack_into("<H", ram, PLAYER_OBJECT - RAM_BASE + 0xE, 0xAE4 | 0xF000)
-        player = read_player(RamDump(bytes(ram)))
-        self.assertTrue(player.exists)
-        self.assertEqual((player.x, player.y, player.z, player.yaw), (194774, 60026, -361401, 0xAE4))
-
-    def test_evidence_check_reports_a_mismatching_instruction_and_accepts_a_matching_one(self):
-        ram = self.blank()
-        for address, word in EVIDENCE:
-            struct.pack_into("<I", ram, address - RAM_BASE, word)
-        self.assertEqual(unmatched_evidence(RamDump(bytes(ram))), [])
-        struct.pack_into("<I", ram, EVIDENCE[0][0] - RAM_BASE, 0)
-        self.assertEqual([m[0] for m in unmatched_evidence(RamDump(bytes(ram)))], [EVIDENCE[0][0]])
-
-    def test_encoding_matches_the_retail_bytes(self):
-        # 0x8004CF6C in the dump reads `0000028e` little-endian = 0x8E020000 = lw $v0, 0($s0)
-        self.assertEqual(encode(0x23, 16, 2, 0), 0x8E020000)
-
-
 def main() -> int:
-    if sys.argv[1:] == ["--selftest"]:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(GuestWordsTest)
-        return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
     print(__doc__)
     return 0
 

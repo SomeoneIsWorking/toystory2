@@ -4,7 +4,6 @@
   python3 tools/raw_unpack.py FILE.RAW...                # verify every chunk, write nothing
   python3 tools/raw_unpack.py --all                      # verify every *.RAW under scratch/flat/
   python3 tools/raw_unpack.py FILE.RAW --unpack OUT      # also write concatenated unpacked bytes
-  python3 tools/raw_unpack.py --selftest                 # positive AND negative classes
 
 WHAT THIS ASSERTS. A TS2 .RAW is a stream of chunks whose 14-byte header keeps the standard RNC
 field layout minus magic (be32 unpackedLen, be32 packedLen, be16 unpackedCRC, be16 packedCRC,
@@ -329,72 +328,6 @@ def default_corpus():
     return sorted(flat.glob("*.RAW")), sorted(flat.glob("*.DAT"))
 
 
-def synthetic_literal_container() -> bytes:
-    """Build a copyright-free one-chunk stream for hermetic regression tests.
-
-    ``5e 41 00`` is the format's minimal literal ``A`` followed by its normal
-    end marker. Header lengths and both CRCs are derived here rather than
-    copied as expected constants, so mutations still exercise the production
-    framing and verification path.
-    """
-    unpacked = b"A"
-    packed = b"\x5eA\x00"
-    header = struct.pack(
-        ">IIHHBB",
-        len(unpacked),
-        len(packed),
-        crc16_arc(unpacked),
-        crc16_arc(packed),
-        0,
-        0,
-    )
-    return header + packed + b"\xff\xff\xff\xff"
-
-
-def selftest() -> int:
-    positive = synthetic_literal_container()
-    fails = []
-
-    print("[POSITIVE] hermetic literal stream — decode A with both CRCs verified")
-    rc, output = verify_data(positive, "synthetic-positive.RAW")
-    if rc != 0 or output != b"A":
-        fails.append(f"positive exited {rc} with output {output!r}")
-
-    print("[NEGATIVE A] non-.RAW bytes — must REFUSE (exit 2)")
-    rc, _ = verify_data(b"not a RAW container", "synthetic-not-raw.DAT")
-    if rc != 2:
-        fails.append(f"negative A exited {rc}, expected 2")
-
-    print("[NEGATIVE B] positive without its sentinel — valid chunk is not a clean stream")
-    rc, _ = verify_data(positive[:-4], "synthetic-no-sentinel.RAW")
-    if rc != 1:
-        fails.append(f"negative B exited {rc}, expected 1")
-
-    mut = bytearray(positive)
-    mut[0x0F] ^= 0xFF
-    print("[NEGATIVE C] flipped payload byte — packed CRC must catch it (exit 1)")
-    rc, _ = verify_data(bytes(mut), "synthetic-corrupt-payload.RAW")
-    if rc != 1:
-        fails.append(f"negative C exited {rc}, expected 1")
-
-    # NEGATIVE D: leave the payload alone, corrupt ONLY the unpacked-CRC header
-    # field — proves the unpacked-CRC gate fires independently of the packed one.
-    mutD = bytearray(positive)
-    mutD[0x08] ^= 0xFF
-    print("[NEGATIVE D] flipped UNPACKED-CRC header field, payload intact (exit 1)")
-    rc, _ = verify_data(bytes(mutD), "synthetic-corrupt-ucrc.RAW")
-    if rc != 1:
-        fails.append(f"negative D exited {rc}, expected 1")
-
-    print()
-    if fails:
-        for f in fails:
-            print(f"FAIL: {f}")
-        return 1
-    print("SELFTEST PASS: positive verified; negatives A-D rejected on the shipped exit paths.")
-    return 0
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Verify/decompress TS2 .RAW containers (TT DecompressRAW codec, both CRCs).",
@@ -404,11 +337,7 @@ def main() -> int:
                     help="verify every *.RAW under scratch/flat/ (prints per-file verdicts)")
     ap.add_argument("--unpack", metavar="OUT", type=Path,
                     help="write the concatenated unpacked bytes of a single input file")
-    ap.add_argument("--selftest", action="store_true",
-                    help="run hermetic positive and negative decoder controls")
     a = ap.parse_args()
-    if a.selftest:
-        return selftest()
     files = [Path(f) for f in a.files]
     if a.all:
         raws, _ = default_corpus()

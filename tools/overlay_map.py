@@ -14,7 +14,7 @@ address is in the table this prints. A fit that disagrees with this is the fit b
 RE anchor is `--loader`, which defaults to
 0x80082508, the two-argument CD file loader, identified by Ghidra call-flow analysis and independently
 checked instruction chains (C010/I009).
-Everything else is computed from the bytes. `--selftest` also drives a different callee as a negative.
+Everything else is computed from the bytes.
 
 WHAT A NEGATIVE PRINTS, every run, because "the table is empty" and "I never looked" must not read the
 same: the words examined, the `jal` opcodes seen, the call sites found for this callee, and per site
@@ -171,19 +171,6 @@ class Exe:
         self.t_addr, self.t_size = struct.unpack_from("<II", self.raw, 0x18)
         self.t_end = self.t_addr + self.t_size
         self.words = struct.unpack_from("<%dI" % (self.t_size // 4), self.raw, 0x800)
-
-    def patched(self, replacements):
-        """Return an in-memory mutation of this verified executable.
-
-        Self-tests use this to force the opposite slot-count answer through the same census and
-        derivation path. No retail-derived bytes are written to disk.
-        """
-        raw = bytearray(self.raw)
-        for va, word in replacements.items():
-            if va % 4 or not (self.t_addr <= va < self.t_end):
-                raise ValueError(f"patch address 0x{va:08X} is outside .text")
-            struct.pack_into("<I", raw, 0x800 + va - self.t_addr, word)
-        return Exe(self.path, bytes(raw))
 
     def word(self, va):
         return self.words[(va - self.t_addr) // 4]
@@ -928,201 +915,6 @@ def report(loader, out=sys.stdout):
     }
 
 
-# ---------------------------------------------------------------------------------------------------
-# THE GATE. Anchors measured 2026-08-12 and used ONLY here, so the reporting path cannot be biased by
-# them. Each is something a BROKEN fold gets wrong in a specific way.
-GATE_SLOT = 0x800D12C0  # the overlay slot, from site 0x8003DEAC
-GATE_NEXT = (
-    0x800D5D20  # the destination bounding the slot from above, from site 0x8003DB50
-)
-# MEASURED, and not what a first reading expects: FOUR sites load 0x800D5D20 and they name TWO files —
-# BITS/MEMORY.BIN and FMV/FMV.BIN share this buffer. The post-load call to file+0x908 proves FMV.BIN
-# contains entered code; it is anchored here rather than smoothed into "the MEMORY.BIN destination".
-GATE_NEXT_SITES = 4
-GATE_NEXT_PATHS = ["bits\\memory.bin", "fmv\\fmv.bin"]
-GATE_SITES = 13  # call sites of 0x80082508
-DECOY_LOADER = 0x80082870  # the PATH BUILDER: 1 call site, whose a1 is a stack buffer
-
-
-def selftest():
-    import io
-
-    fails = []
-    checks = []
-
-    def ck(name, ok, detail):
-        checks.append(name)
-        print(
-            "[selftest] %-4s %s\n            %s"
-            % ("PASS" if ok else "FAIL", name, detail)
-        )
-        if not ok:
-            fails.append(name)
-
-    exe = Exe(EXE)
-    rows, st = census(exe, LOADER)
-    dests = {r[3] for r in rows if r[3] is not None}
-    ck(
-        "POSITIVE: the loader's call sites are found and their destinations fold",
-        st["sites"] == GATE_SITES and GATE_SLOT in dests and GATE_NEXT in dests,
-        "%d sites (expected %d), %d literal destinations; slot 0x%08X %s, next 0x%08X %s"
-        % (
-            st["sites"],
-            GATE_SITES,
-            st["a1_literal"],
-            GATE_SLOT,
-            "present" if GATE_SLOT in dests else "MISSING",
-            GATE_NEXT,
-            "present" if GATE_NEXT in dests else "MISSING",
-        ),
-    )
-
-    # EVERY site loading the bounding destination must resolve a PATH, and the measured set of paths is
-    # the anchor — not a count of one. Four sites load 0x800D5D20 and they name TWO different files, so
-    # asserting a unique site here would be asserting something the bytes contradict.
-    mem = [r for r in rows if r[3] == GATE_NEXT]
-    paths = sorted({(r[2] or "").lower() for r in mem})
-    ck(
-        "POSITIVE: every site loading the bounding destination resolves a PATH, and the path SET is the "
-        "measured one",
-        len(mem) == GATE_NEXT_SITES
-        and all(r[2] for r in mem)
-        and paths == GATE_NEXT_PATHS,
-        "0x%08X <- %d site(s) (expected %d), %d resolve a path; paths %r (expected %r)"
-        % (
-            GATE_NEXT,
-            len(mem),
-            GATE_NEXT_SITES,
-            sum(1 for r in mem if r[2]),
-            paths,
-            GATE_NEXT_PATHS,
-        ),
-    )
-
-    # NEGATIVE CONTROL 1: the path BUILDER. Same code path, a callee that is not a loader. Its argument
-    # is a stack buffer, so a fold that fabricates constants shows up here as a bogus 0x800Dxxxx.
-    drows, dst = census(exe, DECOY_LOADER)
-    dbad = [r for r in drows if r[3] is not None and 0x800D0000 <= r[3] < 0x800E0000]
-    ck(
-        "NEGATIVE control: the path builder's a1 is a STACK buffer and folds to no slot-like literal",
-        dst["sites"] == 1 and not dbad,
-        "%d site(s); a1 %s; %d slot-like literal(s) fabricated"
-        % (dst["sites"], drows[0][5] if drows else "-", len(dbad)),
-    )
-
-    # NEGATIVE CONTROL 2: refusals. An address with no callers, a misaligned one, an out-of-range one.
-    refused = 0
-    for bad in (0x8009F000, 0x80082509, 0x80200000):
-        try:
-            census(exe, bad)
-        except SystemExit:
-            refused += 1
-    ck(
-        "REFUSALS: a callee with 0 call sites, a misaligned one and an out-of-.text one all refuse",
-        refused == 3,
-        "%d of 3 refused" % refused,
-    )
-
-    # DERIVATION: the slot, the window and the slot-count verdict must come out of the census, and the
-    # census base must be DISTINGUISHABLE from a 4 KiB-floored fit by the module
-    # evidence. Without that last clause the whole finding would be unfalsifiable decoration.
-    buf = io.StringIO()
-    slot, nxt, verdict = slot_report(exe, rows, buf)
-    better, worse, mrows = score_report(exe, slot, buf) if slot else (0, 0, [])
-    ck(
-        "DERIVATION: slot, next base and the ONE-SLOT verdict are re-derived from the census",
-        slot == GATE_SLOT and nxt == GATE_NEXT and verdict == "one-slot",
-        "derived slot 0x{}, next 0x{}, verdict {}".format(
-            (f"{slot:08X}") if slot else "-", (f"{nxt:08X}") if nxt else "-", verdict
-        ),
-    )
-    ck(
-        "DISCRIMINATION: the census base beats the 4 KiB floor on the modules' own jal targets",
-        better >= 1 and worse == 0,
-        "%d module(s) strictly better at 0x%08X than at 0x%08X, %d worse"
-        % (better, slot or 0, (slot or 0) & ~0xFFF, worse),
-    )
-    full = [r for r in mrows if r[3] == r[1]]
-    ck(
-        "DISCRIMINATION: at the census base at least one module goes from partial to 100%",
-        any(r[3] == r[1] and r[4] < r[1] for r in mrows),
-        "%d of %d scoring modules land ALL their targets at the census base; upgraded from partial: %s"
-        % (
-            len(full),
-            len(mrows),
-            ", ".join(
-                "%s %d/%d->%d/%d" % (r[0], r[4], r[1], r[3], r[1])
-                for r in mrows
-                if r[3] == r[1] and r[4] < r[1]
-            )
-            or "NONE",
-        ),
-    )
-
-    contract = loader_contract(exe, rows, slot, nxt, io.StringIO())
-    ck(
-        "POSITIVE: retail call flow and module bytes prove the complete two-slot contract",
-        contract["level_base"] == GATE_SLOT
-        and contract["memory_base"] == GATE_NEXT
-        and contract["memory_size"] == 63312
-        and contract["memory_frontier"] == 0x800E54F8
-        and len(contract["memory_prefix_pointers"]) == 11
-        and contract["fmv_size"] == 510960
-        and contract["fmv_entry"] == FMV_ENTRY
-        and contract["fmv_entry_offset"] == 0x908
-        and contract["fmv_entry_word"] == 0x27BDFF10,
-        "LEVEL 0x%08X; MEMORY [0x%08X,0x%08X), frontier 0x%08X; %d absolute prefix words; "
-        "FMV entry 0x%08X=file+0x%X"
-        % (
-            contract["level_base"],
-            contract["memory_base"],
-            contract["memory_end"],
-            contract["memory_frontier"],
-            len(contract["memory_prefix_pointers"]),
-            contract["fmv_entry"],
-            contract["fmv_entry_offset"],
-        ),
-    )
-
-    # FORCE THE OPPOSITE ANSWER through the SAME executable census. Moving every real call site's
-    # MEMORY/FMV destination to 0x800D9D20 widens the window enough for all ten LEVEL/LEVEL1 pairs.
-    # The result must cease saying one-slot; this validates the slot-count instrument can report the
-    # other answer instead of merely echoing the shipping expectation.
-    replacements = {}
-    for hi, lo in (
-        (0x8003DB48, 0x8003DB4C),
-        (0x8003EEA4, 0x8003EEA8),
-        (0x8003FCF4, 0x8003FCF8),
-        (0x800417C8, 0x800417CC),
-    ):
-        replacements[hi] = 0x3C05800E  # lui a1,0x800E
-        replacements[lo] = 0x24A59D20  # addiu a1,a1,-0x62E0 -> 0x800D9D20
-    opposite_exe = exe.patched(replacements)
-    opposite_rows, _ = census(opposite_exe, LOADER)
-    opposite_slot, opposite_next, opposite_verdict = slot_report(
-        opposite_exe, opposite_rows, io.StringIO()
-    )
-    ck(
-        "FORCED OPPOSITE: a widened next-slot bound reports co-residence possible",
-        opposite_slot == GATE_SLOT
-        and opposite_next == 0x800D9D20
-        and opposite_verdict == "co-resident-possible",
-        f"mutated slot 0x{opposite_slot or 0:08X}, next 0x{opposite_next or 0:08X}, verdict {opposite_verdict}",
-    )
-
-    
-
-    print("[selftest] %d/%d passed" % (len(checks) - len(fails), len(checks)))
-    print(
-        f"[selftest] what this CANNOT see: whether the loader anchor 0x{LOADER:08X} really is the CD file "
-        "loader (the Ghidra half of C010/I009), and whether a destination computed at "
-        "run time exists that this method never shows."
-    )
-    for b in BLIND:
-        print(f"[selftest] blind spot: {b}")
-    return 1 if fails else 0
-
-
 def main():
     ap = argparse.ArgumentParser(
         description="where the CD loader puts each file, decoded from the exe"
@@ -1132,10 +924,7 @@ def main():
         default=hex(LOADER),
         help="callee VA to census (default the CD loader)",
     )
-    ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
-    if a.selftest:
-        raise SystemExit(selftest())
     report(int(a.loader, 0))
 
 

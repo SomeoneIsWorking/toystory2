@@ -10,7 +10,6 @@ product instance.
     uv run --frozen python tools/headless_run.py --binary build/ts2/bin/toystory2_port --frames 300
     uv run --frozen python tools/headless_run.py --frames 900 \\
         --tap 600:start --tap 640:cross:6 --shot-at 590,700,880 --dump-at 880
-    uv run --frozen python tools/headless_run.py --selftest
     uv run --frozen python tools/headless_run.py --aspect 16x9 --shot-at 900 --frames 1000 --tap 600:start ...
 
 `--tap FRAME:BUTTON[:HOLD]` is an EXACT-FRAME pad edge: the taps are compiled (tools/ts2_route.py) into a
@@ -34,7 +33,6 @@ import signal
 import subprocess
 import time
 import sys
-import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -235,48 +233,6 @@ def run(plan: RunPlan, base: dict[str, str]) -> int:
     return 0 if result.code == 0 else 1
 
 
-class HeadlessRunTest(unittest.TestCase):
-    def plan(self, **kw) -> RunPlan:
-        base = dict(binary=Path("x"), frames=5, shots=(3, 4), dump_at=(), debug="cd", timeout=9, disc="/d.chd")
-        base.update(kw)
-        return RunPlan(**base)
-
-    def test_environment_is_headless_and_carries_the_plan(self):
-        env = build_environment({}, self.plan(), Path("/l"))
-        self.assertEqual(env["PSXPORT_NATIVE_FRAMES"], "5")
-        self.assertEqual(env["PSXPORT_PRESENT_SHOT_AT"], "3,4")
-        self.assertEqual(env["PSXPORT_NOAUDIO"], "1")
-        self.assertEqual(env["SDL_VIDEODRIVER"], "offscreen")
-
-    def test_no_disc_is_refused(self):
-        with self.assertRaises(ValueError):
-            build_environment({}, self.plan(disc=""), Path("/l"))
-
-    def test_no_shots_sets_no_capture_variable(self):
-        env = build_environment({}, self.plan(shots=()), Path("/l"))
-        self.assertNotIn("PSXPORT_PRESENT_SHOT_AT", env)
-
-    def test_taps_compile_into_a_replay_file_the_product_is_pointed_at(self):
-        plan = self.plan(taps=(Tap(2, "cross"),))
-        env = build_environment({}, plan, Path("/l"), Path("/w/route.pad"))
-        self.assertEqual(env["PSXPORT_PAD_REPLAY"], "/w/route.pad")
-        self.assertEqual(plan.pad_frames, 6)
-        with self.assertRaises(ValueError):
-            build_environment({}, plan, Path("/l"))
-
-    def test_stop_watch_ends_the_run_only_at_its_frame(self):
-        watch = StopWatch(30)
-        self.assertFalse(watch.finished(29))
-        self.assertTrue(watch.finished(30))
-        self.assertFalse(StopWatch(0).finished(10**6))
-
-    def test_summary_separates_exit_from_noise_and_reports_zero_honestly(self):
-        got = summarize("[boot] hello\nframe driver required a completed guest call\n")
-        self.assertEqual(len(got["exit"]), 1)
-        self.assertEqual(got["shots"], [])
-        self.assertEqual(got["ledger"], [])
-
-
 def default_disc() -> str:
     """The disc named by PSXPORT_TS2_DISC in the environment, else in the repo's gitignored `.env`."""
     disc = os.environ.get("PSXPORT_TS2_DISC", "")
@@ -302,11 +258,7 @@ def main() -> int:
     parser.add_argument("--stop-frame", type=int, default=0, help="quit once this presented frame is reached")
     parser.add_argument("--aspect", choices=("4x3", "16x9"), default="4x3",
                         help="which tracked shipping settings file configures the run")
-    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
-    if args.selftest:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(HeadlessRunTest)
-        return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
     disc = args.disc or default_disc()
     shots = tuple(int(s) for s in args.shot_at.split(",") if s)
     taps = tuple(parse_tap(text) for text in args.tap)

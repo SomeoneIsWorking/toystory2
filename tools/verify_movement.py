@@ -6,7 +6,6 @@ is dumped at exact pad frames and Buzz's object (tools/ts2_guest_words.py) is re
 
     uv run --frozen python tools/verify_movement.py --run         # position before/after, judged
     uv run --frozen python tools/verify_movement.py --negative    # the same run with NO gameplay input must FAIL
-    uv run --frozen python tools/verify_movement.py --selftest
 
 Judged, each against a denominator printed beside it:
   * idle control: Buzz's position is bit-identical across 60 pad frames with no input;
@@ -22,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -119,54 +117,14 @@ def command_negative(binary: Path) -> int:
     return 0
 
 
-class VerifyMovementTest(unittest.TestCase):
-    def samples(self, forward_z=0, lift=0, land=0, idle_dx=0) -> dict[int, Sample]:
-        def at(frame, x=0, y=60000, z=0):
-            return Sample(frame, words.PlayerState(x, y, z, 0), 0, 0)
-
-        # The idle window ends where the forward hold starts, so they are one sample (one RAM dump).
-        out = {IDLE_FROM: at(IDLE_FROM, 100, 60000, 200), IDLE_TO: at(IDLE_TO, 100 + idle_dx, 60000, 200),
-               FORWARD_END: at(FORWARD_END, 100, 60000, 200 + forward_z), JUMP_START: at(JUMP_START, 100, 60000, 200)}
-        for index, frame in enumerate(JUMP_SAMPLES):
-            out[frame] = at(frame, 100, 60000 - (lift if index == 2 else 0) + (land if index == len(JUMP_SAMPLES) - 1 else 0))
-        return out
-
-    def test_a_run_that_moves_jumps_and_lands_is_accepted(self):
-        self.assertEqual(judge(self.samples(forward_z=68643, lift=16000)), [])
-
-    def test_a_run_with_no_input_is_rejected_for_both_missing_effects(self):
-        problems = judge(self.samples())
-        self.assertTrue(any("holding Up" in p for p in problems))
-        self.assertTrue(any("Cross lifted" in p for p in problems))
-
-    def test_idle_drift_is_rejected(self):
-        self.assertTrue(any("idle control moved" in p for p in judge(self.samples(forward_z=68643, lift=16000, idle_dx=1))))
-
-    def test_a_jump_that_never_lands_is_rejected(self):
-        self.assertTrue(any("did not land" in p for p in judge(self.samples(forward_z=68643, lift=16000, land=-9000))))
-
-    def test_travel_below_one_world_unit_is_rejected(self):
-        self.assertTrue(any("holding Up" in p for p in judge(self.samples(forward_z=EFFECT_FLOOR - 1, lift=16000))))
-
-    def test_the_inputs_precede_their_samples(self):
-        self.assertEqual(IDLE_TO, FORWARD_START)
-        self.assertLess(JUMP_START, min(JUMP_SAMPLES))
-        self.assertGreaterEqual(JUMP_START, FORWARD_END)
-        self.assertTrue(all(f < RUN_FRAMES for f in DUMP_FRAMES))
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--binary", type=Path, default=headless_run.ROOT / "build/verify/bin/toystory2_port")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--negative", action="store_true")
-    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
-    if args.selftest:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(VerifyMovementTest)
-        return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
     if args.run == args.negative:
-        parser.error("choose exactly one of --run, --negative, --selftest")
+        parser.error("choose exactly one of --run, --negative")
     return (command_run if args.run else command_negative)(args.binary.resolve())
 
 

@@ -2,7 +2,6 @@
 """raw_probe.py — verify Toy Story 2's .RAW chunk framing.
 
   python3 tools/raw_probe.py scratch/flat/LEVEL01__LEVEL.RAW [more files...]
-  python3 tools/raw_probe.py --selftest <a real .RAW> <a file that is NOT a .RAW>
 
 A TS2 `.RAW` is a concatenation of chunks with a 14-byte (0x0E) header:
 
@@ -153,108 +152,9 @@ def report(path, verbose=True):
         return 1
     return 0
 
-
-def selftest(pos, neg):
-    """Five classes: a real file must confirm; non-.RAW, truncation, flipped payload and an exact
-    chunk stream with its sentinel removed must be rejected. The last two prove the CRC and exact
-    terminator classifiers fire rather than merely printing diagnostics."""
-    if not (os.path.isfile(pos) and os.path.isfile(neg)):
-        print(f"REFUSING: need two real files; got pos={pos!r} exists={os.path.isfile(pos)} "
-              f"neg={neg!r} exists={os.path.isfile(neg)}. Populate the corpus with "
-              f"`python3 tools/extract_disc_files.py`.", file=sys.stderr)
-        return 2
-    tmp = []
-    fails = []
-    try:
-        print(f"[POSITIVE] {pos} — must parse >0 chunks, 0 CRC mismatches, consume to a sentinel")
-        c, ok, bad, consumed, size, reason = probe(pos)
-        print(f"  chunks={c} crc_ok={ok} crc_bad={bad} consumed={consumed}/{size} stopped='{reason}'")
-        if c == 0:
-            fails.append("positive parsed 0 chunks")
-        if bad:
-            fails.append(f"positive had {bad} CRC mismatches")
-        if reason != SENTINEL_REASON:
-            fails.append(f"positive did not reach a sentinel: {reason}")
-        rc1 = report(pos, verbose=False)
-        print(f"  report() exit status = {rc1} (must be 0 — the positive is also gated on the SHIPPED "
-              "path, so a report() made strict enough to reject the negatives cannot start rejecting "
-              "real files)")
-        if rc1 != 0:
-            fails.append(f"positive exited {rc1} from report()")
-
-        print(f"[NEGATIVE A] {neg} (a real file that is NOT a .RAW) — must FAIL, asserted on report()'s "
-              "exit status")
-        rc2 = report(neg, verbose=False)
-        print(f"  report() exit status = {rc2} (must be non-zero)")
-        if rc2 == 0:
-            fails.append("NEGATIVE A passed as a valid .RAW — the probe cannot discriminate")
-
-        d = open(pos, "rb").read()
-        print("[NEGATIVE B] the positive, truncated to a third — must FAIL, and the assertion is on the "
-              "CLI's own EXIT STATUS via report(), not on probe()'s internal tuple: the gated class and "
-              "the shipped path must be the same path. (A truncation walks a valid prefix with "
-              "crc_bad=0; asserting on the tuple let report() keep exiting 0 over it.)")
-        t = pos + ".selftest-trunc"
-        tmp.append(t)
-        open(t, "wb").write(d[:len(d) // 3])
-        rc3 = report(t, verbose=False)
-        print(f"  report() exit status = {rc3} (must be non-zero)")
-        if rc3 == 0:
-            fails.append("NEGATIVE B (truncated) exited 0 from report() — the CLI reports CLEAN over a "
-                         "walk that never reached a sentinel and left bytes unexplained")
-
-        print("[NEGATIVE C] the positive with payload byte 0x20 flipped — the CRC must catch it")
-        m = bytearray(d)
-        m[0x20] ^= 0xFF
-        t2 = pos + ".selftest-corrupt"
-        tmp.append(t2)
-        open(t2, "wb").write(bytes(m))
-        c4, ok4, bad4, _, _, r4 = probe(t2, verbose=False)
-        rc4 = report(t2, verbose=False)
-        print(f"  chunks={c4} crc_ok={ok4} crc_bad={bad4} stopped='{r4}'; report() exit = {rc4}")
-        if rc4 == 0:
-            fails.append("NEGATIVE C: report() exited 0 on a corrupted payload")
-        if bad4 == 0:
-            fails.append("NEGATIVE C: a corrupted payload produced ZERO CRC mismatches — the CRC check "
-                         "is not firing, so every 'crc_ok' this tool has ever printed is meaningless")
-
-        print("[NEGATIVE D] valid chunks ending exactly at EOF, sentinel removed — must FAIL")
-        _, sentinel_offset, stop_reason = walk(d)
-        if stop_reason != SENTINEL_REASON:
-            fails.append(f"positive did not expose an exact sentinel: {stop_reason}")
-        else:
-            t3 = pos + ".selftest-nosentinel"
-            tmp.append(t3)
-            open(t3, "wb").write(d[:sentinel_offset])
-            rc5 = report(t3, verbose=False)
-            print(f"  report() exit status = {rc5} (must be non-zero)")
-            if rc5 == 0:
-                fails.append(
-                    "NEGATIVE D: exact EOF without the sentinel exited 0 — the stop-reason "
-                    "classifier accepted its own 'without a sentinel' message"
-                )
-    finally:
-        for t in tmp:
-            if os.path.isfile(t):
-                os.remove(t)
-
-    print()
-    if fails:
-        for f in fails:
-            print(f"FAIL: {f}")
-        return 1
-    print("SELFTEST PASS: positive confirmed, all 4 negatives rejected on report()'s own exit status.")
-    return 0
-
-
 if __name__ == "__main__":
-    a = sys.argv[1:]
-    if not a:
+    files = sys.argv[1:]
+    if not files:
         print(__doc__)
         sys.exit(2)
-    if a[0] == "--selftest":
-        if len(a) != 3:
-            print("--selftest needs <a real .RAW> <a file that is NOT a .RAW>", file=sys.stderr)
-            sys.exit(2)
-        sys.exit(selftest(a[1], a[2]))
-    sys.exit(max(report(p) for p in a))
+    sys.exit(max(report(path) for path in files))

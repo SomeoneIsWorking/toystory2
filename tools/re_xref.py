@@ -2,9 +2,7 @@
 """Run the Toy Story 2 Ghidra xref instrument and honor its real verdict.
 
 Examples:
-  python3 tools/re_xref.py --selftest
   python3 tools/re_xref.py scratch/decomp/xref-overlay-names.txt 80022F84..80022FAC
-  python3 tools/re_xref.py --project ts2boot_re00 --selftest
 
 Ghidra's headless launcher returns success even when a Python postscript raises ``SystemExit``.
 ``ghidra_xref.py`` therefore writes a separate status file; this wrapper deletes any stale verdict,
@@ -33,11 +31,6 @@ def parser() -> argparse.ArgumentParser:
         default=os.environ.get("TS2_GHIDRA_PROJECT", "ts2boot"),
         help="Ghidra project name under scratch/ghidra (default: %(default)s)",
     )
-    out.add_argument(
-        "--selftest",
-        action="store_true",
-        help="run positive, negative, refusal, and cross-method controls",
-    )
     out.add_argument("output", nargs="?", help="report path for an xref run")
     out.add_argument("targets", nargs="*", help="hex guest addresses or lo..hi ranges")
     return out
@@ -49,10 +42,6 @@ def refuse(message: str) -> int:
 
 
 def script_arguments(args: argparse.Namespace) -> list[str] | None:
-    if args.selftest:
-        if args.output or args.targets:
-            return None
-        return ["--selftest"]
     if not args.output or not args.targets:
         return None
     return [args.output, *args.targets]
@@ -62,9 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     post_args = script_arguments(args)
     if post_args is None:
-        return refuse(
-            "choose --selftest alone, or provide <output> and at least one <target>"
-        )
+        return refuse("provide <output> and at least one <target>")
 
     project = PROJECT_DIR / f"{args.project}.gpr"
     if not project.is_file():

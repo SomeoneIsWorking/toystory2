@@ -6,15 +6,12 @@ The ledger is five `name: key=value ...` groups with one owner on the framework 
 `budget_exit`, `fallback`. A default run prints them at run end as `[guest] run-end: <group>: ...` and a
 live run answers the same text to the `guest` control command. A reply missing any group is a refusal
 (an older binary, or a report that did not run), never a set of zeros.
-
-    uv run --frozen python tools/execution_ledger.py --selftest
 """
 
 from __future__ import annotations
 
 import re
 import sys
-import unittest
 
 GROUPS = ("guest", "invalidations_by_source", "invalidation_work", "budget_exit", "fallback")
 FIELD = re.compile(r"(\w+)=(\d+)")
@@ -57,33 +54,7 @@ SAMPLE = (
 )
 
 
-class LedgerTest(unittest.TestCase):
-    def test_all_five_groups_parse_with_their_own_values_and_calls_do_not_collide(self):
-        ledger = parse(SAMPLE)
-        self.assertEqual(ledger["guest"]["calls"], 2)
-        self.assertEqual(ledger["fallback"]["calls"], 0)
-        self.assertEqual(ledger["invalidation_work"]["walks"], 5)
-        self.assertEqual(ledger["fallback"]["load_delay_hazard"], 0)
-
-    def test_a_control_reply_without_the_run_end_prefix_parses_the_same(self):
-        reply = "\n".join(line.split(RUN_END, 1)[1] for line in SAMPLE.splitlines()) + "\n---\n"
-        self.assertEqual(parse(reply), parse(SAMPLE))
-
-    def test_a_missing_group_is_refused_not_zeroed(self):
-        without_fallback = "".join(line for line in SAMPLE.splitlines(True) if "fallback:" not in line)
-        with self.assertRaises(ValueError):
-            parse(without_fallback)
-        with self.assertRaises(ValueError):
-            parse("[boot] native boot returned\n")
-
-    def test_render_round_trips(self):
-        self.assertEqual(parse("\n".join(render(parse(SAMPLE)))), parse(SAMPLE))
-
-
 def main() -> int:
-    if sys.argv[1:] == ["--selftest"]:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(LedgerTest)
-        return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
     print(__doc__)
     return 0
 

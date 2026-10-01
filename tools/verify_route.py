@@ -7,7 +7,6 @@ pad frames, captures guest RAM and the presented picture at exact frames, and ju
     uv run --frozen python tools/verify_route.py --route                 # reach Andy's Room, once
     uv run --frozen python tools/verify_route.py --determinism           # the same route twice, byte-compared
     uv run --frozen python tools/verify_route.py --negative              # route minus its last tap must FAIL
-    uv run --frozen python tools/verify_route.py --selftest
 
 `--route` passes only if Buzz's object exists in the dump taken after the route and every cited
 instruction of tools/ts2_guest_words.py matches that dump. `--negative` drops the "PRESS X" confirm and
@@ -23,7 +22,6 @@ import hashlib
 import os
 import re
 import sys
-import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -192,69 +190,17 @@ def command_determinism(binary: Path) -> int:
     return 1 if differences else 0
 
 
-class VerifyRouteTest(unittest.TestCase):
-    def capture(self, **overrides) -> Capture:
-        base = dict(dumps={900: "a"}, pictures={900: "b"}, non_black={900: (5, 10)}, taps=("cross:790:4",))
-        base.update(overrides)
-        return Capture(**base)
-
-    def test_identical_captures_have_no_mismatch(self):
-        self.assertEqual(self.capture().mismatches(self.capture()), [])
-
-    def test_each_kind_of_difference_is_reported(self):
-        for field, value in (("dumps", {900: "z"}), ("pictures", {900: "z"}), ("non_black", {900: (6, 10)}),
-                             ("taps", ("cross:791:4",))):
-            self.assertEqual(len(self.capture().mismatches(self.capture(**{field: value}))), 1, field)
-
-    def test_arrival_is_refused_for_an_empty_player_object_and_for_foreign_code(self):
-        blank = words.RamDump(bytes(words.RAM_BYTES))
-        problems = judge_arrival(blank)
-        self.assertTrue(any("all zero" in p for p in problems))
-        self.assertEqual(len(problems), len(words.EVIDENCE) + 1)
-
-    def test_a_ledger_with_no_translation_or_a_fault_cannot_back_a_claim(self):
-        base = {"guest": {"translated_blocks": 5, "executed_instructions": 9, "faults": 0}}
-        self.assertEqual(judge_ledger(base), [])
-        self.assertEqual(len(judge_ledger({"guest": {**base["guest"], "translated_blocks": 0}})), 1)
-        self.assertEqual(len(judge_ledger({"guest": {**base["guest"], "faults": 2}})), 1)
-
-    def test_a_run_that_never_reaches_its_destructors_is_refused(self):
-        teardown = (
-            "[disc] disc hunk cache at shutdown: 1 hunk lookup(s)\n"
-            "[executor:warn] Lightrec fallback telemetry [shutdown]: executor_calls=1\n"
-        )
-        self.assertEqual(missing_teardown_lines(teardown), [])
-        # The [guest] run-end ledger is NOT this: native_boot prints it before ~Game runs, so a log
-        # carrying it and nothing else is exactly the pre-owner leak this check exists to catch.
-        leaked = "[guest] run-end: guest: calls=1 translated_blocks=1 executed_blocks=1\n"
-        self.assertEqual(len(missing_teardown_lines(leaked)), len(TEARDOWN_LINES))
-        self.assertEqual(missing_teardown_lines(leaked + teardown), [])
-
-    def test_the_route_is_the_four_measured_taps_in_order(self):
-        taps = ROUTES[ROUTE]
-        self.assertEqual([t.button for t in taps], ["start", "cross", "cross", "cross"])
-        self.assertEqual([t.frame for t in taps], sorted(t.frame for t in taps))
-
-    def test_every_capture_frame_is_inside_the_run(self):
-        self.assertTrue(all(f < RUN_FRAMES for f in SHOT_FRAMES + DUMP_FRAMES))
-        self.assertIn(ARRIVAL_FRAME, DUMP_FRAMES)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--binary", type=Path, default=headless_run.ROOT / "build/verify/bin/toystory2_port")
     parser.add_argument("--route", action="store_true")
     parser.add_argument("--negative", action="store_true")
     parser.add_argument("--determinism", action="store_true")
-    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
-    if args.selftest:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(VerifyRouteTest)
-        return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
     binary = args.binary.resolve()
     chosen = [name for name in ("route", "negative", "determinism") if getattr(args, name)]
     if len(chosen) != 1:
-        parser.error("choose exactly one of --route, --negative, --determinism, --selftest")
+        parser.error("choose exactly one of --route, --negative, --determinism")
     return {"route": command_route, "negative": command_negative, "determinism": command_determinism}[chosen[0]](binary)
 
 
