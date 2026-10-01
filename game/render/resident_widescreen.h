@@ -29,6 +29,10 @@ namespace ts2 {
 //      literal console frame (0, 0x200, 0, 0xf0) and then recurses through the object tree, passing
 //      each parent's box as the child's window. Its flag is read only by the renderer's two
 //      mesh-submission passes, so widening it draws more and decides nothing.
+//   4. The screen rectangle the mesh submitter PUBLISHES at 0x80010000, which is where the widened
+//      frame actually takes effect: the leaf above clamps each stored box to the console frame
+//      (0x200 at 0x800280D4) before the submitter reads it, so the leaf's rectangle alone cannot
+//      keep a margin object submitted. Measured, both directions.
 //
 // Every method is inert unless the 16:9 plan is active, so the 4:3 leg is a no-op.
 struct ResidentFrameCanvas {
@@ -53,9 +57,10 @@ struct ResidentFrameCanvas {
 // can still take effect is the guest's own publication of the canvas, in the linked libgpu leaf.
 class ResidentWidescreenProjection {
 public:
-  // Install the guest-side seam on the linked libgpu PutDrawEnv leaf, which is where the guest
+  // Install the guest-side seams: the linked libgpu PutDrawEnv leaf, which is where the guest
   // publishes the clip, the clip extent and the drawing offset of the canvas it is about to draw
-  // into, read from a DRAWENV structure it owns.
+  // into, and the screen-rect publisher, which is where the guest states the rectangle its mesh
+  // submitter draws against.
   void install(Core &core);
 
   // Follow the guest's own display mode, once per field. The widening's denominator is the width the
@@ -78,6 +83,14 @@ public:
   // reason: the rectangle is a register argument at the call site, and the cull is what decides
   // whether an object's mesh is submitted at all.
   void widenCullRect(Core &core) const;
+
+  // The horizontal extent of the screen rectangle the guest is about to PUBLISH for the object it
+  // is submitting, widened to this canvas. This is the seam the widened frame has to cross: the
+  // visibility leaf clamps each object's stored screen box to the console frame before the mesh
+  // submitter publishes it, so the leaf's own rectangle cannot keep a margin object alive and this
+  // publisher is where the window is actually stated. See the measured note at
+  // kScreenRectPublisherLeaf.
+  void widenScreenRect(Core &core) const;
 
   // The left edge, in the guest's own screen space, that the widened cull must reach: the console
   // frame's left edge minus the framework's horizontal margin. The guest's projection centre moves

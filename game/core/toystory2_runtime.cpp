@@ -2,6 +2,7 @@
 
 #include "boot/guest_main_boot.h"
 #include "boot/native_sync_overrides.h"
+#include "cd/file_transfer.h"
 #include "core.h"
 #include "game.h"
 #include "guest_facts.h"
@@ -71,6 +72,7 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   // registers a host turn and no host path dispatches guest VBlank 0x80039D60.
   installNativeSyncOverrides(game.core);
   installOverlayLoadObserver(game.core);
+  cd::installFileTransferOverride(game.core);
   installNativePadOverrides(game.core);
   installResidentSceneObservationOverrides(game.core);
   context(game.core).widescreen.install(game.core);

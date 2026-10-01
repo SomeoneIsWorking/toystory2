@@ -62,6 +62,24 @@ constexpr std::uint32_t kPutDrawEnvLeaf = 0x80086BD0u;
 // this window decides what is DRAWN, not what HAPPENS, and widening it is a rendering change only.
 constexpr std::uint32_t kObjectCullLeaf = 0x80027AF0u;
 
+// THE GUEST'S SCREEN-RECT PUBLISHER, DECOMPILED WHOLE (Ghidra, exact bytes, 10 instructions at
+// 0x80010000): `SetScreenRect(left, right, top, bottom)` shifts each of $a0..$a3 left by 16 and
+// stores it at 0x1F800060/0x64/0x68/0x6C. Its reader is the twin at 0x8001002C. Four call sites
+// publish into it (Ghidra xrefs): the renderer 0x8002A070 twice, the mesh submitter 0x8002622C
+// (0x8002638C) and the second submitter 0x80026D34 (0x80026E84).
+//
+// WHY THIS IS THE SEAM THE WIDENED FRAME HAS TO CROSS. The visibility leaf 0x80027AF0 stores, per
+// object, a SCREEN BOX in the record at 0x800A8864, and the mesh submitter publishes THAT BOX as
+// the screen rect it submits the object's mesh records against. The leaf's own rectangle argument
+// therefore never reaches the floor: the box it stores is the intersection of the projected box with
+// a rect whose corners the leaf has already CLAMPED to the console frame — the literal `slti
+// $v0,$v0,0x200` at 0x800280D4 and the `sh $s6,($s0)` stores of $s6 = 0x200 at 0x800280F8. So an
+// object whose box lies past the console's right edge is stored as a sliver ending AT column 512,
+// whatever rectangle the caller passed, and the submitter then drops every mesh record outside it.
+// MEASURED, both ways: widening the leaf's rectangle alone to (-4096, 4096) changed the frame by
+// ZERO pixels, and publishing the canvas rectangle here filled every one of the missing floorboards.
+constexpr std::uint32_t kScreenRectPublisherLeaf = 0x80010000u;
+
 // A guest DRAWENV, exactly as the leaf above reads it.
 struct DrawEnvFields {
   std::uint32_t x = 0x00u;
@@ -114,11 +132,17 @@ void objectCullOverride(Core *core) {
   callOriginalToReturn(*core, kObjectCullLeaf, "object visibility cull original");
 }
 
+void screenRectPublisherOverride(Core *core) {
+  context(*core).widescreen.widenScreenRect(*core);
+  callOriginalToReturn(*core, kScreenRectPublisherLeaf, "screen rect publisher original");
+}
+
 } // namespace
 
 void ResidentWidescreenProjection::install(Core &core) {
   installResidentOverride(core, kPutDrawEnvLeaf, "resident-draw-env", putDrawEnvOverride);
   installResidentOverride(core, kObjectCullLeaf, "object-visibility-cull", objectCullOverride);
+  installResidentOverride(core, kScreenRectPublisherLeaf, "screen-rect-publisher", screenRectPublisherOverride);
 }
 
 void ResidentWidescreenProjection::syncToGuestDisplay(Core &core) {
@@ -188,6 +212,21 @@ void ResidentWidescreenProjection::widenCullRect(Core &core) const {
   // vertical edges ($a3, $a4) and the mode flag ($a5) are left exactly as the guest passed them.
   core.r[5] = static_cast<std::uint32_t>(static_cast<std::int32_t>(cullLeft()));
   core.r[6] = static_cast<std::uint32_t>(drawWidth());
+}
+
+void ResidentWidescreenProjection::widenScreenRect(Core &core) const {
+  if (!active_) {
+    return;
+  }
+  // $a0 = left, $a1 = right, $a2 = top, $a3 = bottom — the rectangle the guest is about to publish
+  // for the object it is submitting (see kScreenRectPublisherLeaf). Its HORIZONTAL extent becomes
+  // the canvas the guest is drawing into, which is what the widened projection means: the left
+  // edge is the canvas's own edge at 0 and the right edge is its far column. The vertical extent
+  // is the guest's, untouched, because the canvas is exactly as tall as the console frame. This is
+  // a SUBMISSION WINDOW — it decides what is DRAWN and nothing else — and it only ever grows, so
+  // in the wide leg no object 4:3 submitted is dropped.
+  core.r[4] = 0;
+  core.r[5] = static_cast<std::uint32_t>(drawWidth());
 }
 
 void ResidentWidescreenProjection::beginField(Core &core) const {

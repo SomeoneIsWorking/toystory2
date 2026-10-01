@@ -86,21 +86,21 @@ runtime.
 ## cd
 
 ### RE-04 — CD load chokepoints
-- status: re-partial
+- status: re-verified
 - deps: RE-01
-- evidence: C010 and C012 locate game loader `0x80082508(path,dest)`, inner `0x80082608`, CdSearchFile `0x80092AE8`, CdRead `0x80093AF0`, CdReadSync `0x80093BF4`, command owner `0x80091DE4`, sync loop `0x80091898`, and result service `0x80091310`.
-- where: `tools/verify_cd_command.py`; `game/cd/stock_libcd_layout.h`
-- gap: The title's `(path,dest)` loader does not fit the legacy `(dest,lba,size)` seam; typed runtime ownership remains incomplete.
-- notes: Do not special-case a BIOS call or fabricate load completion.
+- evidence: C010, C012 and the whole-file read decompiled. The chain is `0x80082508` (normalize, upper case, strip the ISO9660 version suffix) → `0x80082728` (clear `DAT_800A15A8`, then two `do { } while` loops around the read) → `0x80082608` (clear `DAT_800A1034`/`DAT_800A1588`, `CdInit(0xB,0,0)` at `0x80090D40`, spin on `CdSearchFile` `0x80092AE8`, `CdRead` `0x80093AF0`, spin on `0x80093BF4`, return the `CdlFILE` size or 1 for an empty file). `0x80082608` has exactly one caller (`0x80082750`), so the two paths are one path. `0x80082648` and both `0x80082750`/`0x8008276C` loops are the design's three spin sites and all three now sit inside native owners; `0x8007F174` (the linked-`VSync` spin behind a size-change `break`) is the one remaining unbounded loop, in the file *processor* rather than the loader.
+- where: `game/cd/file_transfer.h` (`ts2::cd::FileTransfer`, registered at `0x80082608`, and the bounded retry policy at `0x80082728`); `tools/verify_cd_command.py`; `game/cd/stock_libcd_layout.h`
+- gap: `0x8007F174` is still guest-owned, and bounding it needs the 51 guest words `prepareResident`/`ResidentPreparation::finish` write (`kElapsedFields`, `kExitCountdown`, `kTransitionFlags`, `[0x800A1370]`) re-derived first — until they are, a payload comparison against retail is not available as evidence.
+- notes: Do not special-case a BIOS call or fabricate load completion. The native read keeps the guest's CD-mode publication (`0x80090D40(0xB,0,0)`) so the parts of the product that still stream through the guest's CD keep working.
 
 ## frame and input
 
 ### RE-05 — authored render-source boundary
 - status: re-partial
 - deps: RE-01
-- evidence: Resident buffers are `0x801BBD28` and `0x801DD21C`; packet pools begin at `0x801BBFEC` and `0x801DD4E0`. Camera producer `0x8002C848`, scene root `0x8002A070`, visibility lists `0x800BB4D8`/`0x800C0AB0`, owner `0x8002622C`, and mesh submitter `0x800100E4` are grounded from binary and earlier reached observations.
-- where: `game/render/resident_camera_history.*`; `game/render/resident_scene_history.*`; `game/render/resident_mesh_format.*`
-- gap: Material/texture semantics, 2D submitters, and visible native producers remain missing under issue #30.
+- evidence: Resident buffers are `0x801BBD28` and `0x801DD21C`; packet pools begin at `0x801BBFEC` and `0x801DD4E0`. Camera producer `0x8002C848`, scene root `0x8002A070`, visibility lists `0x800BB4D8`/`0x800C0AB0`, owner `0x8002622C`, and mesh submitter `0x800100E4` are grounded from binary and earlier reached observations. The mesh submission WINDOW is the guest's own screen rectangle: `SetScreenRect` at `0x80010000` (10 instructions, stores `$a0..$a3 << 16` to `0x1F800060/64/68/6C`), read back by its twin `0x8001002C`, with four publishers — renderer `0x8002A404` and `0x8002A6C0`, submitter `0x8002638C`, second submitter `0x80026E84`.
+- where: `game/render/resident_camera_history.*`; `game/render/resident_scene_history.*`; `game/render/resident_mesh_format.*`; `game/render/resident_widescreen.*`
+- gap: Material/texture semantics, 2D submitters, and visible native producers remain missing under issue #30. The per-object screen box the submitter publishes is produced by the visibility leaf `0x80027AF0`, which clamps each projected corner to the console frame (`slti $v0,$v0,0x200` at `0x800280D4`, `$s6 = 0x200` stored at `0x800280F8`) BEFORE intersecting with the caller's rectangle, so that leaf's rectangle argument alone cannot keep a margin object submitted; the publisher at `0x80010000` is the seam the widened frame has to cross.
 - notes: OT or GP0 replay is post-GTE and cannot provide true widescreen or interpolation.
 
 ### RE-06 — pad driver buffers
@@ -116,7 +116,7 @@ runtime.
 - deps: RE-01
 - evidence: C023 and I019 derive SetGeomOffset `0x80083CD4`, SetGeomScreen `0x80083CF4`, and authored initialization `256/120/160`. The hermetic title boundary checks guest and host effects.
 - where: `tools/verify_projection_publication.py`; `tests/toystory2_projection_boundary.cpp`; `game/render/guest_widescreen.*`
-- gap: Remaining projection/culling writers and current live reach are unverified.
+- gap: Remaining projection/culling writers and current live reach are unverified. One further culling writer is now identified and owned: the screen rectangle the mesh submitter publishes (`RE-05`), which the visibility leaf's console-frame clamp truncates at column 512.
 - notes: Publication does not itself implement widescreen.
 
 ### RE-10 — title field timing ownership

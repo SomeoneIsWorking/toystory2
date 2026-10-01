@@ -7,6 +7,7 @@ include(${PSXPORT_DIR}/cmake/psxport.cmake)
 set(TOYSTORY2_RUNTIME_SOURCES
   game/boot/guest_main_boot.cpp
   game/boot/native_sync_overrides.cpp
+  game/cd/file_transfer.cpp
   game/core/guest_execution.cpp
   game/core/title_session.cpp
   game/core/toystory2_context.cpp

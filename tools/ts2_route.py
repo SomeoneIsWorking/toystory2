@@ -4,9 +4,14 @@
 A route is a list of taps `FRAME:BUTTON[:HOLD]`, where FRAME is a PAD FRAME: the index of the host
 logic frame whose `Pad::serviceFrame` resolves the controller mask the guest receives (one per
 `stepFrame`, counted from boot). The schedule is compiled into psxport's own replay file
-(`PSXPORT_PAD_REPLAY`, uint16 little-endian active-low mask per pad frame), which the framework applies
-inside `serviceFrame` after every other input source. Nothing is polled against wall-clock time, so a
-tap lands on its frame on every run.
+(`PSXPORT_PAD_REPLAY`), which the framework applies inside `serviceFrame` after every other input
+source. Nothing is polled against wall-clock time, so a tap lands on its frame on every run.
+
+The file is psxport's v1 phase-keyed `.pad` container, written through the framework's own
+`tools/psx_pad.py` so the format has exactly one spelling. A tap is numbered from BOOT, which is not a
+phase-relative offset, so the route is written as ONE EXPLICITLY UNKEYED segment: the runtime replays
+an unkeyed segment absolutely from boot (the meaning these frame numbers have) and reports the card
+identity as unknown rather than borrowing a phase key the route never observed.
 
     uv run --frozen python tools/ts2_route.py --route andys-room --write scratch/route/andys-room.pad
 """
@@ -14,29 +19,18 @@ tap lands on its frame on every run.
 from __future__ import annotations
 
 import argparse
-import struct
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# PSX digital pad, active low (bit clear = pressed). The same masks as psxport's control channel.
-BUTTON_MASKS = {
-    "select": 0x0001,
-    "start": 0x0008,
-    "up": 0x0010,
-    "right": 0x0020,
-    "down": 0x0040,
-    "left": 0x0080,
-    "l2": 0x0100,
-    "r2": 0x0200,
-    "l1": 0x0400,
-    "r1": 0x0800,
-    "triangle": 0x1000,
-    "circle": 0x2000,
-    "cross": 0x4000,
-    "square": 0x8000,
-}
-IDLE = 0xFFFF
+FRAMEWORK = Path(__file__).resolve().parents[1] / "external" / "psxport"
+sys.path.insert(0, str(FRAMEWORK / "tools"))
+
+# PSX digital pad, active low (bit clear = pressed). The framework's own bit table, not a second copy.
+from psx_pad import NEUTRAL, PSX_BUTTON_BITS, UNKEYED_PHASE, encode  # noqa: E402
+
+BUTTON_MASKS = PSX_BUTTON_BITS
+IDLE = NEUTRAL
 DEFAULT_HOLD = 4
 
 
@@ -63,16 +57,23 @@ def parse_tap(text: str) -> Tap:
 
 
 def compile_pad(taps: tuple[Tap, ...], length: int) -> bytes:
-    """One little-endian uint16 per pad frame for `length` frames; overlapping taps merge as the
-    controller would (union of pressed bits). A tap reaching past `length` is refused, because a
-    truncated press would be a different input than the one the route states."""
+    """The v1 `.pad` bytes for `length` pad frames from boot, as one unkeyed segment; overlapping taps
+    merge as the controller would (union of pressed bits). A tap reaching past `length` is refused,
+    because a truncated press would be a different input than the one the route states."""
     masks = [IDLE] * length
     for tap in taps:
         if tap.end > length:
             raise ValueError(f"tap {tap} ends at frame {tap.end}, past the {length}-frame schedule")
         for frame in range(tap.frame, tap.end):
             masks[frame] &= ~BUTTON_MASKS[tap.button] & 0xFFFF
-    return struct.pack(f"<{length}H", *masks)
+    runs: list[tuple[int, int]] = []
+    for value in masks:
+        if runs and runs[-1][0] == value:
+            runs[-1] = (value, runs[-1][1] + 1)
+        else:
+            runs.append((value, 1))
+    # card kind 0 = unknown: this route says nothing about the memory card it was measured against.
+    return encode(0, bytes(32), [(UNKEYED_PHASE, runs)])
 
 
 # Named routes. Frames are PAD FRAMES from boot, measured on the retail disc: the four intro movies end

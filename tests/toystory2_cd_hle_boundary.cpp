@@ -2,6 +2,7 @@
 // synchronous CD owners at the measured retail entries, and their real command/sync handlers must
 // complete without reaching the mandatory guest-VSync trap.
 
+#include "cd/file_transfer.h"
 #include "cd/stock_libcd_layout.h"
 #include "cd/str_completion_layout.h"
 #include "core.h"
@@ -171,6 +172,68 @@ static void test_cd_ready_delivery_is_declared_for_the_guest_interrupt_owner() {
   CHECK(!layout->stockReadRaisesCompletion);
 }
 
+// The native whole-file read's REFUSAL contract, on the shipping owner. Every case here is one the
+// guest's own routine would have turned into a wait the player sits through: a path it cannot read, a
+// destination that is not guest RAM, and a file name that is not one. A refusal must transfer NOTHING
+// (the destination keeps the sentinel it had), report the guest's failure value, and say why — a load
+// that half-writes a buffer and reports failure is a worse state than the wall it replaces. Hermetic:
+// every case here is refused BEFORE the disc is consulted, so the result does not depend on whether a
+// disc happens to be open.
+static void test_file_transfer_refuses_rather_than_transferring() {
+  auto game = freshGame();
+  Core &core = game->core;
+  const ts2::cd::FileTransfer transfer;
+
+  const uint32_t sentinel = 0x80100000u;
+  const uint32_t pathSlot = 0x80101000u;
+  const uint32_t barePathSlot = 0x80101100u;
+  const uint32_t longPathSlot = 0x80101200u;
+  constexpr uint8_t kSentinel = 0x5Au;
+  for (uint32_t i = 0; i < 32u; ++i) {
+    core.mem_w8(sentinel + i, kSentinel);
+  }
+  const char *path = "SLUS_008.93;1";
+  for (uint32_t i = 0; i < 13u; ++i) {
+    core.mem_w8(pathSlot + i, static_cast<uint8_t>(path[i]));
+  }
+  core.mem_w8(barePathSlot, 0u);
+  // A name with no terminator inside the owner's bound is not a disc name, whatever the disc holds.
+  for (uint32_t i = 0; i < 256u; ++i) {
+    core.mem_w8(longPathSlot + i, static_cast<uint8_t>('A' + (i % 26u)));
+  }
+
+  const auto outsideRam = transfer.transfer(core, 0x00000000u, sentinel);
+  CHECK(!outsideRam.transferred);
+  CHECK_EQ(outsideRam.bytes, 0u);
+  CHECK(!outsideRam.why.empty());
+
+  const auto pastRam = transfer.transfer(core, pathSlot, 0x80200000u);
+  CHECK(!pastRam.transferred);
+  CHECK_EQ(pastRam.bytes, 0u);
+  CHECK(!pastRam.why.empty());
+
+  const auto emptyName = transfer.transfer(core, barePathSlot, sentinel);
+  CHECK(!emptyName.transferred);
+  CHECK_EQ(emptyName.bytes, 0u);
+  CHECK(!emptyName.why.empty());
+
+  const auto unterminated = transfer.transfer(core, longPathSlot, sentinel);
+  CHECK(!unterminated.transferred);
+  CHECK_EQ(unterminated.bytes, 0u);
+  CHECK(!unterminated.why.empty());
+
+  // NOTHING was written: the sentinel is intact after every refusal, which is the whole point, and
+  // the guest's two transfer words are untouched because no refusal got as far as reading.
+  for (uint32_t i = 0; i < 32u; ++i) {
+    CHECK_EQ(core.mem_r8(sentinel + i), kSentinel);
+  }
+  core.mem_w32(0x800A1034u, 0x1234u);
+  core.mem_w32(0x800A1588u, 0x5678u);
+  (void)transfer.transfer(core, longPathSlot, sentinel);
+  CHECK_EQ(core.mem_r32(0x800A1034u), 0x1234u);
+  CHECK_EQ(core.mem_r32(0x800A1588u), 0x5678u);
+}
+
 int main() {
   RUN(measured_stock_libcd_entries_are_native_owned);
   RUN(sync_reports_completed_and_clears_result);
@@ -179,5 +242,6 @@ int main() {
   RUN(str_ring_code_is_outside_the_natively_owned_window);
   RUN(no_dma_callback_table_is_declared_and_yields_no_slot);
   RUN(cd_ready_delivery_is_declared_for_the_guest_interrupt_owner);
+  RUN(file_transfer_refuses_rather_than_transferring);
   return pt_summary();
 }

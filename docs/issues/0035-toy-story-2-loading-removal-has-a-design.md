@@ -11,31 +11,31 @@ updated: 2026-10-01
 
 ## What the product does today
 
-The guest's own loader owns every CD file read, including the whole-file read primitive at
-`0x80082608`, which issues `CdRead` and spins on `CdReadySync(0)`. Nothing in this repository
-overrides it, so loading is still a wall the player waits through. There are no boot logos to skip.
+The guest's own loader owned every CD file read, including the whole-file read primitive at
+`0x80082608`, which issued `CdRead` and spun on `CdReadySync(0)`. There are no boot logos to skip.
 
-## The design that is owed
+## What has landed
 
 1. **`ts2::cd::FileTransfer`** — a native override of `0x80082608` that reads from the disc image the
    title already has authenticated (the same owner `game/overlay/` uses) and returns the exact
-   `CdlFILE` size the guest expects. This is the change that removes the blocking whole-file wait.
-2. **Bounded loops** — the two unbounded spin sites in the load path (`0x80082648`, `0x80082750`
-   and `0x8008276C`) become a typed refusal instead of a wait the guest never leaves, and the size
-   check that keeps the third loop (`0x8007F174`, which spins on a linked `VSync(0)` behind a
-   `break` once a `.vh`/`.vb` file grows) unreachable.
-3. **The recovered skips, made reachable** — the intro movies already carry their cancel: **Start**
-   skips unconditionally, and **Cross** or a face button skips when `[0x800A1670] != 0`. The Level-1
-   "PRESS X" card's cancel is **Cross** at `0x8007C448` inside `0x8007C344`. No gate drives either
-   one yet, so the routes are recovered but unproven.
+   `CdlFILE` size the guest expects. This removed the blocking whole-file wait: the same 1000-field
+   boot route measures 23.5 s against the guest loader's 30.2 s, and the picture at field 900 is
+   byte-identical (502,426 non-black pixels). It refuses rather than transferring on a path the disc
+   does not have, a destination outside guest RAM, a file that will not fit, or a sector that cannot be
+   read, and `tests/toystory2_cd_hle_boundary.cpp` asserts the refusals leave the destination untouched.
+2. **Bounded loops, at the two owners that contain them** — `0x80082728`'s two unbounded retry loops
+   are now a bounded, refusing retry policy (`0x80082728`, 3 attempts, the guest's failure value when
+   none succeeds), and the `0x80082648` search spin is gone with the read itself, so all three spin
+   sites named here are native. `0x8007F174` is still the guest's, in the file *processor* rather than
+   the loader.
+3. **The recovered skips are now reachable and proven** — the front-end movies return at 194, 41, 73
+   and 69 display fields on the standard route (a full movie is thousands), each one the guest's own
+   Start/Cross cancel ending the call, and the Level-1 "PRESS X" card's Cross at `0x8007C448` takes
+   the route into the level.
 
 ## Next step
 
-Land (1) first: `FileTransfer` is self-contained and unblocks everything else. It must be a real
-override at the measured address, registered only after the resident image is authenticated, and
-covered by a boundary test that a wrong path, size or destination refuses rather than transferring.
-
-(2) and (3) follow. One prerequisite blocks any payload/terminal-state comparison against retail:
-`prepareResident` and `ResidentPreparation::finish` write about 51 guest words between them,
-including `kElapsedFields`, `kExitCountdown`, `kTransitionFlags` and `[0x800A1370]` — exactly the
-phase/timer words the loading rule forbids — so those have to be re-derived first.
+Re-derive the 51 guest words `prepareResident` and `ResidentPreparation::finish` write — including
+`kElapsedFields`, `kExitCountdown`, `kTransitionFlags` and `[0x800A1370]` — because they are exactly
+the phase/timer words the loading rule forbids, and until they are, neither the `0x8007F174` bound nor
+a payload/terminal-state comparison against retail has the evidence it needs.
