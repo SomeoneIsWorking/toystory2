@@ -34,7 +34,7 @@ jobs:
       - name: Install locked Python environment
         run: uv sync --locked
       - name: Resolve the exact pinned framework
-        run: uv run --frozen python tools/psxport_sync.py --clone
+        run: uv run --frozen python tools/psxport_fetch.py
       - name: Run launcher and structure contracts
         run: |
           uv run --frozen python tools/test_run.py

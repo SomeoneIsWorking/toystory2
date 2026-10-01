@@ -16,7 +16,7 @@ def main() -> int:
     if not owner.is_file():
         print(
             f"Toy Story 2 verification requires {owner}; resolve external/psxport "
-            "with tools/psxport_fetch.py --auto or set PSXPORT_DIR",
+            "with tools/psxport_fetch.py or set PSXPORT_DIR",
             file=sys.stderr,
         )
         return 2

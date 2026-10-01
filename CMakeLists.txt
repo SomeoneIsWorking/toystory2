@@ -23,9 +23,9 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
 # PSXPORT_DIR — WHERE THE FRAMEWORK SOURCE COMES FROM. Defaults to external/psxport, which is no
-# longer a git submodule (2026-08-16): tools/psxport_fetch.py --auto (called by run.sh) makes it a
-# SYMLINK to the workspace's shared framework clone when one exists, or a private clone at this
-# repo's psxport.pin on a fresh machine. So a fresh clone of this repo alone still builds standalone:
+# longer a git submodule (2026-08-16): tools/psxport_fetch.py (called by run.sh) makes it a
+# link to a worktree of the workspace's shared framework clone at this repo's psxport.pin, or a
+# private clone at the same pin on a fresh machine. So a fresh clone of this repo alone still builds standalone:
 # that property is what "each game is its own project using psxport as the framework" means, and it
 # must stay testable.
 #
@@ -40,14 +40,14 @@ set(PSXPORT_DIR "${CMAKE_SOURCE_DIR}/external/psxport" CACHE PATH
     "psxport framework source directory (default: external/psxport)")
 if(NOT EXISTS "${PSXPORT_DIR}/cmake/psxport.cmake")
   message(FATAL_ERROR "PSXPORT_DIR=${PSXPORT_DIR} has no cmake/psxport.cmake — "
-                      "run `uv run --frozen python tools/psxport_fetch.py --auto`, or point PSXPORT_DIR at a psxport checkout.")
+                      "run `uv run --frozen python tools/psxport_fetch.py`, or point PSXPORT_DIR at a psxport checkout.")
 endif()
 message(STATUS "psxport framework: ${PSXPORT_DIR}")
 
-# RECORD WHAT THIS CONFIGURE RESOLVED, so `tools/psxport_sync.py --check` can compare the framework
+# RECORD WHAT THIS CONFIGURE RESOLVED, so `external/psxport/tools/psxport_sync.py --check` can compare the framework
 # you actually BUILT against with the one psxport.pin RECORDS. The framework is no longer a git
 # submodule (external/psxport is a symlink to the workspace's shared clone, or a private clone at the
-# pin — see tools/psxport_sync.py); the pin is provenance, and this file is what keeps it honest.
+# pin — see tools/psxport_fetch.py); the pin is provenance, and this file is what keeps it honest.
 execute_process(COMMAND git -C "${PSXPORT_DIR}" rev-parse HEAD
                 OUTPUT_VARIABLE PSXPORT_RESOLVED_SHA OUTPUT_STRIP_TRAILING_WHITESPACE
                 ERROR_QUIET RESULT_VARIABLE _psxport_rev_rc)
@@ -60,7 +60,7 @@ message(STATUS "psxport commit: ${PSXPORT_RESOLVED_SHA}")
 
 # The framework's OWN nested vendors (vendor/lucent, vendor/beetle-psx/deps/libchdr) are the SHARED
 # clone's concern now: they were initialized once in the dev clone, and external/psxport is a symlink
-# to it. A fresh machine's private clone at the pin gets them from tools/psxport_sync.py --clone (which
+# to it. A fresh machine's private clone at the pin gets them from tools/psxport_fetch.py (which
 # inits them non-recursively). If they are somehow missing, the error comes from inside psxport with a
 # clear "does not contain a CMakeLists.txt", and the fix is `git -C external/psxport submodule update
 # --init <vendor>` in the dev clone.
@@ -169,14 +169,10 @@ endif()
 if(BUILD_TESTING)
   add_test(
     NAME toystory2_psxport_pin_live
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/psxport_sync.py"
-            --check --build "${CMAKE_BINARY_DIR}")
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/external/psxport/tools/psxport_sync.py"
+            --repo "${CMAKE_SOURCE_DIR}" --check --build "${CMAKE_BINARY_DIR}")
 endif()
 
-# The pin tool's own behaviour: the staleness guard, and a bump that records the commit the build
-# RESOLVED rather than the framework's current HEAD. Added because 7 of 10 ports shipped the tool with no
-# test gating it at all. Unguarded on purpose where this repository does not define BUILD_TESTING -- a
-# guarded add_test there is silently inert, which is the failure this gate exists to prevent.
-add_test(
-  NAME toystory2_psxport_pin_selftest
-  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_psxport_sync.py")
+# The pin tool's own behaviour (staleness guard, a bump that records the commit the build RESOLVED) is
+# tested once, in the framework (tests/test_psxport_sync.py). This repository used to carry a drifted
+# copy of the tool and of that test; the only shipped file is tools/psxport_fetch.py.
