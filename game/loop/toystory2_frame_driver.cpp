@@ -339,7 +339,11 @@ public:
   void updateResident() override {
     const bool alternate = core_.mem_r32(kAlternateUpdateMode) != 0;
     context(core_).scene.beginFrame();
-    callGuest(core_, residentUpdateAddress(alternate));
+    const std::array noArguments{0u, 0u, 0u, 0u};
+    callFiniteGuestToReturn(
+        core_,
+        {residentUpdateAddress(alternate), 0x8007A9E8u, noArguments, std::nullopt, "resident update"},
+        kResidentUpdateSliceLimit);
     // Both resident update owners call camera producer 0x8002C848 before the later scene root
     // 0x8002A070. Capture its authored input after the update so future native producers and temporal
     // presentation share one previous/current source rather than re-reading mutable guest RAM.

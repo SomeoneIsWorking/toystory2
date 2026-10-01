@@ -44,13 +44,15 @@ executeFiniteGuestCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBud
   if (!result.returned() && slices == maxSlices && result.reason == psx::cpu::ExecutionExitReason::BudgetExhausted) {
     result.detail = "finite guest call exceeded its slice bound";
   }
-  lucent::info("ts2-execution",
-               "finite guest call {} used {} slice(s), {} cycles, exit {} at 0x{:08X}",
-               call.owner,
-               slices,
-               totalCycles,
-               psx::cpu::executionExitName(result.reason),
-               result.guestPc);
+  if (slices > 1 || !result.returned()) {
+    lucent::info("ts2-execution",
+                 "finite guest call {} used {} slice(s), {} cycles, exit {} at 0x{:08X}",
+                 call.owner,
+                 slices,
+                 totalCycles,
+                 psx::cpu::executionExitName(result.reason),
+                 result.guestPc);
+  }
   return result;
 }
 

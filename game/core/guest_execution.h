@@ -26,6 +26,11 @@ struct GuestCall {
 
 inline constexpr std::uint32_t kFiniteInitializationSliceLimit = 64;
 
+// The first resident update of a level builds its scene and measured 674,080 cycles (1.19 display
+// fields); every later update costs about 0.8 field. One update that has not returned within eight
+// fields (4.5M cycles) is a hang, not a heavy frame, and fails closed.
+inline constexpr std::uint32_t kResidentUpdateSliceLimit = 8;
+
 // One guest call that spans display fields: an FMV overlay's whole-movie loop waits on VSync once per
 // movie frame, and each wait exits the executor as a `FrameBoundary`. `advance` runs the call until the
 // next such boundary or its return, resuming from the guest's own continuation with the original
