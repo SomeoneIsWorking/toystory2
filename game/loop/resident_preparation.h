@@ -2,37 +2,34 @@
 
 #include "loop/outer_loop.h"
 
+#include "core/guest_execution.h"
+
 #include <cstdint>
+#include <optional>
 
 class Core;
 
 namespace ts2 {
 
-// Finite owner for retail 0x8007BEC4 and its nested 0x8007C344 field loop. Each call performs at
-// most one authored transition-field iteration; no guest wait controls the host frame lifetime.
+// The resident level start is the GUEST'S routine: retail 0x8007BEC4(level), reached from the main
+// loop at 0x8007AE14 with the selected level in `$a0` and the level id it stores at `[0x800A16A8]`.
+// It loads the level overlay (0x8007C278), decodes its assets (0x8003D88C), runs the fade transition
+// (0x8007C344), re-initialises the drawing environment (0x80039D9C) and then writes the ~40 words the
+// resident scene starts from, including the exit countdown at `[0x800A155C]`, the timer at
+// `[0x800A1370]` and the per-object table resets. This owner used to replay those words and that loop
+// by hand; it now runs the routine itself, so every one of them is written by the code that owns it.
+//
+// The one wait inside it, the transition's field barrier at 0x8003FA68, is already natively owned: it
+// publishes the number of fields the wait covered at `[0x800A1174]`, services the deferred display,
+// and yields to the host so each authored field is presented. The level start therefore spans display
+// fields exactly like the front-end poll and the resident update, one presented field per step.
 class ResidentPreparation {
 public:
   ResidentPreparationProgress step(Core &core, uint32_t level, int playbackMode);
 
 private:
-  enum class Phase {
-    begin,
-    transition,
-  };
-
-  void begin(Core &core, uint32_t level, int playbackMode);
-  ResidentPreparationProgress stepTransition(Core &core);
-  bool finish(Core &core);
-
-  Phase phase_ = Phase::begin;
-  uint32_t level_ = 0;
-  int playbackMode_ = 0;
-  int bootFieldsRemaining_ = -1;
-  int fadeFieldsRemaining_ = 0;
-  int fadePosition_ = 0;
-  uint32_t cycle_ = 0;
-  bool fadeActive_ = false;
-  bool interrupted_ = false;
+  // Constructed with the Core on the first step: a resumable call is bound to one executor.
+  std::optional<ResumableGuestCall> levelStart_{};
 };
 
 } // namespace ts2

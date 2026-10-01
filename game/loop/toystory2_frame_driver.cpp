@@ -338,6 +338,14 @@ public:
       return progress;
     }
 
+    // The retail caller's entry state for the play loop, DECOMPILED WHOLE (Ghidra, exact bytes, in
+    // 0x8007A9E8 immediately after its `jal 0x8007bec4` at 0x8007AE14): it clears the transition flags
+    // and the per-level counters, publishes `[0x800A1174] = 0`, arms the exit countdown at
+    // `[0x800A155C] = 90` and `[0x800A1430] = [0x800C166C] << 1`, and begins the fade. The loop those
+    // words feed -- `FUN_8003FA68(2)` then `FUN_8007B254`/`FUN_8007B850` -- is the resident main loop,
+    // which the frame driver owns as `updateResident` plus the deferred field service, so publishing
+    // its entry state is this step's job. The level start itself is the guest's own routine now (see
+    // `ResidentPreparation`), which is why no phase or timer below is one this port invented.
     core_.mem_w32(0x800A1480u, 0);
     core_.mem_w32(0x800A11E4u, 0);
     core_.mem_w32(kAlternateUpdateMode, 0);
