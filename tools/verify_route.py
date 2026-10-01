@@ -40,6 +40,15 @@ SHOT_FRAMES = (450, 780, 900)
 DUMP_FRAMES = (780, 900)
 RUN_FRAMES = 1000
 NON_BLACK = re.compile(r"present_(\d+)\.png .*non-black (\d+)/(\d+)")
+# The ordinary end of a run must reach the RAII teardown. Both lines are emitted from DESTRUCTORS —
+# `disc_read_report(&disc, "disc hunk cache at shutdown")` from ~Game (runtime/psx/game.cpp) and
+# `reportFallbackTelemetry("shutdown")` from ~LightrecExecutor (runtime/cpu/lightrec_executor.cpp) —
+# so before the Game had an owner they could not appear at all, and a run that leaked again would
+# still pass every other judge here.
+TEARDOWN_LINES = (
+    re.compile(r"\[disc\] disc hunk cache at shutdown"),
+    re.compile(r"Lightrec fallback telemetry \[shutdown\]"),
+)
 
 
 @dataclass(frozen=True)
@@ -80,6 +89,11 @@ def collect(result: headless_run.RunResult, plan: headless_run.RunPlan) -> Captu
     return Capture(dumps, pictures, non_black, taps)
 
 
+def missing_teardown_lines(log_text: str) -> list[str]:
+    """Which destructor-owned end-of-run lines are ABSENT. Empty means the run tore down properly."""
+    return [pattern.pattern for pattern in TEARDOWN_LINES if not pattern.search(log_text)]
+
+
 def execute_route(taps: tuple[Tap, ...], binary: Path, frames: int, shots: tuple[int, ...],
                   dump_at: tuple[int, ...]) -> tuple[headless_run.RunResult, headless_run.RunPlan]:
     """One headless run of `taps` that must exit cleanly with its whole pad schedule consumed."""
@@ -90,6 +104,12 @@ def execute_route(taps: tuple[Tap, ...], binary: Path, frames: int, shots: tuple
         raise RuntimeError(f"the product exited {result.code}; log {result.log}")
     if "replay fully consumed" not in result.log_text:
         raise RuntimeError("the pad schedule was not fully consumed, so the run did not reach the route's end")
+    missing = missing_teardown_lines(result.log_text)
+    if missing:
+        raise RuntimeError(
+            "the run did not tear its owners down at the ordinary end; missing from the log: "
+            + ", ".join(missing)
+        )
     return result, plan
 
 
@@ -197,6 +217,18 @@ class VerifyRouteTest(unittest.TestCase):
         self.assertEqual(judge_ledger(base), [])
         self.assertEqual(len(judge_ledger({"guest": {**base["guest"], "translated_blocks": 0}})), 1)
         self.assertEqual(len(judge_ledger({"guest": {**base["guest"], "faults": 2}})), 1)
+
+    def test_a_run_that_never_reaches_its_destructors_is_refused(self):
+        teardown = (
+            "[disc] disc hunk cache at shutdown: 1 hunk lookup(s)\n"
+            "[executor:warn] Lightrec fallback telemetry [shutdown]: executor_calls=1\n"
+        )
+        self.assertEqual(missing_teardown_lines(teardown), [])
+        # The [guest] run-end ledger is NOT this: native_boot prints it before ~Game runs, so a log
+        # carrying it and nothing else is exactly the pre-owner leak this check exists to catch.
+        leaked = "[guest] run-end: guest: calls=1 translated_blocks=1 executed_blocks=1\n"
+        self.assertEqual(len(missing_teardown_lines(leaked)), len(TEARDOWN_LINES))
+        self.assertEqual(missing_teardown_lines(leaked + teardown), [])
 
     def test_the_route_is_the_four_measured_taps_in_order(self):
         taps = ROUTES[ROUTE]

@@ -8,6 +8,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/boot/guest_main_boot.cpp
   game/boot/native_sync_overrides.cpp
   game/core/guest_execution.cpp
+  game/core/title_session.cpp
   game/core/toystory2_context.cpp
   game/core/toystory2_runtime.cpp
   game/input/native_pad_owner.cpp
