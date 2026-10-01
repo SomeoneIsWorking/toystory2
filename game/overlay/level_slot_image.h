@@ -10,7 +10,6 @@ namespace ts2 {
 // LEVEL{,1}.BIN of the ten playable levels are alternative contents of the one guest-RAM slot at
 // 0x800D12C0 (tools/overlay_map.py proves the load address and the 19,040-byte window). The
 // four-byte LEVEL00/LEVEL.BIN placeholder holds no code and is deliberately not a module.
-// tools/overlay_shipping.py diffs every row against the retail disc files.
 struct LevelSlotImage {
   static constexpr std::uint32_t kLoadAddress = 0x800D12C0u;
   static constexpr std::uint32_t kWindowBytes = 19040u;

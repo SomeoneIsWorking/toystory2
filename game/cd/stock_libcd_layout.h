@@ -4,8 +4,8 @@
 
 namespace ts2::cd {
 
-// Identity-checked SLUS_008.93 stock-libcd entry points and state. These facts are derived by
-// tools/verify_cd_command.py from the retail instruction stream; the title configuration and its
+// Identity-checked SLUS_008.93 stock-libcd entry points and state, read out of the retail
+// instruction stream; the title configuration and its
 // boundary test both consume this one typed authority.
 struct StockLibcdLayout {
   uint32_t command;

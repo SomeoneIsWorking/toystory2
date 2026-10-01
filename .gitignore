@@ -22,6 +22,10 @@ scratch/
 /external/psxport
 *.log
 
+# The video settings file the product writes into its working directory when it is launched from the
+# repository root. It is runtime state, not configuration this repo owns.
+psxport_settings.ini
+
 # Python bytecode — never committed. Compiled .pyc embed ABSOLUTE SOURCE PATHS, i.e. a machine-path
 # leak that a TEXT-only audit cannot see, because they are binary.
 __pycache__/

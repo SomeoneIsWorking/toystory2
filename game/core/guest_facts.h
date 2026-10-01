@@ -9,11 +9,11 @@
 // overlay slots, RE-06 pad routing, RE-07's projection leaves, RE-18 timeout/VSync, RE-04 stock
 // libcd). A fact that is not measured is left absent deliberately: psxport fails fast on a zero it
 // needs, whereas a plausible-looking WRONG address does not fail cleanly — it breaks boot or diverges
-// in a way that reads as a framework bug. Each group names its frontier step in docs/re-frontier.md.
+// in a way that reads as a framework bug. Each group cites the bytes it came from.
 //
-// THERE IS NO DECOMP of Toy Story 2 (docs/references.md): no symbol map, no function boundaries, no
-// matching build. Every address here comes from reproducible binary evidence on SLUS_008.93 in this
-// repo; when you fill one, gate it against the executable bytes and cite that verifier.
+// THERE IS NO DECOMP of Toy Story 2: no symbol map, no function boundaries, no matching build.
+// Every address here comes from reproducible binary evidence on SLUS_008.93 in this repo; when you
+// fill one, re-derive it from the executable bytes before you trust it.
 #pragma once
 
 #include "cd/stock_libcd_layout.h"
@@ -73,11 +73,9 @@ inline constexpr uint32_t kCurrentPacketPoolPointer = 0x800A10BCu;
 static_assert(kPacketPoolBase + kPacketPoolStride == 0x801DD4E0u,
               "the two measured render-buffer parities must retain the same packet-pool offset");
 
-// RE-01, measured from the verified executable by tools/verify_crt0.py. The
-// verifier symbolically follows entry 0x80082D60 through the InitHeap return,
-// second jal and terminating break. It prints every instruction chain and
-// compares these constants back to this shipping file; --selftest mutates both
-// sides, rejects malformed inputs and accepts a real second executable only as
+// RE-01, measured from the verified executable. The boot group is followed symbolically from entry
+// 0x80082D60 through the InitHeap return, second jal and terminating break; every value below is
+// re-derivable from the identity-checked PS-X EXE (tools/extract_exe.py identifies it).
 // a cross-binary negative.
 inline constexpr uint32_t kCrt0BssZeroLo = 0x800A1070u;     // sw zero @ 0x80082D70
 inline constexpr uint32_t kCrt0BssZeroHi = 0x800D12C0u;     // sltu bound @ 0x80082D78
@@ -99,7 +97,7 @@ static_assert(kCrt0StackTopBase >= kPsExeTextAddr && kCrt0StackTopBase < kPsExeT
               "the stack-top word must be readable from the loaded executable image");
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────
-// THE OVERLAY MAP, INSTRUCTION-VERIFIED BY tools/overlay_map.py --check.
+// THE OVERLAY MAP, DECODED FROM THE LOADER'S OWN CALL SITES (tools/overlay_map.py).
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────
 // FUN_8003D88C selects exactly one of level.bin/level1.bin/level2.bin/level3.bin,
 // then calls the one fixed-destination wrapper FUN_8003DE9C. Its
@@ -128,7 +126,7 @@ static_assert(kMemoryOverlayBase - kLevelOverlayBase == 19040u,
 inline constexpr uint32_t kRecMainLo = 0x00010000u;
 inline constexpr uint32_t kRecMainHi = 0x000A1800u;
 
-// RE-06, measured from the identity-checked retail executable by tools/verify_pad_buffers.py.
+// RE-06, measured from the identity-checked retail executable.
 // The game has exactly one call to its linked pad initializer at 0x8003EF20. Its two arguments are
 // formed directly from these buffer addresses, and the initializer stores those pointers into two
 // 0xF0-byte driver contexts:
@@ -150,8 +148,8 @@ inline constexpr uint32_t kPadDriverContextStride = 0xF0u;
 static_assert(kPadDriverPointerTable + kPadDriverContextStride == 0x800A3F88u,
               "the measured per-port driver pointer fields must stay one context apart");
 
-// RE-07 (partial), measured from the identity-checked retail executable by
-// tools/verify_projection_publication.py. The graphics initializer at 0x8003A650 calls these linked
+// RE-07 (partial), measured from the identity-checked retail executable.
+// The graphics initializer at 0x8003A650 calls these linked
 // libgte leaves with (OFX,OFY,H)=(256,120,160):
 //
 //   0x80083CD4  SetGeomOffset: sll a0/a1 by 16, ctc2 to CR24/CR25, return
@@ -212,9 +210,9 @@ inline constexpr const char *kCardDefaultPath = "scratch/saves/toystory2.mcr";
 
 // The executable's own boot group (RE-01), resident text (RE-02) and crt0 stack bias, consumed as one
 // group by the framework's crt0 planner: a lone entry beside a zeroed BSS range would run a wrong crt0
-// instead of refusing. Re-run `tools/verify_crt0.py --check` to diff every value against the
-// instruction stream. `stackBias` is declared with value 0: tools/verify_crt0.py proved no bias
-// instruction exists between the lw and the or into sp.
+// instead of refusing. Every value is re-derivable from the instruction stream of the identity-checked
+// executable. `stackBias` is declared with value 0: no bias instruction exists between the lw and the
+// or into sp.
 inline constexpr GuestProgramImage kProgramImage{
     .bss = {kCrt0BssZeroLo, kCrt0BssZeroHi},
     .stackTopWordAddress = kCrt0StackTopBase,

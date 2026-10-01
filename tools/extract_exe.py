@@ -19,9 +19,9 @@ There is deliberately no translation step here: extraction has one responsibilit
 runtime consumes the original executable directly; `tools/overlay_map.py` independently checks the
 overlay layout against the same identity and exact module corpus.
 
-WHAT THE HEADER PRINT IS FOR: entry pc0 / t_addr / t_size / initial sp / gp0 are independently checked
-by tools/verify_crt0.py against game/core/guest_facts.h. They are printed here too because this tool's
-job is to report what the extracted bytes say before any RE instrument consumes them.
+WHAT THE HEADER PRINT IS FOR: entry pc0 / t_addr / t_size / initial sp / gp0 are the boot group's
+measured values in game/core/guest_facts.h. They are printed here too because this tool's
+job is to report what the extracted bytes say before any RE tool consumes them.
 """
 
 import hashlib

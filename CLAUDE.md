@@ -34,17 +34,13 @@ modules do not read environment variables. Product diagnostics use Lucent; do no
 
 ## Evidence and workflow
 
-Before non-trivial work run:
-
-```sh
-uv run --frozen python tools/info.py brief <terms>
-uv run --frozen python tools/re_frontier.py next
-uv run --frozen python tools/catalog.py search <symptom>
-```
-
-Preserve exact-image evidence, oracle scenarios, and native subsystem contracts. Static analysis may
-produce symbols and non-executable metadata; it may not emit guest functions. Fix CPU semantics in
-psxport's shared Lightrec integration, not with title-address overrides.
+There is no decompilation of this game, so every address in `game/core/guest_facts.h` comes out of
+Ghidra on the exact executable. Recovering more of them is what `tools/ghidra_xref.py`,
+`tools/re_xref.py`, `tools/ram_image.py` and `tools/overlay_map.py` are for: build the RAM image,
+import it, xref a guest address, and record what the bytes say. Preserve exact-image evidence and
+oracle scenarios. Static analysis may produce symbols and non-executable metadata; it may not emit
+guest functions. Fix CPU semantics in psxport's shared Lightrec integration, not with title-address
+overrides.
 
 The first runtime discriminator must consume exact `SLUS_008.93`, execute nonzero Lightrec blocks,
 reach resident and streamed-module code, exercise image-generation invalidation, and agree with an
@@ -68,8 +64,8 @@ module replacement, coherent rendering/audio, and sustained frame progression.
 - Authored projection leaves are `0x80083CD4` and `0x80083CF4`, with initialization values
   `256/120/160`.
 - The finite frame owner must never dispatch guest VSync `0x80088628`.
-- `.RAW` payloads use Traveller's Tales' `DecompressRAW` LZ format; the retained corpus check covers
-  813 chunks across 46 files with both CRCs.
+- The `.RAW` payloads use Traveller's Tales' `DecompressRAW` LZ format (not RNC); `tools/raw_probe.py`
+  and `tools/raw_unpack.py` check framing and both CRCs over the extracted corpus.
 - True widescreen changes projection, viewport/scissor, and any proven culling owner at the semantic
   producer boundary. It never stretches output or samples adjacent frames.
 
@@ -79,6 +75,7 @@ module replacement, coherent rendering/audio, and sustained frame progression.
 modular, and DRY. Build outputs live under `build/`; bounded diagnostic artifacts live under stable
 `scratch/` children. Game assets are never committed or packaged.
 
-Run `uv run --frozen python tools/check_structure.py` after structural changes. Its selftest must
-demonstrate both accepting and rejecting cases for retired static dependencies, direct C/C++ stderr,
-stray `getenv`, and the 1,200-line source cap.
+Run `uv run --frozen python tools/verify.py`: build plus the product's hermetic C++ boundary tests,
+the executable's help contract, clang-format/clang-tidy/cpp_policy, and the live psxport pin check.
+To see the game rather than gate it, run `tools/headless_run.py`, `tools/verify_route.py` or
+`tools/verify_movement.py` against your own disc.

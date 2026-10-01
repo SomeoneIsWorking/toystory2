@@ -9,13 +9,13 @@ on:
 permissions:
   contents: read
 
-# This Linux-hosted job checks the asset-free launcher and structure policy. Native
-# product and package qualification remain separate capabilities in project state.
+# This Linux-hosted job builds the asset-free product and runs the whole gate: hermetic boundary
+# tests, the executable's help contract, clang-format/clang-tidy/cpp_policy and the psxport pin check.
 jobs:
-  policy:
-    name: Asset-free policy (Linux host)
+  gate:
+    name: Product gate (Linux host)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - name: Checkout full history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,10 +33,9 @@ jobs:
         run: test "$(git rev-parse --is-shallow-repository)" = false
       - name: Install locked Python environment
         run: uv sync --locked
+      - name: Install Ninja and Clang
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
       - name: Resolve the exact pinned framework
         run: uv run --frozen python tools/psxport_fetch.py
-      - name: Run launcher and structure contracts
-        run: |
-          uv run --frozen python tools/test_run.py
-          uv run --frozen python tools/test_structure.py
-          uv run --frozen python tools/check_structure.py
+      - name: Build and run the product gate
+        run: uv run --frozen python tools/verify.py

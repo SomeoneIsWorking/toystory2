@@ -96,8 +96,8 @@ static void test_setloc_preserves_guest_bookkeeping_and_native_head_position() {
 
 // The STR ring facts the FMV wait depends on. These are not exercised by the CD owners above -- the
 // ring is guest code -- so what this can honestly assert is their SHAPE and their RELATIONSHIP to
-// the natively owned window. Each address is re-derived from the retail bytes by
-// tools/verify_str_completion.py; a wrong one here would send the next session after a word nothing
+// the natively owned window. Each address is re-derived from the retail bytes; a wrong one here
+// would send the next session after a word nothing
 // writes, which is the mistake this file's own history already contains twice.
 static void test_str_completion_facts_are_distinct_and_in_guest_ram() {
   const auto &ring = ts2::cd::kStrCompletionLayout;

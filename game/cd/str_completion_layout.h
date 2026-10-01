@@ -9,8 +9,7 @@ namespace ts2::cd {
 // This is a distinct fact from StockLibcdLayout: those are the library ENTRIES the port owns
 // natively, and this is the ring STATE those routines and the guest's own code share. Every
 // address and instruction word below is verified against the retail executable and the retail
-// module images by tools/verify_str_completion.py, which refuses rather than reporting a stale
-// conclusion; the citations are that tool's CHAIN table.
+// module images; the citations are the instruction chains recorded beside each field.
 struct StrCompletionLayout {
   uint32_t ringBaseSlot;  // [0x800CE1B0] the ring base pointer
   uint32_t ringHeadSlot;  // [0x800C9504] the slot index, always 0 in the measured runs
