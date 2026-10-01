@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import headless_run  # noqa: E402
+from execution_ledger import Ledger, parse as parse_ledger, render as render_ledger  # noqa: E402
 import ts2_guest_words as words  # noqa: E402
 from ts2_route import ROUTES, Tap  # noqa: E402
 
@@ -96,9 +97,27 @@ def dump_path(result: headless_run.RunResult, frame: int) -> Path:
     return result.work / "scratch" / "bin" / f"padram_{frame}.bin"
 
 
-def run_once(taps: tuple[Tap, ...], binary: Path) -> tuple[Capture, words.RamDump]:
+@dataclass(frozen=True)
+class RouteRun:
+    capture: Capture
+    arrival: words.RamDump
+    ledger: Ledger
+
+
+def run_once(taps: tuple[Tap, ...], binary: Path) -> RouteRun:
     result, plan = execute_route(taps, binary, RUN_FRAMES, SHOT_FRAMES, DUMP_FRAMES)
-    return collect(result, plan), words.RamDump.read(dump_path(result, ARRIVAL_FRAME))
+    return RouteRun(collect(result, plan), words.RamDump.read(dump_path(result, ARRIVAL_FRAME)),
+                    parse_ledger(result.log_text))
+
+
+def judge_ledger(ledger: Ledger) -> list[str]:
+    """Why this run's dynarec ledger cannot back a gameplay claim; empty means it executed translated code."""
+    problems = []
+    if ledger["guest"]["translated_blocks"] == 0 or ledger["guest"]["executed_instructions"] == 0:
+        problems.append("the dynarec translated or executed nothing")
+    if ledger["guest"]["faults"] != 0:
+        problems.append(f"the executor recorded {ledger['guest']['faults']} fault(s)")
+    return problems
 
 
 def judge_arrival(dump: words.RamDump) -> list[str]:
@@ -112,9 +131,11 @@ def judge_arrival(dump: words.RamDump) -> list[str]:
 
 
 def command_route(binary: Path) -> int:
-    _, dump = run_once(ROUTES[ROUTE], binary)
-    problems = judge_arrival(dump)
-    player = words.read_player(dump)
+    run = run_once(ROUTES[ROUTE], binary)
+    problems = judge_arrival(run.arrival) + judge_ledger(run.ledger)
+    player = words.read_player(run.arrival)
+    for line in render_ledger(run.ledger):
+        print(f"[route] ledger {line}")
     print(f"[route] pad frame {ARRIVAL_FRAME}: Buzz x={player.x} y={player.y} z={player.z} yaw={player.yaw}")
     for problem in problems:
         print(f"[route] FAIL {problem}")
@@ -124,9 +145,9 @@ def command_route(binary: Path) -> int:
 
 def command_negative(binary: Path) -> int:
     taps = ROUTES[ROUTE][:-1]
-    _, dump = run_once(taps, binary)
-    problems = judge_arrival(dump)
-    player = words.read_player(dump)
+    run = run_once(taps, binary)
+    problems = judge_arrival(run.arrival)
+    player = words.read_player(run.arrival)
     print(f"[negative] route without its last tap: Buzz exists={player.exists}; {len(problems)} problem(s)")
     if not problems or player.exists:
         print("[negative] FAIL: the arrival predicate accepted a route that never left the PRESS X card")
@@ -136,8 +157,8 @@ def command_negative(binary: Path) -> int:
 
 
 def command_determinism(binary: Path) -> int:
-    first, _ = run_once(ROUTES[ROUTE], binary)
-    second, _ = run_once(ROUTES[ROUTE], binary)
+    first = run_once(ROUTES[ROUTE], binary).capture
+    second = run_once(ROUTES[ROUTE], binary).capture
     differences = first.mismatches(second)
     for frame in sorted(first.dumps):
         print(f"[determinism] ram@{frame}: {first.dumps[frame][:16]} vs {second.dumps[frame][:16]}")
@@ -170,6 +191,12 @@ class VerifyRouteTest(unittest.TestCase):
         problems = judge_arrival(blank)
         self.assertTrue(any("all zero" in p for p in problems))
         self.assertEqual(len(problems), len(words.EVIDENCE) + 1)
+
+    def test_a_ledger_with_no_translation_or_a_fault_cannot_back_a_claim(self):
+        base = {"guest": {"translated_blocks": 5, "executed_instructions": 9, "faults": 0}}
+        self.assertEqual(judge_ledger(base), [])
+        self.assertEqual(len(judge_ledger({"guest": {**base["guest"], "translated_blocks": 0}})), 1)
+        self.assertEqual(len(judge_ledger({"guest": {**base["guest"], "faults": 2}})), 1)
 
     def test_the_route_is_the_four_measured_taps_in_order(self):
         taps = ROUTES[ROUTE]

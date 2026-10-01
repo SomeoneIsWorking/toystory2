@@ -136,6 +136,10 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/ts2_guest_words.py --selftest
   )
   add_test(
+    NAME execution_ledger_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/execution_ledger.py --selftest
+  )
+  add_test(
     NAME verify_route_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_route.py --selftest
   )

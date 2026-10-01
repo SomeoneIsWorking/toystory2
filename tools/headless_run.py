@@ -37,6 +37,7 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
+from execution_ledger import Ledger, parse as parse_ledger, render as render_ledger
 from ts2_route import Tap, compile_pad, parse_tap
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ DEFAULT_ICD = "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json"
 
 PRESENT_LINE = re.compile(r"present_shot|\[shot\]|present-shot", re.IGNORECASE)
 EXIT_LINE = re.compile(r"frame driver required|native boot returned|REFUSED|abort|fault", re.IGNORECASE)
-LEDGER_LINE = re.compile(r"lightrec|translated|fallback", re.IGNORECASE)
+LEDGER_LINE = re.compile(r"\[guest\] run-end:|lightrec|translated|fallback", re.IGNORECASE)
 
 
 class StopWatch:
@@ -128,34 +129,17 @@ def summarize(log_text: str) -> dict[str, list[str]]:
     return summary
 
 
-GUEST_FIELD = re.compile(r"(\w+)=(\d+)")
-
-
-def parse_guest_ledger(reply: str) -> dict[str, int]:
-    """The `guest:` line of the control channel as counters; an absent line is a refusal, not zeros."""
-    counters: dict[str, int] | None = None
-    for line in reply.splitlines():
-        if line.startswith("guest:"):
-            counters = {name: int(value) for name, value in GUEST_FIELD.findall(line)}
-    if counters is None:
-        raise ValueError("control channel reply carries no 'guest:' line")
-    for line in reply.splitlines():
-        if line.startswith("invalidations_by_source:"):
-            counters.update({f"invalidated_by_{name}": int(value) for name, value in GUEST_FIELD.findall(line)})
-    return counters
-
-
-def poll_ledger(process: subprocess.Popen, port: int, watch: StopWatch) -> tuple[dict[str, int] | None, StopWatch]:
+def poll_ledger(process: subprocess.Popen, port: int, watch: StopWatch) -> tuple[Ledger | None, StopWatch]:
     """Ask the live run for its guest-execution counters until it exits, ending the run at its stop
     frame; the last answer is the ledger. Observation only: no input is ever sent from here."""
     sys.path.insert(0, str(FRAMEWORK / "tools"))
     from dbgclient import LiveClient
 
-    last: dict[str, int] | None = None
+    last: Ledger | None = None
     while process.poll() is None:
         try:
             client = LiveClient(port, timeout=5.0)
-            last = parse_guest_ledger(client.send("guest"))
+            last = parse_ledger(client.send("guest"))
             frame = client.frame()
             client.close()
             if watch.finished(frame):
@@ -185,7 +169,7 @@ class RunResult:
     log: Path
     log_text: str
     work: Path
-    ledger: dict[str, int] | None
+    ledger: Ledger | None
 
 
 def execute(plan: RunPlan, base: dict[str, str]) -> RunResult:
@@ -203,7 +187,7 @@ def execute(plan: RunPlan, base: dict[str, str]) -> RunResult:
     process = subprocess.Popen([str(plan.binary)], cwd=work, env=env, stdout=subprocess.DEVNULL,
                                stderr=subprocess.STDOUT)
     print(f"[run] captured pid {process.pid}; killing only that pid on timeout", flush=True)
-    ledger: dict[str, int] | None = None
+    ledger: Ledger | None = None
     watch = StopWatch(plan.stop_frame)
     try:
         if plan.control_port:
@@ -232,6 +216,11 @@ def run(plan: RunPlan, base: dict[str, str]) -> int:
         print(f"[{key}] {len(lines)} line(s)")
         for line in lines[-12:]:
             print(f"  {line}")
+    try:
+        for line in render_ledger(parse_ledger(result.log_text)):
+            print(f"[run-end ledger] {line}")
+    except ValueError as error:
+        print(f"[run-end ledger] NOT MEASURED: {error}")
     if plan.control_port:
         print(f"[guest-ledger] {result.ledger if result.ledger else 'NO ANSWER from the control channel (not measured)'}")
     for tap in plan.taps:
@@ -259,18 +248,6 @@ class HeadlessRunTest(unittest.TestCase):
     def test_no_shots_sets_no_capture_variable(self):
         env = build_environment({}, self.plan(shots=()), Path("/l"))
         self.assertNotIn("PSXPORT_PRESENT_SHOT_AT", env)
-
-    def test_guest_ledger_parses_counters_and_refuses_a_reply_without_them(self):
-        got = parse_guest_ledger("guest: calls=3 translated_blocks=12 faults=0\n---\n")
-        self.assertEqual(got["translated_blocks"], 12)
-        self.assertEqual(got["faults"], 0)
-        with self.assertRaises(ValueError):
-            parse_guest_ledger("guest: no core in this frame is not a ledger\nother: 1\n".replace("guest:", "x:"))
-
-    def test_guest_ledger_carries_invalidations_by_source(self):
-        got = parse_guest_ledger("guest: calls=3 invalidations=9\ninvalidations_by_source: cpu=1 dma=8\n")
-        self.assertEqual(got["invalidated_by_dma"], 8)
-        self.assertEqual(got["invalidations"], 9)
 
     def test_taps_compile_into_a_replay_file_the_product_is_pointed_at(self):
         plan = self.plan(taps=(Tap(2, "cross"),))
