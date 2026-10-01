@@ -28,8 +28,7 @@ public:
   void bootInit(Core &core) override;
 
 private:
-  static constexpr HostIdentity kHostIdentity{
-      facts::kWindowTitle, facts::kCardEnvVar, facts::kCardDefaultPath};
+  static constexpr HostIdentity kHostIdentity{facts::kWindowTitle, facts::kCardEnvVar, facts::kCardDefaultPath};
 };
 
 } // namespace ts2

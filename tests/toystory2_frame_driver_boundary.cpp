@@ -72,8 +72,12 @@ public:
   void prepareFrontEnd() override {
     operations.emplace_back("prepare-front-end");
   }
-  int pollFrontEndEvent() override {
+  std::optional<int> pollFrontEndEvent() override {
     operations.emplace_back("poll");
+    if (pollFieldsRemaining > 0) {
+      --pollFieldsRemaining;
+      return std::nullopt;
+    }
     return event;
   }
   void acknowledgeResidentEntry() override {
@@ -95,9 +99,9 @@ public:
   bool needsInteractiveSelection() const override {
     return needsInteractive;
   }
-  bool stepInteractiveSelection() override {
+  ts2::SelectionProgress stepInteractiveSelection() override {
     operations.emplace_back("interactive-step");
-    return interactiveReady;
+    return selectionProgress;
   }
   ts2::ResidentPreparationProgress prepareResident() override {
     operations.emplace_back("prepare-resident");
@@ -130,10 +134,11 @@ public:
   }
 
   int event = 0;
+  int pollFieldsRemaining = 0; // fields the poll spans before it returns its event
   bool introMoviesFinished = true;
   bool playback = true;
   bool needsInteractive = true;
-  bool interactiveReady = false;
+  ts2::SelectionProgress selectionProgress = ts2::SelectionProgress::pending;
   ts2::ResidentPreparationProgress preparationProgress = ts2::ResidentPreparationProgress::ready;
   bool residentIsActive = true;
   ts2::PostResidentTransition postResidentTransition = ts2::PostResidentTransition::residentSetup;
@@ -503,6 +508,34 @@ static void test_intro_movies_yield_one_field_per_step_until_finished() {
   CHECK_EQ(boundary.operations.size(), 5u);
 }
 
+static void test_backing_out_of_the_selection_screen_reenters_the_front_end_poll() {
+  ts2::OuterLoopState state{ts2::OuterLoopPhase::interactiveSelection};
+  RecordingOuterLoop boundary;
+  boundary.selectionProgress = ts2::SelectionProgress::backToFrontEnd;
+  ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::pollFrontEnd);
+  // Going back prepares nothing: the poll's own re-entry path handles the stored -1 event.
+  CHECK(boundary.operations == (std::vector<std::string>{"interactive-step"}));
+}
+
+static void test_front_end_poll_spans_fields_without_leaving_its_phase_until_it_returns() {
+  ts2::OuterLoopState state{ts2::OuterLoopPhase::pollFrontEnd};
+  RecordingOuterLoop boundary;
+  boundary.event = 1;
+  boundary.pollFieldsRemaining = 3;
+  for (int field = 0; field < 3; ++field) {
+    ts2::stepOuterLoop(state, boundary);
+    CHECK(state.phase == ts2::OuterLoopPhase::pollFrontEnd);
+  }
+  // A running poll acts on nothing: no playback flag, no entry acknowledgement, no mode selection.
+  CHECK(boundary.operations == (std::vector<std::string>{"poll", "poll", "poll"}));
+  ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::interactiveSelection);
+  CHECK(boundary.operations.size() > 4u);
+  CHECK(boundary.operations[3] == "poll");
+  CHECK(boundary.operations[4] == "playback:off");
+}
+
 static void test_outer_loop_interactive_path_yields_between_selection_iterations() {
   ts2::OuterLoopState state{ts2::OuterLoopPhase::pollFrontEnd};
   RecordingOuterLoop boundary;
@@ -512,7 +545,7 @@ static void test_outer_loop_interactive_path_yields_between_selection_iterations
   CHECK(state.phase == ts2::OuterLoopPhase::interactiveSelection);
   ts2::stepOuterLoop(state, boundary);
   CHECK(state.phase == ts2::OuterLoopPhase::interactiveSelection);
-  boundary.interactiveReady = true;
+  boundary.selectionProgress = ts2::SelectionProgress::chosen;
   ts2::stepOuterLoop(state, boundary);
   CHECK(state.phase == ts2::OuterLoopPhase::residentSetup);
   ts2::stepOuterLoop(state, boundary);
@@ -612,6 +645,8 @@ int main() {
   RUN(resident_scene_history_reads_exact_owner_and_mesh_arguments);
   RUN(outer_loop_reaches_normal_resident_in_finite_steps);
   RUN(intro_movies_yield_one_field_per_step_until_finished);
+  RUN(backing_out_of_the_selection_screen_reenters_the_front_end_poll);
+  RUN(front_end_poll_spans_fields_without_leaving_its_phase_until_it_returns);
   RUN(outer_loop_interactive_path_yields_between_selection_iterations);
   RUN(resident_preparation_yields_and_can_finish);
   RUN(outer_loop_front_end_events_are_finite_and_non_fallthrough);

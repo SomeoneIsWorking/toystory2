@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 namespace ts2 {
 
@@ -23,6 +24,14 @@ enum class PostResidentTransition {
   finished,
 };
 
+// How one interactive-selection step ended: still running, a level chosen (go prepare it), or the
+// player backed out of the screen (re-enter the front-end poll).
+enum class SelectionProgress {
+  pending,
+  chosen,
+  backToFrontEnd,
+};
+
 enum class ResidentPreparationProgress {
   pending,
   ready,
@@ -34,7 +43,7 @@ struct OuterLoopState {
 };
 
 // Finite title operations extracted from main 0x8007A9E8. One call to stepOuterLoop performs at
-// most one front-end poll, one interactive-selection iteration, or one resident update.
+// most one front-end poll field, one interactive-selection iteration, or one resident update.
 class OuterLoopBoundary {
 public:
   virtual ~OuterLoopBoundary() = default;
@@ -45,14 +54,15 @@ public:
   virtual bool stepIntroMovies() = 0;
   virtual void finishColdFrontEnd() = 0;
   virtual void prepareFrontEnd() = 0;
-  virtual int pollFrontEndEvent() = 0;
+  // One display field of the front-end poll: nullopt while it is still running, the event once it returns.
+  virtual std::optional<int> pollFrontEndEvent() = 0;
   virtual void acknowledgeResidentEntry() = 0;
   virtual void finishFrontEndPoll() = 0;
   virtual bool playbackMode() const = 0;
   virtual void setPlaybackMode(bool enabled) = 0;
   virtual void selectPlaybackLevel() = 0;
   virtual bool needsInteractiveSelection() const = 0;
-  virtual bool stepInteractiveSelection() = 0;
+  virtual SelectionProgress stepInteractiveSelection() = 0;
   virtual ResidentPreparationProgress prepareResident() = 0;
   virtual void showMemoryDialog() = 0;
   virtual void checkSaveSelection() = 0;

@@ -1,6 +1,8 @@
 #include "boot/native_sync_overrides.h"
 
 #include "core.h"
+#include "core/toystory2_context.h"
+#include "execution_control.h"
 #include "guest_execution.h"
 #include "input/native_pad_owner.h"
 #include "render/guest_widescreen.h"
@@ -129,7 +131,8 @@ void completeOwnedFieldBarrier(Core *core) {
   const uint32_t requested = core->r[4];
   std::array<uint32_t, 32> savedRegisters{};
   std::copy(std::begin(core->r), std::end(core->r), savedRegisters.begin());
-  const uint32_t elapsed = std::min(core->mem_r32(kElapsedFields), 4u);
+  const bool yieldsToHost = context(*core).yieldAtFieldBarrier;
+  const uint32_t elapsed = yieldsToHost ? requested : std::min(core->mem_r32(kElapsedFields), 4u);
   if (elapsed < requested) {
     lucent::error(
         "ts2-frame", "field barrier requested {} fields after the native owner supplied only {}", requested, elapsed);
@@ -144,6 +147,9 @@ void completeOwnedFieldBarrier(Core *core) {
     std::abort();
   }
   std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core->r));
+  if (yieldsToHost) {
+    psx::cpu::requestExecutionExit(*core, psx::cpu::ExecutionExitReason::FrameBoundary);
+  }
 }
 
 void initializeResidentGraphicsOverride(Core *core) {

@@ -15,7 +15,7 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | S001 | USA executable, disc files, and loaded modules are reproducibly identified and placed | verified | — | G001 |
 | S002 | psxport executes resident and streamed code through a gameplay dynarec with classified bounded fallback | partial | S001 | G001 |
 | S003 | Native title owners provide finite frame, timing, input, audio, and presentation sequencing | partial | S002 | G001 |
-| S004 | The current product boots through front end and LEVEL01 gameplay | blocked | S002, S003 | G001 |
+| S004 | The current product boots through front end and LEVEL01 gameplay | partial | S002, S003 | G001 |
 | S005 | Host input produces repeatable guest gameplay behavior | partial | S003, S004 | G001 |
 | S006 | Guest-rendered 15-bit screens and gameplay present coherently | blocked | S002, S003 | G001 |
 | S007 | Toy Story 2's 24-bit MDEC movies present coherently | partial | S002, S003 | G001 |
@@ -47,10 +47,14 @@ Finish list, in order:
    `[0x8009FD60 + 12]` (`0x80093E88`), which writes ring state 2. The four intro movies play to their
    returns (194, 41, 73, 69 display fields), one presentation fence each, with opened captures.
    **The next blocker is LEVEL overlay code-image identity** (`0x800D1DBC`, issue 0032).
-3. **First verified frame**: presentation fences complete (377 in the movies); a clean whole-run exit
+3. ~~**LEVEL overlay identity and the front end**~~ — **DONE, issue 0033**: LEVEL modules are
+   authenticated, activated and retired as code images (`game/overlay/`), and the product runs title,
+   menu, level select and the Level 1 intro on real pad edges into Andy's Room (opened captures, issue
+   0033). Open: input in gameplay (S005), HUD, fallback ledger for a whole run.
+3a. **First verified frame**: presentation fences complete (377 in the movies); a clean whole-run exit
    and the fallback-by-reason ledger are still missing because the run faults at LEVEL entry (S002,
    S003).
-4. **Front end**: FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
+4. **Front end** (reached, see 3 above): FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
    Lightrec, then Andy's Room (S004).
 5. Then player control (S005), presentation coherence (S006, S007), and only after gameplay runs,
    widescreen (S010) and 60 fps (S011).

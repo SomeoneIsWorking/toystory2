@@ -47,8 +47,11 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
     return;
 
   case OuterLoopPhase::pollFrontEnd: {
-    const int event = boundary.pollFrontEndEvent();
-    switch (event) {
+    const std::optional<int> polled = boundary.pollFrontEndEvent();
+    if (!polled) {
+      return;
+    }
+    switch (*polled) {
     case 0:
       boundary.setPlaybackMode(true);
       boundary.acknowledgeResidentEntry();
@@ -88,8 +91,15 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
   }
 
   case OuterLoopPhase::interactiveSelection:
-    if (boundary.stepInteractiveSelection()) {
+    switch (boundary.stepInteractiveSelection()) {
+    case SelectionProgress::pending:
+      return;
+    case SelectionProgress::chosen:
       beginResidentPreparation(state);
+      return;
+    case SelectionProgress::backToFrontEnd:
+      state.phase = OuterLoopPhase::pollFrontEnd;
+      return;
     }
     return;
 

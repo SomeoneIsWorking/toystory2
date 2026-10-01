@@ -80,18 +80,25 @@ uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 
   return callGuestToReturn(core, {address, 0x8007A9E8u, arguments, std::nullopt, "frame driver"});
 }
 
+// Which resumable guest call one interactive-selection iteration is currently running.
+enum class SelectionCall { screenLoop, queuedScreen };
+
 class CoreResidentFrameBoundary final : public ResidentFrameBoundary, public OuterLoopBoundary {
 public:
   CoreResidentFrameBoundary(Core &core,
                             OuterLoopState &outerLoop,
                             ResidentPreparation &residentPreparation,
-                            ResumableGuestCall &movie,
-                            std::size_t &introMovieStep)
-      : core_(core), outerLoop_(outerLoop), residentPreparation_(residentPreparation), movie_(movie),
-        introMovieStep_(introMovieStep) {}
+                            ResumableGuestCall &fieldCall,
+                            std::size_t &introMovieStep,
+                            SelectionCall &selectionCall)
+      : core_(core), outerLoop_(outerLoop), residentPreparation_(residentPreparation), fieldCall_(fieldCall),
+        introMovieStep_(introMovieStep), selectionCall_(selectionCall) {}
 
   int displayFieldQuota() const override {
-    return outerLoop_.phase == OuterLoopPhase::resident ? 2 : 1;
+    // The resident update and the selection screen both wait two fields per iteration.
+    const bool pacedAtTwoFields =
+        outerLoop_.phase == OuterLoopPhase::resident || outerLoop_.phase == OuterLoopPhase::interactiveSelection;
+    return pacedAtTwoFields ? 2 : 1;
   }
 
   void beginLogicFrame(uint32_t frame) override {
@@ -117,6 +124,12 @@ public:
   void serviceDeferredDisplay() override {
     if (outerLoop_.phase == OuterLoopPhase::introMovies) {
       return; // the FMV overlay owns the display; 0x80021028 belongs to the resident front end
+    }
+    if (fieldCall_.active()) {
+      // A guest call suspended between fields (the front-end poll) owns its own display loop and takes
+      // its field callbacks from the executor. A host-initiated guest call here would clobber the
+      // caller-saved registers the suspended call resumes with.
+      return;
     }
     // 0x8003FA68 publishes the number of elapsed fields, clears its accumulator, and asks the next
     // field callback to run 0x80021028. The native owner already controls that boundary, so it
@@ -175,19 +188,19 @@ public:
   // ends the sequence, as the guest's own `&&` chain does.
   bool stepIntroMovies() override {
     while (true) {
-      if (!movie_.active()) {
+      if (!fieldCall_.active()) {
         if (introMovieStep_ >= kIntroMovieSteps.size()) {
           return true;
         }
         const MovieStep &step = kIntroMovieSteps[introMovieStep_];
         const std::array arguments{step.a0, step.a1, step.a2, 0u};
-        movie_.begin({step.address, 0x8007A9E8u, arguments, std::nullopt, "front-end movie"});
+        fieldCall_.begin({step.address, 0x8007A9E8u, arguments, std::nullopt, "front-end movie"});
       }
-      if (movie_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+      if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
         return false;
       }
       const bool gated = kIntroMovieSteps[introMovieStep_].address == kMemoryStatus;
-      introMovieStep_ = gated && movie_.result() != 0 ? kIntroMovieSteps.size() : introMovieStep_ + 1;
+      introMovieStep_ = gated && fieldCall_.result() != 0 ? kIntroMovieSteps.size() : introMovieStep_ + 1;
     }
   }
 
@@ -212,14 +225,23 @@ public:
     callGuest(core_, kResetGraphics);
   }
 
-  int pollFrontEndEvent() override {
-    // The poll loads the front-end overlay and decodes its assets on first entry, which spans many
-    // guest turns; every later poll returns within the first.
-    const std::array arguments{2u, 0u};
-    callFiniteGuestToReturn(core_,
-                            {kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "front-end poll"},
-                            kFiniteInitializationSliceLimit);
-    return static_cast<int>(core_.mem_r32(kFrontEndEvent));
+  // The front-end poll (MEMORY 0x800D92C4) is the title screen's own loop: it draws, waits on VSync
+  // and reads the pad every field until a selection, a timeout or a demo request, and only then
+  // returns the event. It therefore spans display fields like a movie, and each field is presented
+  // and sampled by the host between steps; nullopt means the poll is still running.
+  std::optional<int> pollFrontEndEvent() override {
+    if (!fieldCall_.active()) {
+      const std::array arguments{2u, 0u};
+      fieldCall_.begin({kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "front-end poll"});
+      context(core_).yieldAtFieldBarrier = true;
+    }
+    if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+      return std::nullopt;
+    }
+    context(core_).yieldAtFieldBarrier = false;
+    const auto event = static_cast<int>(core_.mem_r32(kFrontEndEvent));
+    lucent::info("ts2-frame", "front-end poll returned event {}", event);
+    return event;
   }
 
   void acknowledgeResidentEntry() override {
@@ -263,22 +285,34 @@ public:
     return !playbackMode() && static_cast<int32_t>(core_.mem_r32(kBootCountdown)) < 0;
   }
 
-  bool stepInteractiveSelection() override {
-    core_.mem_w32(kFrontEndEvent, 0);
-    core_.mem_w32(kSelectionActive, 1);
-    if (callGuest(core_, kInteractiveSelection) != 0) {
-      return true;
+  // The main loop's selection step 0x8007AD8C is two resumable guest calls: the screen loop
+  // 0x80041240, which waits on the field barrier (fades, transitions, its asset load) and so yields
+  // to the host at each barrier, and the queued transition screen, whose movie waits on VSync. Each
+  // spans display fields exactly like the front-end poll and is presented one field at a time.
+  // A NONZERO return of the screen loop means the player backed out: the retail loop stores -1 as the
+  // front-end event and re-enters the poll. A zero return means a level was chosen, optionally
+  // followed by its transition screen, and then the level is prepared.
+  SelectionProgress stepInteractiveSelection() override {
+    if (!fieldCall_.active()) {
+      beginSelectionCall();
     }
-
-    const int selection = core_.mem_r16s(kPlaybackLevel);
-    int screen = selection + 1;
-    if ((screen % 3) != 0 || selection == 11) {
-      if (selection == 11) {
-        screen = 16;
-      }
-      callGuest(core_, kQueueScreen, static_cast<uint32_t>(screen), 0, 0);
+    if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+      return SelectionProgress::pending;
     }
-    return false;
+    context(core_).yieldAtFieldBarrier = false;
+    if (selectionCall_ == SelectionCall::queuedScreen) {
+      selectionCall_ = SelectionCall::screenLoop;
+      return SelectionProgress::chosen;
+    }
+    if (fieldCall_.result() != 0) {
+      core_.mem_w32(kFrontEndEvent, static_cast<uint32_t>(-1));
+      return SelectionProgress::backToFrontEnd;
+    }
+    if (!queuedScreenFor(core_.mem_r16s(kPlaybackLevel))) {
+      return SelectionProgress::chosen;
+    }
+    selectionCall_ = SelectionCall::queuedScreen;
+    return SelectionProgress::pending;
   }
 
   ResidentPreparationProgress prepareResident() override {
@@ -408,6 +442,29 @@ public:
   }
 
 private:
+  // The transition screen retail queues after a selection that is neither a sequence level nor
+  // already queued; the last level is the finale screen.
+  static std::optional<uint32_t> queuedScreenFor(int selection) {
+    const int screen = selection == 11 ? 16 : selection + 1;
+    if ((screen % 3) == 0 && selection != 11) {
+      return std::nullopt;
+    }
+    return static_cast<uint32_t>(screen);
+  }
+
+  void beginSelectionCall() {
+    if (selectionCall_ == SelectionCall::queuedScreen) {
+      const uint32_t screen = *queuedScreenFor(core_.mem_r16s(kPlaybackLevel));
+      const std::array arguments{screen, 0u, 0u, 0u};
+      fieldCall_.begin({kQueueScreen, 0x8007A9E8u, arguments, std::nullopt, "queued selection screen"});
+      return;
+    }
+    core_.mem_w32(kFrontEndEvent, 0);
+    core_.mem_w32(kSelectionActive, 1);
+    fieldCall_.begin({kInteractiveSelection, 0x8007A9E8u, {}, std::nullopt, "interactive selection"});
+    context(core_).yieldAtFieldBarrier = true;
+  }
+
   uint32_t levelId(uint16_t selection) const {
     return core_.mem_r32(kLevelTable + static_cast<uint32_t>(selection) * 4);
   }
@@ -459,26 +516,29 @@ private:
   Core &core_;
   OuterLoopState &outerLoop_;
   ResidentPreparation &residentPreparation_;
-  ResumableGuestCall &movie_;
+  ResumableGuestCall &fieldCall_;
   std::size_t &introMovieStep_;
   int fieldsDelivered_ = 0;
+  SelectionCall &selectionCall_;
 };
 
 class ToyStory2FrameDriver final : public FrameDriver {
 public:
   void stepFrame(Core &core, uint32_t frame) override {
-    if (!movie_) {
-      movie_.emplace(core);
+    if (!fieldCall_) {
+      fieldCall_.emplace(core);
     }
-    CoreResidentFrameBoundary boundary(core, outerLoop_, residentPreparation_, *movie_, introMovieStep_);
+    CoreResidentFrameBoundary boundary(
+        core, outerLoop_, residentPreparation_, *fieldCall_, introMovieStep_, selectionCall_);
     stepResidentFrame(boundary, frame);
   }
 
 private:
   OuterLoopState outerLoop_;
   ResidentPreparation residentPreparation_;
-  std::optional<ResumableGuestCall> movie_;
+  std::optional<ResumableGuestCall> fieldCall_;
   std::size_t introMovieStep_ = 0;
+  SelectionCall selectionCall_ = SelectionCall::screenLoop;
 };
 
 } // namespace
