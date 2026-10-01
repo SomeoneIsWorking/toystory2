@@ -123,6 +123,22 @@ if(BUILD_TESTING)
     NAME verify_str_completion_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_str_completion.py --selftest
   )
+  add_test(
+    NAME ts2_route_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/ts2_route.py --selftest
+  )
+  add_test(
+    NAME headless_run_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/headless_run.py --selftest
+  )
+  add_test(
+    NAME ts2_guest_words_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/ts2_guest_words.py --selftest
+  )
+  add_test(
+    NAME verify_route_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_route.py --selftest
+  )
   add_test(NAME structure_policy COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_structure.py)
   add_test(NAME structure_policy_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_structure.py)
   if(TARGET toystory2_projection_boundary)
