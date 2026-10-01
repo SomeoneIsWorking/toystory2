@@ -2,18 +2,12 @@
 
 #include "core.h"
 #include "game.h"
-#include "gpu_vk.h"
 #include "mods.h"
-#include "proj_params.h"
 
 #include <cstdlib>
 
 namespace ts2 {
 namespace {
-
-constexpr int kResidentProjectionWidth = 512;
-constexpr int kResidentProjectionHeight = 240;
-constexpr int kResidentProjectionCenterY = 120;
 
 class ToyStory2GuestWidescreen final : public GuestWidescreenProjection {
 public:
@@ -41,13 +35,6 @@ public:
 const GuestWidescreenProjection &guestWidescreenPolicy() {
   static const ToyStory2GuestWidescreen policy;
   return policy;
-}
-
-GuestProjectionPlan latchResidentGuestProjection(Core &core) {
-  const GuestProjectionPlan plan = gpu_vk_latch_guest_projection(
-      &core, {.extent = {kResidentProjectionWidth, kResidentProjectionHeight}, .drawWidth = kResidentProjectionWidth});
-  libgte_set_geom_offset(&core, plan.projectionCenterX, kResidentProjectionCenterY);
-  return plan;
 }
 
 } // namespace ts2

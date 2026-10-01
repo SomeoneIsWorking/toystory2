@@ -11,6 +11,7 @@ product instance.
     uv run --frozen python tools/headless_run.py --frames 900 \\
         --tap 600:start --tap 640:cross:6 --shot-at 590,700,880 --dump-at 880
     uv run --frozen python tools/headless_run.py --selftest
+    uv run --frozen python tools/headless_run.py --aspect 16x9 --shot-at 900 --frames 1000 --tap 600:start ...
 
 `--tap FRAME:BUTTON[:HOLD]` is an EXACT-FRAME pad edge: the taps are compiled (tools/ts2_route.py) into a
 psxport pad replay, so the guest receives the press at pad frame FRAME on every run. `--dump-at F,...`
@@ -44,7 +45,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 FRAMEWORK = ROOT / "external" / "psxport"
 SCRATCH = ROOT / "scratch" / "headless"
-SETTINGS = ROOT / "config" / "aspect_4x3.ini"
+SETTINGS_4X3 = ROOT / "config" / "aspect_4x3.ini"
+SETTINGS_16X9 = ROOT / "config" / "aspect_16x9.ini"
+# The tracked shipping configuration a run uses. 4:3 is the product default; --settings names the
+# 16:9 file for the widening evidence, so both legs are the same product, the same route and the same
+# capture code path differing only in the aspect the settings file asks for.
+SETTINGS = SETTINGS_4X3
 DEFAULT_ICD = "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json"
 
 PRESENT_LINE = re.compile(r"present_shot|\[shot\]|present-shot", re.IGNORECASE)
@@ -75,6 +81,7 @@ class RunPlan:
     control_port: int = 0
     taps: tuple[Tap, ...] = ()
     stop_frame: int = 0
+    settings: Path = SETTINGS_4X3
 
     @property
     def pad_frames(self) -> int:
@@ -89,7 +96,7 @@ def build_environment(base: dict[str, str], plan: RunPlan, log: Path, pad: Path 
     sys.path.insert(0, str(FRAMEWORK / "tools" / "port"))
     from launch_environment import agent_environment
 
-    env = agent_environment(base, settings=SETTINGS)
+    env = agent_environment(base, settings=plan.settings)
     env.update(
         {
             "PSXPORT_PRESENT_SINK": "960x720",
@@ -293,6 +300,8 @@ def main() -> int:
     parser.add_argument("--tap", action="append", default=[], help="PADFRAME:BUTTON[:HOLD], repeatable, exact")
     parser.add_argument("--dump-at", default="", help="pad frames at which to write the 2 MiB guest RAM")
     parser.add_argument("--stop-frame", type=int, default=0, help="quit once this presented frame is reached")
+    parser.add_argument("--aspect", choices=("4x3", "16x9"), default="4x3",
+                        help="which tracked shipping settings file configures the run")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
     if args.selftest:
@@ -305,7 +314,8 @@ def main() -> int:
         parser.error("--stop-frame needs --control-port")
     dump_at = tuple(int(f) for f in args.dump_at.split(",") if f)
     plan = RunPlan(
-        args.binary.resolve(), args.frames, shots, dump_at, args.debug, args.timeout, disc, args.control_port, taps, args.stop_frame
+        args.binary.resolve(), args.frames, shots, dump_at, args.debug, args.timeout, disc, args.control_port, taps,
+        args.stop_frame, SETTINGS_16X9 if args.aspect == "16x9" else SETTINGS_4X3,
     )
     return run(plan, dict(os.environ))
 

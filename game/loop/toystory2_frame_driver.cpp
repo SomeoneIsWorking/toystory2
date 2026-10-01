@@ -119,6 +119,12 @@ public:
     ++core_.game->timing.vblank;
     ++fieldsDelivered_;
     core_.mem_w32(facts::kVSyncQueryCounter, core_.game->timing.vblank);
+    // Learn the guest's live display width and re-centre the horizontal projection for this field,
+    // before the guest transforms its vertices: the guest publishes OFX once at graphics init and
+    // never moves it again, so at 16:9 the projection would otherwise stay centred on the 512-wide
+    // 4:3 canvas. Both are no-ops in the 4:3 leg.
+    context(core_).widescreen.syncToGuestDisplay(core_);
+    context(core_).widescreen.beginField(core_);
   }
 
   void serviceDeferredDisplay() override {
@@ -156,6 +162,11 @@ public:
   }
 
   void present(int guestFields) override {
+    // The guest re-publishes its drawing environment, drawing offset and display origin every frame,
+    // alternating one 512-wide canvas between the two halves of VRAM. The wide canvas is asserted
+    // here, after the update and before the captured GP0 stream is rasterized, so the whole frame is
+    // rasterized into and presented from the same 684 columns. A no-op in the 4:3 leg.
+    context(core_).widescreen.presentField(core_);
     core_.game->presentation.commit(&core_, guestFields);
   }
 

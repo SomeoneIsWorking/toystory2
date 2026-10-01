@@ -5,7 +5,7 @@
 #include "execution_control.h"
 #include "guest_execution.h"
 #include "input/native_pad_owner.h"
-#include "render/guest_widescreen.h"
+#include "render/resident_widescreen.h"
 
 #include <algorithm>
 #include <array>
@@ -185,8 +185,11 @@ void initializeResidentGraphicsWithoutGuestVSync(Core &core) {
     core.mem_w16(rect + 4, width);
     core.mem_w16(rect + 6, height);
   };
-  const GuestProjectionPlan projection = latchResidentGuestProjection(core);
-  const uint32_t drawWidth = static_cast<uint32_t>(projection.guestDrawWidth);
+  // The guest's own resident canvas, at retail: 512 columns of VRAM in one of the two halves. The
+  // wide leg owns the widening per field (render/resident_widescreen.h) rather than here, because the
+  // guest re-publishes these environments every frame, and because the guest programs its own display
+  // width only after this initializer returns.
+  const uint32_t drawWidth = ResidentFrameCanvas{}.width;
 
   setRect(0, 0x100, 0x3FF, 0xFF);
   dispatchGuest(core, 0x80085BE8u, rect, 0, 0, 0);
@@ -230,8 +233,9 @@ void initializeResidentGraphicsWithoutGuestVSync(Core &core) {
   core.mem_w8(kGraphicsBufferB + 0x18, 1);
   dispatchGuest(core, 0x80085F5Cu, kGraphicsBufferB + 0x2B4, 0x57C);
 
-  const int presentationShift = projection.projectionHorizontalMargin - projection.presentationHorizontalMargin;
-  const uint16_t displayX = static_cast<uint16_t>(static_cast<int>(core.mem_r32(0x800A11C4u)) + presentationShift);
+  // The guest's display environment keeps retail geometry here; the wide leg re-asserts the display
+  // origin of the canvas it actually drew, per field, in ResidentWidescreenProjection::presentField.
+  const uint16_t displayX = static_cast<uint16_t>(core.mem_r32(0x800A11C4u));
   const uint16_t displayY = static_cast<uint16_t>(core.mem_r32(0x800A11C8u));
   for (const uint32_t buffer : {kGraphicsBufferA, kGraphicsBufferB}) {
     core.mem_w16(buffer + 0x278, displayX);

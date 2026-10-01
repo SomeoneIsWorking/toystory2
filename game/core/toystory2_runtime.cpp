@@ -73,6 +73,7 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   installOverlayLoadObserver(game.core);
   installNativePadOverrides(game.core);
   installResidentSceneObservationOverrides(game.core);
+  context(game.core).widescreen.install(game.core);
 }
 
 void ToyStory2Runtime::bootInit(Core &core) {

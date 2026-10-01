@@ -22,6 +22,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/render/resident_camera_history.cpp
   game/render/resident_mesh_format.cpp
   game/render/resident_scene_history.cpp
+  game/render/resident_widescreen.cpp
 )
 
 function(toystory2_configure_target target)

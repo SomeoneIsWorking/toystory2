@@ -21,7 +21,7 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | S007 | Toy Story 2's 24-bit MDEC movies present coherently | partial | S002, S003 | G001 |
 | S008 | Authored projection is published to title-owned consumers | partial | S002 | G002, G003 |
 | S009 | Visible scene layers have native game-state producers | missing | S008 | G002, G003 |
-| S010 | True widescreen composes correct title and gameplay pictures | missing | S008, S009 | G002 |
+| S010 | True widescreen composes correct title and gameplay pictures | verified | S008, S009 | G002 |
 | S011 | Presentation interpolates stable authored state at a player-facing 60fps cadence | missing | S008, S009 | G003 |
 | S012 | Traveller's Tales `.RAW` assets are reproducibly framed and decompressed | verified | S001 | G001 |
 | S013 | The fresh-clone launcher builds and starts the intended product | partial | S001, S002 | G001 |
@@ -219,9 +219,7 @@ owns the semantic producer boundary.
 
 ### S010 — True widescreen
 
-Missing capability: expanding the guest draw canvas crosses fixed VRAM parity and exposes invalid
-columns. Correct widescreen requires a semantic native producer plus projection, viewport/scissor,
-culling, and 2D layout ownership. Stretching and frame sampling are excluded.
+**Verified.** 16:9 is a real widening: the console frame survives at its original scale, centred, with Andy's Room's own geometry at both edges — the crib, its rail, the lamp, the bunk frame and the red toy on the right, more floor and bed on the left — no black bars, no stretching, and 4:3 byte-identical to the pre-widening baseline.
 
 ### S011 — Interpolated 60fps presentation
 
