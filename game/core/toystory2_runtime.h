@@ -12,6 +12,7 @@ namespace ts2 {
 // this runtime declares DeliveryOwner::GuestInterrupt for the guest's CdReadyCallback slot.
 class ToyStory2Runtime final : public GameRuntime {
 public:
+  ToyStory2Runtime();
   void *createContext(Core &core) override;
   void destroyContext(void *context) override;
   const GuestProgramImage *guestProgramImage() const override;

@@ -23,6 +23,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/render/resident_camera_history.cpp
   game/render/resident_mesh_format.cpp
   game/render/resident_scene_history.cpp
+  game/render/resident_view_matrix.cpp
   game/render/resident_widescreen.cpp
 )
 

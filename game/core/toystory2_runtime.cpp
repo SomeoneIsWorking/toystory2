@@ -7,13 +7,33 @@
 #include "game.h"
 #include "guest_facts.h"
 #include "input/native_pad_owner.h"
+#include "legacy_game_hooks.h"
 #include "loop/toystory2_frame_driver.h"
 #include "overlay/overlay_images.h"
 #include "render/guest_widescreen.h"
 #include "render/resident_scene_history.h"
+#include "render/resident_view_matrix.h"
 #include "toystory2_context.h"
 
 namespace ts2 {
+namespace {
+
+// The only legacy hook this runtime binds. The framework reaches the game's own camera through
+// `Core::hooks`, and a direct runtime otherwise supplies none at all — `fps60ReadSceneCam` would then
+// have nothing to call and `Fps60::sceneCam` refuses rather than guessing a camera. Everything else
+// in the table stays null, which each consumer already treats as "this game does not have one".
+const GameHooks kResidentFps60Hooks = {
+    .fps60ReadSceneCam =
+        +[](Core *core, float view[3][3], float translation[3]) {
+          render::readResidentView(*core, view, translation);
+        },
+};
+
+} // namespace
+
+ToyStory2Runtime::ToyStory2Runtime() {
+  bindLegacyInterface(nullptr, &kResidentFps60Hooks);
+}
 
 void *ToyStory2Runtime::createContext(Core &) {
   return new ToyStory2Context();
@@ -68,6 +88,8 @@ std::unique_ptr<FrameDriver> ToyStory2Runtime::createFrameDriver(Game &game) {
 }
 
 void ToyStory2Runtime::registerOverrides(Game &game) {
+  // The 60fps camera seam is bound in this runtime's constructor, because the framework reads it from
+  // `Core::hooks` and takes it from the runtime installed before the first Core is built.
   // The title FrameDriver owns field delivery directly. In particular, no graphics-init override
   // registers a host turn and no host path dispatches guest VBlank 0x80039D60.
   installNativeSyncOverrides(game.core);
