@@ -15,9 +15,9 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | S001 | USA executable, disc files, and loaded modules are reproducibly identified and placed | verified | — | G001 |
 | S002 | psxport executes resident and streamed code through a gameplay dynarec with classified bounded fallback | partial | S001 | G001 |
 | S003 | Native title owners provide finite frame, timing, input, audio, and presentation sequencing | partial | S002 | G001 |
-| S004 | The current product boots through front end and LEVEL01 gameplay | partial | S002, S003 | G001 |
+| S004 | The current product boots through front end and LEVEL01 gameplay | verified | S002, S003 | G001 |
 | S005 | Host input produces repeatable guest gameplay behavior | partial | S003, S004 | G001 |
-| S006 | Guest-rendered 15-bit screens and gameplay present coherently | blocked | S002, S003 | G001 |
+| S006 | Guest-rendered 15-bit screens and gameplay present coherently | partial | S002, S003 | G001 |
 | S007 | Toy Story 2's 24-bit MDEC movies present coherently | partial | S002, S003 | G001 |
 | S008 | Authored projection is published to title-owned consumers | partial | S002 | G002, G003 |
 | S009 | Visible scene layers have native game-state producers | missing | S008 | G002, G003 |
@@ -50,7 +50,8 @@ Finish list, in order:
 3. ~~**LEVEL overlay identity and the front end**~~ — **DONE, issue 0033**: LEVEL modules are
    authenticated, activated and retired as code images (`game/overlay/`), and the product runs title,
    menu, level select and the Level 1 intro on real pad edges into Andy's Room (opened captures, issue
-   0033). Open: input in gameplay (S005), HUD, fallback ledger for a whole run.
+   0033). Gameplay input, the exact-frame route and the whole-run ledger followed in issue 0034. Open:
+   HUD, pause/camera input (S005).
 3a. **First verified frame**: presentation fences complete (377 in the movies); a clean whole-run exit
    and the fallback-by-reason ledger are still missing because the run faults at LEVEL entry (S002,
    S003).
@@ -75,6 +76,12 @@ MEMORY/FMV slot at `0x800D5D20`, and FMV entry `0x800D6628`. The disc census ide
 modules without tracking game bytes.
 
 ### S002 — Dynarec-first guest execution
+
+Whole-run ledger (issue 0034, route of 1000 pad frames, psxport 5b66eb7f): 8,778 translated blocks,
+364,220,145 executed blocks, 1,963,419,994 executed instructions, 9,650 cache misses, 0 faults; fallback
+1,267 blocks / 1,267 instructions, all `load_delay_hazard`, 0 refused; 20,151,652 invalidations (18,823,584
+`Cpu`), of which Lightrec walked its whole block cache 348,489 times and revoked 1,108 blocks (14.5% of user
+CPU, a measured cost, not fixed: issue 0034 section 6).
 
 The obsolete offline translator, emitted source corpus, seed manifest, generated registry, product
 selector, and static-only tests are absent. Title guest calls and native overrides use psxport's typed
@@ -144,6 +151,11 @@ issue #27.
 
 ### S003 — Native finite frame ownership
 
+Update 2026-10-01 (issue 0034): the front end, level select, story movie and Level 1 intro run to gameplay
+under exact-frame input (`tools/headless_run.py --tap`, `tools/ts2_route.py`); the whole-run ledger prints
+at run end by default (psxport `[guest] run-end:` lines, local commit 5b66eb7f). The paragraphs below
+predate that and describe the earlier blockers.
+
 The retained title modules own the measured front-end/resident state machine, field quota, native pad
 packets, deferred display service, audio step, and one presentation commit without guest VSync. Their
 hermetic boundary tests predate the execution migration and the sources now use the typed dynarec
@@ -157,20 +169,34 @@ framework-side. MEMORY and FMV loop ownership also remain incomplete under issue
 
 ### S004 — Current boot through gameplay
 
-Blocker: S002. Earlier execution evidence reached coherent Andy's Room, but it used the removed
-executor and is only a scenario expectation, not evidence for the current product.
+Verified (headless, silent, unpaced; issue 0034). `tools/verify_route.py --route` delivers pad edges at
+exact pad frames (start@500, cross@560/620/790) and judges from guest RAM at pad frame 900: Buzz's object
+(`0x800B2188`) exists (it is all zero until the "PRESS X" confirm), nine cited instruction words match,
+the ledger shows 8,778 translated blocks and 1,963,419,994 executed instructions with 0 faults. The same
+route run twice produces byte-identical 2 MiB RAM dumps (frames 780, 900) and byte-identical presented
+pictures (frames 450, 780, 900). `--negative` (route minus its last tap) is rejected. Not covered: a
+windowed/audible run, and loading is still finite initialization transactions (S015).
 
 ### S005 — Repeatable player control
 
-The exact retail pad buffers and native active-low packet producer remain implemented. Earlier runs
-paused, unpaused, and moved the camera, while exact sample replay diverged at a later pause transition.
+The exact retail pad buffers and native active-low packet producer remain implemented.
 
-Gap: the scenario must be reverified through the current dynarec product after S002 and S004.
+Verified through the current dynarec product (issue 0034, `tools/verify_movement.py`): from Andy's Room,
+60 idle pad frames leave Buzz's position words bit-identical; holding Up for 40 pad frames moves him
+68,644 position units horizontally (Z -361401 -> -292758); tapping Cross lifts Y by 16,640 and lands within
+46 units of the start. A run with no gameplay input is rejected by the same judge. Pad is digital only.
+
+Gap: pause/unpause (Start), camera control, left/right/other buttons are not in the maintained check
+(Left and Square were seen once); exact sample replay diverging at a later pause transition (earlier
+runs, removed executor) is unretested.
 
 ### S006 — Coherent 15-bit presentation
 
-Blocker: S002. The guest GPU/presentation path and native frame owner remain, but no current title gameplay frame
-has been produced through Lightrec.
+Partial. Through Lightrec the product presents the title, menu, level select, the "LEVEL 1: ANDY'S HOUSE,
+PRESS X" card and Andy's Room with Buzz (opened captures: 100.0% non-black title, 99.95% card, 96.5% /
+95.8% / 99.7% gameplay at pad frames 900 / 1000 / 1060, denominator 691,200 pixels at 960x720). Gap: no HUD
+element was seen in those captures and whether retail shows one there is not established; audio and
+sustained presentation across level exit are unchecked.
 
 ### S007 — Coherent 24-bit MDEC movies
 

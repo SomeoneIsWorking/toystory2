@@ -17,8 +17,8 @@ Start -> main menu (START GAME / OPTIONS / MEMORY CARD / MOVIE VIEWER) -> Cross 
 and loaded -> "LEVEL 1: ANDY'S HOUSE, PRESS X" -> Cross -> Andy's Room with Buzz idling. Captures
 were opened (`tools/headless_run.py --tap FRAME:BUTTON[:N] --shot-at ...`); the title frame is
 98.4% non-black, the menu and level-select frames 99.9-100%, gameplay 95.8% (denominator 691,200
-pixels of the 960x720 sink). Presented frame numbers drift from `--tap` numbers because the driver
-polls the counter every 0.2 s.
+pixels of the 960x720 sink). Presented frame numbers drifted from `--tap` numbers because the driver
+polled the counter every 0.2 s; taps are now exact pad frames (issue 0034).
 
 ## Causes found, each from guest bytes
 
@@ -54,7 +54,7 @@ a separate, unmeasured framework question (it needs a cost measurement, not a co
 
 ## Open / unverified
 
-- Gameplay was observed idle (no input after the intro card); S005 is not advanced.
-- HUD and the 60 fps scope are unchecked.
-- A cold-path fallback ledger by reason was not recorded for the whole run.
+- ~~Gameplay was observed idle~~ — input in Andy's Room is now verified from guest RAM (issue 0034).
+- HUD and the 60 fps scope are unchecked (HUD: issue 0034).
+- ~~A cold-path fallback ledger by reason was not recorded for the whole run.~~ — printed by default, issue 0034.
 - The psxport commits this pin names are on the local branch `ts2-level`, not on psxport main.

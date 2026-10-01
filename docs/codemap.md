@@ -31,6 +31,7 @@ ToyStory2Runtime -> native title owners -> guest_execution -> psxport Lightrec e
 | Structure policy | Reject retired execution artifacts, direct product stderr, stray environment reads and monolith growth | `tools/structure/`, `tools/check_structure.py` | `scan_repository` | `CLAUDE.md` |
 | Hermetic boundaries | Verify title-owned CD, projection, finite-frame, and image/execution contracts without gameplay | `tests/` | CTest targets | `README.md` |
 | Product verification | Supply title targets to the framework's shared configure/build/test and execution-boundary verifier | `tools/verify.py` | `main` | `README.md` |
+| Gameplay control check | Exact-frame pad routes, Buzz's guest-RAM position words with their cited instructions, the movement judge and the run-end ledger reader | `tools/ts2_route.py`, `tools/headless_run.py`, `tools/ts2_guest_words.py`, `tools/verify_route.py`, `tools/verify_movement.py`, `tools/execution_ledger.py` | `verify_route.py --route/--negative/--determinism`, `verify_movement.py --run/--negative` | `docs/issues/0034` |
 | PSX platform | Own Lightrec, CPU state, memory, invalidation, native dispatch, hardware and presentation | `external/psxport/` | `psx::cpu::dispatchGuest` | `external/psxport/AGENTS.md` |
 
 ## Where new work goes
