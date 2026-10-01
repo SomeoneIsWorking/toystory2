@@ -1,6 +1,6 @@
 #pragma once
 
-#include "overlay/shared_slot_image.h"
+#include "overlay/overlay_images.h"
 #include "render/resident_camera_history.h"
 #include "render/resident_scene_history.h"
 
@@ -9,7 +9,7 @@ class Core;
 namespace ts2 {
 
 struct ToyStory2Context {
-  SharedSlotImage sharedSlotImage;
+  OverlayImages overlays;
   ResidentCameraHistory camera;
   ResidentSceneHistory scene;
 };

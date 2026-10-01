@@ -6,7 +6,7 @@
 #include "guest_execution.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
-#include "overlay/shared_slot_image.h"
+#include "overlay/overlay_images.h"
 #include "testutil.h"
 #include "toystory2_runtime.h"
 
@@ -14,7 +14,9 @@
 #include <lucent/content.h>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 static void test_finite_guest_call_continues_guest_state_and_preserves_return_sentinel() {
@@ -75,32 +77,65 @@ static void test_finite_guest_call_continues_guest_state_and_preserves_return_se
   CHECK_EQ(core.lightrecExecutor().counters().fallback.calls, 0u);
 }
 
+static void writeGuestPath(Core &core, std::uint32_t address, std::string_view path) {
+  for (std::size_t offset = 0; offset < path.size(); ++offset) {
+    core.mem_w8(address + static_cast<std::uint32_t>(offset), path[offset]);
+  }
+  core.mem_w8(address + static_cast<std::uint32_t>(path.size()), 0);
+}
+
+static std::string digestHex(std::span<const std::uint8_t> bytes) {
+  return lucent::content::sha256_hex(lucent::content::sha256(std::as_bytes(bytes)));
+}
+
+static std::vector<std::uint8_t> fixtureBytes(std::size_t size, unsigned multiplier, unsigned offset) {
+  std::vector<std::uint8_t> bytes(size);
+  for (std::size_t index = 0; index < bytes.size(); ++index) {
+    bytes[index] = static_cast<std::uint8_t>(index * multiplier + offset);
+  }
+  return bytes;
+}
+
+// A slot whose modules carry the digests of the synthetic fixtures instead of the retail ones.
+static ts2::OverlaySlot fixtureSlot(std::uint32_t loadAddress,
+                                    std::uint32_t window,
+                                    std::vector<ts2::OverlayModule> modules,
+                                    const std::vector<std::vector<std::uint8_t>> &contents,
+                                    std::vector<std::string> &digests) {
+  digests.clear();
+  for (const auto &bytes : contents) {
+    digests.push_back(digestHex(bytes));
+  }
+  for (std::size_t index = 0; index < modules.size(); ++index) {
+    modules[index].retailSha256 = digests[index];
+  }
+  return ts2::OverlaySlot(loadAddress, window, std::move(modules));
+}
+
 static void test_memory_overlay_publication_authenticates_bytes_and_retires_replaced_identity() {
   static ts2::ToyStory2Runtime runtime;
   psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
   Core &core = game->core;
   using Image = ts2::SharedSlotImage;
-  constexpr auto memory = Image::Kind::Memory;
+  constexpr auto memory = Image::Memory;
 
   constexpr std::uint32_t guestPath = 0x80160000u;
-  const auto path = Image::spec(memory).guestPath;
-  for (std::size_t index = 0; index < path.size(); ++index) {
-    core.mem_w8(guestPath + static_cast<std::uint32_t>(index), path[index]);
-  }
-  core.mem_w8(guestPath + static_cast<std::uint32_t>(path.size()), 0);
-  CHECK(Image::matchLoad(core, guestPath, Image::kLoadAddress) == memory);
-  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress + 4u));
+  const auto retail = Image::makeSlot();
+  writeGuestPath(core, guestPath, Image::kMemoryGuestPath);
+  CHECK(retail.matchLoad(core, guestPath, Image::kLoadAddress) == memory);
+  CHECK(!retail.matchLoad(core, guestPath, Image::kLoadAddress + 4u));
   core.mem_w8(guestPath, 'x');
-  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress));
+  CHECK(!retail.matchLoad(core, guestPath, Image::kLoadAddress));
 
-  std::vector<std::uint8_t> discBytes(Image::kMemoryFileBytes);
-  for (std::size_t index = 0; index < discBytes.size(); ++index) {
-    discBytes[index] = static_cast<std::uint8_t>(index * 73u + 9u);
-  }
-  const auto fixtureSha256 = lucent::content::sha256_hex(lucent::content::sha256(std::as_bytes(std::span(discBytes))));
-  Image image{fixtureSha256};
-  Image retailImage;
+  const auto discBytes = fixtureBytes(Image::kMemoryFileBytes, 73u, 9u);
+  std::vector<std::string> digests;
+  auto image = fixtureSlot(Image::kLoadAddress,
+                           Image::kFmvFileBytes,
+                           Image::retailModules(),
+                           {discBytes, fixtureBytes(Image::kFmvFileBytes, 29u, 17u)},
+                           digests);
+  auto retailImage = Image::makeSlot();
   std::string why;
   CHECK(!retailImage.publish(core, memory, discBytes, why));
   CHECK(why.find("SHA-256") != std::string::npos);
@@ -151,40 +186,28 @@ static void test_shared_slot_authenticates_fmv_and_replaces_memory_without_ident
   auto game = std::make_unique<Game>();
   Core &core = game->core;
   using Image = ts2::SharedSlotImage;
-  constexpr auto memory = Image::Kind::Memory;
-  constexpr auto fmv = Image::Kind::Fmv;
+  constexpr auto memory = Image::Memory;
+  constexpr auto fmv = Image::Fmv;
   constexpr std::uint32_t guestPath = 0x80160000u;
   constexpr std::uint32_t fmvEntry = 0x800D6628u;
   constexpr std::uint32_t fmvOnlyAddress = 0x80100000u;
   constexpr std::uint32_t physical = Image::kLoadAddress & 0x1FFFFFFFu;
 
-  const auto setPath = [&](std::string_view path) {
-    for (std::size_t offset = 0; offset < path.size(); ++offset) {
-      core.mem_w8(guestPath + static_cast<std::uint32_t>(offset), path[offset]);
-    }
-    core.mem_w8(guestPath + static_cast<std::uint32_t>(path.size()), 0);
-  };
-  setPath(Image::spec(fmv).guestPath);
-  CHECK(Image::matchLoad(core, guestPath, Image::kLoadAddress) == fmv);
-  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress + 4u));
-  setPath("fmv\\fmv.bix");
-  CHECK(!Image::matchLoad(core, guestPath, Image::kLoadAddress));
-  setPath(Image::spec(memory).guestPath);
-  CHECK(Image::matchLoad(core, guestPath, Image::kLoadAddress) == memory);
+  const auto retail = Image::makeSlot();
+  writeGuestPath(core, guestPath, Image::kFmvGuestPath);
+  CHECK(retail.matchLoad(core, guestPath, Image::kLoadAddress) == fmv);
+  CHECK(!retail.matchLoad(core, guestPath, Image::kLoadAddress + 4u));
+  writeGuestPath(core, guestPath, "fmv\\fmv.bix");
+  CHECK(!retail.matchLoad(core, guestPath, Image::kLoadAddress));
+  writeGuestPath(core, guestPath, Image::kMemoryGuestPath);
+  CHECK(retail.matchLoad(core, guestPath, Image::kLoadAddress) == memory);
 
-  std::vector<std::uint8_t> memoryBytes(Image::kMemoryFileBytes);
-  std::vector<std::uint8_t> fmvBytes(Image::kFmvFileBytes);
-  for (std::size_t offset = 0; offset < memoryBytes.size(); ++offset) {
-    memoryBytes[offset] = static_cast<std::uint8_t>(offset * 73u + 9u);
-  }
-  for (std::size_t offset = 0; offset < fmvBytes.size(); ++offset) {
-    fmvBytes[offset] = static_cast<std::uint8_t>(offset * 29u + 17u);
-  }
-  const auto digestHex = [](std::span<const std::uint8_t> bytes) {
-    return lucent::content::sha256_hex(lucent::content::sha256(std::as_bytes(bytes)));
-  };
-  Image image{digestHex(memoryBytes), digestHex(fmvBytes)};
-  Image retailImage;
+  const auto memoryBytes = fixtureBytes(Image::kMemoryFileBytes, 73u, 9u);
+  const auto fmvBytes = fixtureBytes(Image::kFmvFileBytes, 29u, 17u);
+  std::vector<std::string> digests;
+  auto image =
+      fixtureSlot(Image::kLoadAddress, Image::kFmvFileBytes, Image::retailModules(), {memoryBytes, fmvBytes}, digests);
+  auto retailImage = Image::makeSlot();
   std::string why;
   CHECK(!retailImage.publish(core, fmv, fmvBytes, why));
   CHECK(why.find("SHA-256") != std::string::npos);
@@ -231,9 +254,85 @@ static void test_shared_slot_authenticates_fmv_and_replaces_memory_without_ident
   CHECK_EQ(core.imageCatalog().activeCount(), 1u);
 }
 
+static void test_level_slot_is_coresident_with_the_shared_slot_and_each_load_replaces_only_its_own_identity() {
+  static ts2::ToyStory2Runtime runtime;
+  psxport_install_game(runtime);
+  auto game = std::make_unique<Game>();
+  Core &core = game->core;
+  using Level = ts2::LevelSlotImage;
+  using Shared = ts2::SharedSlotImage;
+  constexpr std::uint32_t guestPath = 0x80160000u;
+  constexpr std::size_t level01 = 0;          // level01\level.bin, 13,868 bytes
+  constexpr std::size_t level01Alternate = 1; // level01\level1.bin, 18,744 bytes
+  constexpr std::uint32_t levelPhysical = Level::kLoadAddress & 0x1FFFFFFFu;
+  constexpr std::uint32_t sharedPhysical = Shared::kLoadAddress & 0x1FFFFFFFu;
+
+  const auto retail = Level::makeSlot();
+  writeGuestPath(core, guestPath, "LEVEL01\\Level.Bin"); // the loader's path match is case-insensitive
+  CHECK(retail.matchLoad(core, guestPath, Level::kLoadAddress) == level01);
+  CHECK(!retail.matchLoad(core, guestPath, Shared::kLoadAddress));
+  writeGuestPath(core, guestPath, "level00\\level.bin"); // the four-byte placeholder is not a module
+  CHECK(!retail.matchLoad(core, guestPath, Level::kLoadAddress));
+  writeGuestPath(core, guestPath, "level01\\level1.bin");
+  CHECK(retail.matchLoad(core, guestPath, Level::kLoadAddress) == level01Alternate);
+
+  const auto firstBytes = fixtureBytes(Level::kRetailModules[level01].fileBytes, 31u, 5u);
+  const auto alternateBytes = fixtureBytes(Level::kRetailModules[level01Alternate].fileBytes, 37u, 11u);
+  const auto memoryBytes = fixtureBytes(Shared::kMemoryFileBytes, 73u, 9u);
+  std::vector<std::string> levelDigests;
+  std::vector<std::string> sharedDigests;
+  std::vector<ts2::OverlayModule> levelModules{Level::kRetailModules[level01], Level::kRetailModules[level01Alternate]};
+  auto level =
+      fixtureSlot(Level::kLoadAddress, Level::kWindowBytes, levelModules, {firstBytes, alternateBytes}, levelDigests);
+  auto shared = fixtureSlot(Shared::kLoadAddress,
+                            Shared::kFmvFileBytes,
+                            {Shared::retailModules()[Shared::Memory]},
+                            {memoryBytes},
+                            sharedDigests);
+
+  std::string why;
+  auto retailLevel = Level::makeSlot();
+  std::copy(firstBytes.begin(), firstBytes.end(), core.ram + levelPhysical);
+  CHECK(!retailLevel.publish(core, level01, firstBytes, why)); // synthetic bytes are not retail LEVEL01
+  CHECK(why.find("SHA-256") != std::string::npos);
+  CHECK(!retailLevel.activeIdentity());
+
+  std::copy(memoryBytes.begin(), memoryBytes.end(), core.ram + sharedPhysical);
+  CHECK(shared.publish(core, 0, memoryBytes, why));
+  const auto memoryIdentity = shared.activeIdentity();
+  CHECK(level.publish(core, 0, firstBytes, why));
+  const auto firstIdentity = level.activeIdentity();
+  CHECK(firstIdentity.has_value());
+  CHECK_EQ(core.imageCatalog().activeCount(), 2u);
+  CHECK(core.imageCatalog().resolve(0x800D12C4u) == firstIdentity);
+  CHECK(core.imageCatalog().resolve(0x800D1DBCu) == firstIdentity); // the first address the retail run executed
+  CHECK(core.imageCatalog().resolve(0x800E10E4u) == memoryIdentity);
+  CHECK(!core.imageCatalog().resolve(Level::kLoadAddress + Level::kRetailModules[level01].fileBytes));
+
+  // Loading the larger alternative replaces only the LEVEL identity and a corrupted transfer retires it.
+  std::copy(alternateBytes.begin(), alternateBytes.end(), core.ram + levelPhysical);
+  CHECK(level.publish(core, 1, alternateBytes, why));
+  CHECK(level.activeIdentity() != firstIdentity);
+  CHECK(core.imageCatalog().resolve(0x800D5000u) == level.activeIdentity());
+  CHECK(shared.activeIdentity() == memoryIdentity);
+  core.mem_w8(Level::kLoadAddress + 7u, alternateBytes[7] ^ 1u);
+  CHECK(!level.publish(core, 1, alternateBytes, why));
+  CHECK(why.find("transferred LEVEL01/LEVEL1.BIN bytes") != std::string::npos);
+  CHECK(!level.activeIdentity());
+  CHECK(!core.imageCatalog().resolve(0x800D1DBCu));
+  CHECK(core.imageCatalog().resolve(0x800E10E4u) == memoryIdentity);
+
+  // A module larger than the window is refused rather than published over its neighbour.
+  auto narrow = fixtureSlot(Level::kLoadAddress, 64u, {levelModules[0]}, {firstBytes}, levelDigests);
+  std::copy(firstBytes.begin(), firstBytes.end(), core.ram + levelPhysical);
+  CHECK(!narrow.publish(core, 0, firstBytes, why));
+  CHECK(why.find("does not fit") != std::string::npos);
+}
+
 int main() {
   RUN(finite_guest_call_continues_guest_state_and_preserves_return_sentinel);
   RUN(memory_overlay_publication_authenticates_bytes_and_retires_replaced_identity);
   RUN(shared_slot_authenticates_fmv_and_replaces_memory_without_identity_leak);
+  RUN(level_slot_is_coresident_with_the_shared_slot_and_each_load_replaces_only_its_own_identity);
   return pt_summary();
 }

@@ -1,32 +1,18 @@
 #pragma once
 
-#include "image_identity.h"
+#include "overlay/overlay_slot.h"
 
-#include <lucent/content.h>
-
+#include <algorithm>
 #include <array>
 #include <cstdint>
-#include <optional>
-#include <span>
-#include <string>
 #include <string_view>
-
-class Core;
+#include <vector>
 
 namespace ts2 {
 
-// MEMORY and FMV are mutually exclusive executable contents of one guest-RAM slot.
-class SharedSlotImage {
-public:
-  enum class Kind : std::uint8_t { Memory, Fmv };
-
-  struct Spec {
-    Kind kind;
-    std::string_view guestPath;
-    std::string_view discPath;
-    std::string_view identityName;
-    std::uint32_t fileBytes;
-  };
+// MEMORY and FMV are mutually exclusive executable contents of the one guest-RAM slot at 0x800D5D20.
+struct SharedSlotImage {
+  enum Module : std::size_t { Memory, Fmv };
 
   static constexpr std::uint32_t kLoadAddress = 0x800D5D20u;
   static constexpr std::uint32_t kMemoryFileBytes = 63312u;
@@ -38,27 +24,17 @@ public:
   static constexpr std::string_view kFmvRetailSha256 =
       "acaf125051be7ea96e41593bc1c1a40b695449924e990bda855cec38f91e8ee3";
 
-  explicit SharedSlotImage(std::string_view memorySha256 = kMemoryRetailSha256,
-                           std::string_view fmvSha256 = kFmvRetailSha256)
-      : expectedSha256_{std::string(memorySha256), std::string(fmvSha256)} {}
-
-  static const Spec &spec(Kind kind);
-  static std::optional<Kind> matchLoad(Core &core, std::uint32_t guestPath, std::uint32_t destination);
-  std::optional<lucent::content::Sha256>
-  authenticateSource(Kind kind, std::span<const std::uint8_t> discBytes, std::string &why) const;
-  void retire(Core &core);
-  bool publish(Core &core, Kind kind, std::span<const std::uint8_t> discBytes, std::string &why);
-  std::optional<psx::cpu::ImageIdentity> activeIdentity() const;
-
-private:
-  static constexpr std::size_t index(Kind kind) {
-    return static_cast<std::size_t>(kind);
+  // The retail modules, indexed by `Module`.
+  static std::vector<OverlayModule> retailModules() {
+    return {
+        {kMemoryGuestPath, "\\BITS\\MEMORY.BIN;1", "BITS/MEMORY.BIN", kMemoryFileBytes, kMemoryRetailSha256},
+        {kFmvGuestPath, "\\FMV\\FMV.BIN;1", "FMV/FMV.BIN", kFmvFileBytes, kFmvRetailSha256},
+    };
   }
 
-  std::array<std::string, 2> expectedSha256_;
-  std::optional<psx::cpu::ImageIdentity> active_;
+  static OverlaySlot makeSlot(std::vector<OverlayModule> modules = retailModules()) {
+    return OverlaySlot(kLoadAddress, std::max(kMemoryFileBytes, kFmvFileBytes), std::move(modules));
+  }
 };
-
-void installSharedSlotImageObserver(Core &core);
 
 } // namespace ts2
