@@ -26,7 +26,7 @@ iteration, native input and render ownership, true widescreen, and interpolated 
 | S012 | Traveller's Tales `.RAW` assets are reproducibly framed and decompressed | verified | S001 | G001 |
 | S013 | The fresh-clone launcher builds and starts the intended product | partial | S001, S002 | G001 |
 | S014 | Hosted CI truthfully distinguishes repository policy from native product support on Linux, Windows, macOS, and Android | partial | S002 | G001 |
-| S015 | Toy Story 2: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | missing | S002 | G004 |
+| S015 | Toy Story 2: load operations complete without loading-only waits or presentation; logos cancel through the recovered route — censused in issue 0035; nothing removed yet | missing | S002 | G004 |
 
 ## Current focus
 
@@ -266,7 +266,39 @@ platform support.
 
 ### S015 — Toy Story 2 loading removal
 
-Missing. No load operation has been censused or classified for Toy Story 2. Gap: enumerate its load
-issuers and the wait and presentation each drives, then complete each through the title's own load
-mechanics without its loading-only wait, with payload and terminal state compared against retail
-and the absence of loading presentation captured.
+Missing, with the census now done (issue 0035). That issue closed the issuer set over 148,992 boot
+words plus every placed module: **one** blocking whole-file read primitive (`0x80082608`, `CdRead`
+then a `CdReadySync(0)` spin), **13** `jal` sites of the file loader `0x80082508`, **7** `CdRead`
+sites total (2 boot, 5 in `FMV/FMV.BIN`), and **0** materialised or raw-word references to any loader
+against a positive control that finds 4 and 3 for the two overlay slot bases. Its headline findings:
+
+* `FMV/FMV.BIN` (510,960 B) is read **five times per route** (`0x8003EEAC`, `0x800417D0`); the
+  largest single loading-only wait in the game.
+* **Two unbounded loops** exist in the load path — `0x80082648`/`0x80082750`/`0x8008276C` — and one
+  more, `0x8007F174`, that spins the linked `VSync(0)` forever behind a `break` when a `.vh`/`.vb`
+  file reaches `0x4001` bytes.
+* **No loader reads the pad.** The mask word `[0x800A1480]` has 28 read sites in the boot image
+  across 10 functions, none of them a loader; FMV.BIN has exactly 1, MEMORY.BIN 94 (all UI), LEVEL.BIN
+  0. Every loading-only wait is therefore uncancellable in retail.
+* **The intro movies do have a recovered cancel**: FMV.BIN `0x800D76EC`/`0x800D76F4` — **Start**
+  skips unconditionally; **Cross** (`0x800D76FC`) and any face button (`0x800D772C`) skip only when
+  `[0x800A1670] != 0`. The Level-1 "PRESS X" card's cancel is **Cross** at `0x8007C448` inside
+  `0x8007C344`. Neither is exercised by any gate yet.
+* **There are no boot logos.** `GameMain` goes straight into the four STRs and then the MEMORY.BIN
+  front end; nothing waits to be skipped before the game starts.
+* Measured on the passing route (`verify_route.py --route`, psxport `d51ee05a`): 37 `CdRead` of
+  2,652 sectors (5,431,296 B) and 32 `CdSearchFile`; the whole-file blocking windows sum to **764 ms**
+  of a 17 s run (53 ms of it the five FMV overlay loads); **every load-bound wait costs zero display
+  fields**; the movies are 194/41/73/69 fields; the real cost is CPU — 28 slices / 15,245,664 cycles
+  for the cold RAW decode and 60 slices / 33,309,042 cycles entering Level 1.
+
+Gap, unchanged: nothing has been removed. The designs are `ts2::cd::FileTransfer`, a native override
+of `0x80082608` that reads from the already-authenticated disc image and returns the exact CdlFILE
+size (issue 0035 R1), the typed refusal that replaces the two unbounded loops (R2), the size check
+that keeps `0x8007F174` unreachable (R3), and two proofs still owed — the movie/card cancel under a
+forced pad edge (R5), and a test that prints **frames delivered while a loader was on the stack**
+next to **frames a loader was on the stack** (R6). A prerequisite the census exposes: `prepareResident`
+and `ResidentPreparation::finish` write about 51 guest words between them, including `kElapsedFields`,
+`kExitCountdown`, `kTransitionFlags` and `[0x800A1370]`, which are exactly the phase/timer words the
+loading rule forbids (R7), so payload/terminal-state comparison against retail cannot pass until
+those are re-derived.
