@@ -21,7 +21,7 @@ runtime.
 - status: re-verified
 - deps: RE-00
 - evidence: C009 and I008. `tools/verify_crt0.py` walks 43 retail instructions and derives BSS `[0x800A1070,0x800D12C0)`, stack `0x80200000`, heap base `0x800D12C0`, heap size `0x126D40`, gp `0x800A0CD8`, libc init `0x80089344`, game main `0x8007A9E8`, and entry `0x80082D60`.
-- where: `tools/verify_crt0.py`; `game/core/game_config.cpp`
+- where: `tools/verify_crt0.py`; `game/core/guest_facts.h`
 - gap: none for the exact boot group
 - notes: The verifier consumes psxport's neutral PS-X EXE parser, not an execution generator.
 
@@ -79,7 +79,7 @@ runtime.
 - status: re-verified
 - deps: RE-00
 - evidence: C010, C014 and I009. LEVEL alternatives load at `0x800D12C0`; MEMORY and FMV reuse `0x800D5D20`; FMV entry `0x800D6628` is file+`0x908` and begins prologue word `0x27BDFF10`. The corpus contains 22 code modules.
-- where: `tools/overlay_map.py`; `game/core/game_config.cpp`
+- where: `tools/overlay_map.py`; `game/core/guest_facts.h`
 - gap: none for the proven module set and two reused physical slots
 - notes: Runtime identity is authenticated image, generation, and address; address alone is ambiguous.
 

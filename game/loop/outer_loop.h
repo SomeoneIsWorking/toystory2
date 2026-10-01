@@ -7,6 +7,7 @@ namespace ts2 {
 enum class OuterLoopPhase {
   coldSetup,
   coldRestart,
+  introMovies,
   frontEndSetup,
   pollFrontEnd,
   interactiveSelection,
@@ -40,6 +41,9 @@ public:
 
   virtual void initializeFrontEnd() = 0;
   virtual void restartColdFrontEnd() = 0;
+  // Advance the blocking intro-movie sequence by one display field; true once it has finished.
+  virtual bool stepIntroMovies() = 0;
+  virtual void finishColdFrontEnd() = 0;
   virtual void prepareFrontEnd() = 0;
   virtual int pollFrontEndEvent() = 0;
   virtual void acknowledgeResidentEntry() = 0;

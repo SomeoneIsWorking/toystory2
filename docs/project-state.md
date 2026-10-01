@@ -42,29 +42,24 @@ Finish list, in order:
    end-of-stream flag, which **never changes either** — so the FMV's last sector is never reached.
    52 instruction words of that chain are asserted by `tools/verify_str_completion.py` (gated, with
    a selftest) and typed as `ts2::cd::kStrCompletionLayout`.
-2. **The CD data-ready delivery**, framework-side and assigned to the psxport cd-complete agent:
-   `runtime/psx/cd_ready_delivery.cpp:78-84` refuses the framework's own CD-ROM interrupt handler
-   for any `GameConfig` runtime, and no product code calls `Cd::pumpStream`. At the abort the sector
-   is owed (`cd stream_active=1 setloc_lba=12718`), the data-ready interrupt is raised and enabled
-   (`I_STAT=0x004`, `I_MASK=0x00D`), and 0 deliveries are made. **This is the one open item.**
-3. **First verified frame**: one completed presentation fence with a whole-run translated/fallback
-   ledger (S002, S003).
+2. ~~**The CD data-ready delivery**~~ — **DONE, issue 0032 and psxport issue 0145**: TS2 is a typed
+   `ToyStory2Runtime`; segments end at CDC deadlines; the framework calls libapi's DMA ch3 table word
+   `[0x8009FD60 + 12]` (`0x80093E88`), which writes ring state 2. The four intro movies play to their
+   returns (194, 41, 73, 69 display fields), one presentation fence each, with opened captures.
+   **The next blocker is LEVEL overlay code-image identity** (`0x800D1DBC`, issue 0032).
+3. **First verified frame**: presentation fences complete (377 in the movies); a clean whole-run exit
+   and the fallback-by-reason ledger are still missing because the run faults at LEVEL entry (S002,
+   S003).
 4. **Front end**: FMV and MEMORY loop ownership (issues 0026, 0027) through to the front-end menu on
    Lightrec, then Andy's Room (S004).
 5. Then player control (S005), presentation coherence (S006, S007), and only after gameplay runs,
    widescreen (S010) and 60 fps (S011).
 
-**Measured and closed on the title side, not worked around:** `.dmaCallbackTable` stays `0` because
-there is no per-channel DMA callback table for this title to bind. psxport's `dma_irq.h:112`
-documents it as the table the **BIOS** keeps and the guest fills through the SDK's `DMACallback`, a
-B0-vector BIOS entry — the guest reaches the BIOS only as `jr 0xB0` with the function number in the
-delay slot (**24** such gate sites counted) — and this port has no BIOS ROM. A census of runtime RAM
-over the two regions such a table could occupy matched **3** runs in `0x800A0000`–`0x800D0000` and
-**0** in `0x801F0000`–`0x80200000`, and the tool **classifies** every entry rather than filtering:
-the largest run (160 bytes at `0x800A082C`) is 28 `ascii` — the Sony library's own symbol strings —
-and the only real entries are 3 of 5 at `0x800A0CB4`, not a 4- or 7-entry channel table. The
-reasoning is recorded in `game/core/game_config.cpp` and asserted in both directions by the
-boundary test.
+**CORRECTED 2026-10-01: a per-channel DMA callback table exists and is bound.** The earlier closure
+(".dmaCallbackTable stays 0") searched the pre-boot RAM image for function-pointer arrays and found
+none, because libapi fills the table at run time. libapi's own IRQ dispatcher `0x800890C4` calls
+`[0x8009FD60 + 4*ch]`; the table is declared as `PlatformHlePlan::dmaCallbackTable` in
+`game/core/guest_facts.h`. The `0x8009EC9C` table is InterruptCallback's, not DMACallback's.
 
 ## Capability details
 
@@ -126,6 +121,8 @@ up. Two delivery owners are measurably dead in the same run: `[dmairq] owed ch4 
 `[irq] CD raised IRQ2 -> I_STAT=0x004 (mask=0x00D, ENABLED)` (1 of 1) with **0 `cdirq`
 deliveries**, because the framework's CD-ROM interrupt arm is gated off for any `GameConfig`
 runtime and no product code calls `Cd::pumpStream`.
+
+**SUPERSEDED 2026-10-01 (issue 0032): the delivery gap is closed; the paragraph below is the history of how it was located.**
 
 **The blocked edge has since been measured end to end, and it is the CD read, not the DMA path.**
 The guest posts the completion itself, synchronously, from `0x800941D8` via `0x80094B30` to

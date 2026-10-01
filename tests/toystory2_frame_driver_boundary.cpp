@@ -62,6 +62,13 @@ public:
   void restartColdFrontEnd() override {
     operations.emplace_back("restart-cold");
   }
+  bool stepIntroMovies() override {
+    operations.emplace_back("intro-movies");
+    return introMoviesFinished;
+  }
+  void finishColdFrontEnd() override {
+    operations.emplace_back("finish-cold");
+  }
   void prepareFrontEnd() override {
     operations.emplace_back("prepare-front-end");
   }
@@ -123,6 +130,7 @@ public:
   }
 
   int event = 0;
+  bool introMoviesFinished = true;
   bool playback = true;
   bool needsInteractive = true;
   bool interactiveReady = false;
@@ -455,6 +463,8 @@ static void test_outer_loop_reaches_normal_resident_in_finite_steps() {
   RecordingOuterLoop boundary;
 
   ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::introMovies);
+  ts2::stepOuterLoop(state, boundary);
   CHECK(state.phase == ts2::OuterLoopPhase::pollFrontEnd);
   boundary.event = 0;
   ts2::stepOuterLoop(state, boundary);
@@ -463,9 +473,34 @@ static void test_outer_loop_reaches_normal_resident_in_finite_steps() {
   CHECK(state.phase == ts2::OuterLoopPhase::resident);
   ts2::stepOuterLoop(state, boundary);
 
-  const std::vector<std::string> expected = {
-      "initialize", "poll", "playback:on", "ack-entry", "select-playback", "prepare-resident", "resident-update"};
+  const std::vector<std::string> expected = {"initialize",
+                                             "intro-movies",
+                                             "finish-cold",
+                                             "poll",
+                                             "playback:on",
+                                             "ack-entry",
+                                             "select-playback",
+                                             "prepare-resident",
+                                             "resident-update"};
   CHECK(boundary.operations == expected);
+}
+
+static void test_intro_movies_yield_one_field_per_step_until_finished() {
+  ts2::OuterLoopState state{ts2::OuterLoopPhase::introMovies};
+  RecordingOuterLoop boundary;
+  boundary.introMoviesFinished = false;
+  for (int step = 0; step < 3; ++step) {
+    ts2::stepOuterLoop(state, boundary);
+    CHECK(state.phase == ts2::OuterLoopPhase::introMovies);
+  }
+  CHECK_EQ(boundary.operations.size(), 3u);
+  CHECK(boundary.operations.back() == "intro-movies");
+  boundary.introMoviesFinished = true;
+  ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::pollFrontEnd);
+  CHECK(boundary.operations[3] == "intro-movies");
+  CHECK(boundary.operations[4] == "finish-cold");
+  CHECK_EQ(boundary.operations.size(), 5u);
 }
 
 static void test_outer_loop_interactive_path_yields_between_selection_iterations() {
@@ -576,6 +611,7 @@ int main() {
   RUN(resident_camera_history_reads_authored_state_and_interpolates_wrap);
   RUN(resident_scene_history_reads_exact_owner_and_mesh_arguments);
   RUN(outer_loop_reaches_normal_resident_in_finite_steps);
+  RUN(intro_movies_yield_one_field_per_step_until_finished);
   RUN(outer_loop_interactive_path_yields_between_selection_iterations);
   RUN(resident_preparation_yields_and_can_finish);
   RUN(outer_loop_front_end_events_are_finite_and_non_fallthrough);

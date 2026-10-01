@@ -54,6 +54,70 @@ executeFiniteGuestCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBud
   return result;
 }
 
+ResumableGuestCall::ResumableGuestCall(Core &core) : core_(core) {}
+
+void ResumableGuestCall::begin(const GuestCall &call) {
+  if (active_) {
+    lucent::error("ts2-execution", "{} began while {} is still active", call.owner, call_.owner);
+    std::abort();
+  }
+  call_ = call;
+  // The caller's argument span may not outlive this call; own a copy.
+  arguments_ = {};
+  for (std::size_t index = 0; index < call.arguments.size() && index < arguments_.size(); ++index) {
+    arguments_[index] = call.arguments[index];
+  }
+  call_.arguments = std::span<const std::uint32_t>(arguments_.data(), call.arguments.size());
+  resumePc_ = call.address;
+  fields_ = 0;
+  turns_ = 0;
+  started_ = false;
+  active_ = true;
+}
+
+ResumableGuestCall::Progress ResumableGuestCall::advance() {
+  if (!active_) {
+    return Progress::returned;
+  }
+  psx::cpu::ExecutionResult result{};
+  for (;;) {
+    const auto budget = psx::cpu::ExecutionBudget::currentTurn(core_);
+    if (!started_) {
+      if (call_.stackArgument) {
+        core_.mem_w32(core_.r[29] + 16u, *call_.stackArgument);
+      }
+      core_.r[31] = call_.returnAddress;
+      started_ = true;
+      result = psx::cpu::dispatchGuestWithArguments(core_, call_.address, call_.arguments, budget);
+    } else {
+      result = psx::cpu::resumeGuestToReturnFrom(core_, call_.address, resumePc_, call_.returnAddress, budget);
+    }
+    ++turns_;
+    if (result.returned()) {
+      active_ = false;
+      lucent::info("ts2-execution",
+                   "guest call {} returned after {} display field(s) in {} turn(s)",
+                   call_.owner,
+                   fields_,
+                   turns_);
+      return Progress::returned;
+    }
+    resumePc_ = result.guestPc;
+    if (result.reason == psx::cpu::ExecutionExitReason::FrameBoundary) {
+      ++fields_;
+      return Progress::fieldBoundary;
+    }
+    if (result.reason != psx::cpu::ExecutionExitReason::BudgetExhausted) {
+      psx::cpu::requireGuestReturn(result, call_.owner);
+      std::abort();
+    }
+  }
+}
+
+std::uint32_t ResumableGuestCall::result() const {
+  return core_.r[2];
+}
+
 std::uint32_t callFiniteGuestToReturn(Core &core, const GuestCall &call, std::uint32_t maxSlices) {
   if (!psx::cpu::requireGuestReturn(
           executeFiniteGuestCall(core, call, psx::cpu::ExecutionBudget::currentTurn(core), maxSlices), call.owner)) {

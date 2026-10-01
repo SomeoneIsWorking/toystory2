@@ -5,14 +5,17 @@
 #include "game.h"
 #include "game_runtime.h"
 #include "guest_execution.h"
+#include "guest_facts.h"
 #include "loop/outer_loop.h"
 #include "loop/resident_frame.h"
 #include "loop/resident_preparation.h"
 #include "toystory2_context.h"
 
+#include <array>
 #include <cstdlib>
 #include <iterator>
 #include <lucent/log.h>
+#include <optional>
 
 namespace ts2 {
 namespace {
@@ -22,7 +25,6 @@ constexpr uint32_t kFieldAccumulator = 0x800A14D4u; // gp+0x7FC, incremented by 
 constexpr uint32_t kElapsedFields = 0x800A1174u;    // barrier result consumed by update logic
 constexpr uint32_t kDeferredDisplayRequest = 0x800A10F8u;
 constexpr uint32_t kAlternateUpdateMode = 0x800A10F4u;
-constexpr uint32_t kLibetcVBlankCount = 0x8009FD54u; // value returned by linked VSync 0x80088628
 constexpr uint32_t kDeferredFieldService = 0x80021028u;
 
 constexpr uint32_t kFrontEndEvent = 0x800A1374u; // gp+0x69c
@@ -60,6 +62,19 @@ constexpr uint32_t kSetSequenceMode = 0x800412F0u;
 constexpr uint32_t kCommitSequenceState = 0x80041818u;
 constexpr uint32_t kScreenStatus = 0x80073458u;
 
+struct MovieStep {
+  uint32_t address;
+  uint32_t a0;
+  uint32_t a1;
+  uint32_t a2;
+};
+constexpr std::array<MovieStep, 4> kIntroMovieSteps{{
+    {kMemoryStatus, 2, 0, 0},
+    {kMemoryStatus, 0, 0, 0},
+    {kMemoryStatus, 1, 0, 0},
+    {kQueueScreen, 0, 0, 1},
+}};
+
 uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 0, uint32_t a2 = 0, uint32_t a3 = 0) {
   const std::array arguments{a0, a1, a2, a3};
   return callGuestToReturn(core, {address, 0x8007A9E8u, arguments, std::nullopt, "frame driver"});
@@ -67,8 +82,13 @@ uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 
 
 class CoreResidentFrameBoundary final : public ResidentFrameBoundary, public OuterLoopBoundary {
 public:
-  CoreResidentFrameBoundary(Core &core, OuterLoopState &outerLoop, ResidentPreparation &residentPreparation)
-      : core_(core), outerLoop_(outerLoop), residentPreparation_(residentPreparation) {}
+  CoreResidentFrameBoundary(Core &core,
+                            OuterLoopState &outerLoop,
+                            ResidentPreparation &residentPreparation,
+                            ResumableGuestCall &movie,
+                            std::size_t &introMovieStep)
+      : core_(core), outerLoop_(outerLoop), residentPreparation_(residentPreparation), movie_(movie),
+        introMovieStep_(introMovieStep) {}
 
   int displayFieldQuota() const override {
     return outerLoop_.phase == OuterLoopPhase::resident ? 2 : 1;
@@ -91,10 +111,13 @@ public:
     // with the complete two-field quota, at the single commit below.
     ++core_.game->timing.vblank;
     ++fieldsDelivered_;
-    core_.mem_w32(kLibetcVBlankCount, core_.game->timing.vblank);
+    core_.mem_w32(facts::kVSyncQueryCounter, core_.game->timing.vblank);
   }
 
   void serviceDeferredDisplay() override {
+    if (outerLoop_.phase == OuterLoopPhase::introMovies) {
+      return; // the FMV overlay owns the display; 0x80021028 belongs to the resident front end
+    }
     // 0x8003FA68 publishes the number of elapsed fields, clears its accumulator, and asks the next
     // field callback to run 0x80021028. The native owner already controls that boundary, so it
     // performs the same state transition directly instead of spinning for guest VBlank 0x80039D60.
@@ -140,24 +163,62 @@ public:
     callFiniteGuestToReturn(core_,
                             {kMemoryDispatcher, 0x8007A9E8u, loadArguments, std::nullopt, "cold front-end asset load"},
                             kFiniteInitializationSliceLimit);
-    if (core_.mem_r32(kFrontEndEvent) != 9 && callGuest(core_, kMemoryStatus, 2, 0) == 0 &&
-        callGuest(core_, kMemoryStatus, 0, 0) == 0 && callGuest(core_, kMemoryStatus, 1, 0) == 0) {
-      callGuest(core_, kQueueScreen, 0, 0, 1);
+    introMovieStep_ = kIntroMovieSteps.size();
+    if (core_.mem_r32(kFrontEndEvent) != 9) {
+      introMovieStep_ = 0;
     }
+  }
+
+  // The intro sequence is MEMORY status 2, 0, 1 and then the queued screen. Each enters the FMV
+  // overlay, whose loop plays a whole movie inside one guest call and waits on VSync 0x80088628 once
+  // per movie frame, so one step here delivers one display field. A status call returning nonzero
+  // ends the sequence, as the guest's own `&&` chain does.
+  bool stepIntroMovies() override {
+    while (true) {
+      if (!movie_.active()) {
+        if (introMovieStep_ >= kIntroMovieSteps.size()) {
+          return true;
+        }
+        const MovieStep &step = kIntroMovieSteps[introMovieStep_];
+        const std::array arguments{step.a0, step.a1, step.a2, 0u};
+        movie_.begin({step.address, 0x8007A9E8u, arguments, std::nullopt, "front-end movie"});
+      }
+      if (movie_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+        return false;
+      }
+      const bool gated = kIntroMovieSteps[introMovieStep_].address == kMemoryStatus;
+      introMovieStep_ = gated && movie_.result() != 0 ? kIntroMovieSteps.size() : introMovieStep_ + 1;
+    }
+  }
+
+  void finishColdFrontEnd() override {
     core_.mem_w32(0x800A1670u, 1);
     prepareFrontEnd();
   }
 
+  void callFiniteInitialization(uint32_t address, std::string_view owner, uint32_t a0) {
+    const std::array arguments{a0};
+    callFiniteGuestToReturn(
+        core_, {address, 0x8007A9E8u, arguments, std::nullopt, owner}, kFiniteInitializationSliceLimit);
+  }
+
   void prepareFrontEnd() override {
-    callGuest(core_, kPrepareMemoryState, kMemoryState);
-    callGuest(core_, kCommitMemoryState, kMemoryState);
+    // Both calls decode the front end's asset set (0x80021190 DecompressRAW), which takes many guest
+    // turns, so they are finite initialization transactions like the cold asset load.
+    callFiniteInitialization(kPrepareMemoryState, "front-end memory-state preparation", kMemoryState);
+    callFiniteInitialization(kCommitMemoryState, "front-end memory-state commit", kMemoryState);
     core_.mem_w32(kFrontEndEvent, 0);
     core_.mem_w32(kSelectionActive, 0);
     callGuest(core_, kResetGraphics);
   }
 
   int pollFrontEndEvent() override {
-    callGuest(core_, kMemoryDispatcher, 2, 0);
+    // The poll loads the front-end overlay and decodes its assets on first entry, which spans many
+    // guest turns; every later poll returns within the first.
+    const std::array arguments{2u, 0u};
+    callFiniteGuestToReturn(core_,
+                            {kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "front-end poll"},
+                            kFiniteInitializationSliceLimit);
     return static_cast<int>(core_.mem_r32(kFrontEndEvent));
   }
 
@@ -394,19 +455,26 @@ private:
   Core &core_;
   OuterLoopState &outerLoop_;
   ResidentPreparation &residentPreparation_;
+  ResumableGuestCall &movie_;
+  std::size_t &introMovieStep_;
   int fieldsDelivered_ = 0;
 };
 
 class ToyStory2FrameDriver final : public FrameDriver {
 public:
   void stepFrame(Core &core, uint32_t frame) override {
-    CoreResidentFrameBoundary boundary(core, outerLoop_, residentPreparation_);
+    if (!movie_) {
+      movie_.emplace(core);
+    }
+    CoreResidentFrameBoundary boundary(core, outerLoop_, residentPreparation_, *movie_, introMovieStep_);
     stepResidentFrame(boundary, frame);
   }
 
 private:
   OuterLoopState outerLoop_;
   ResidentPreparation residentPreparation_;
+  std::optional<ResumableGuestCall> movie_;
+  std::size_t introMovieStep_ = 0;
 };
 
 } // namespace

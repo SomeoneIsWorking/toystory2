@@ -22,6 +22,15 @@ uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 
   return callGuestToReturn(core, {address, 0x8007BEC4u, arguments, std::nullopt, "resident preparation"});
 }
 
+// Entering a level loads its overlay and decodes its assets (0x8007C278, then 0x8003D88C ->
+// DecompressRAW), which span many guest turns. Each is a finite initialization transaction with its
+// original return sentinel rather than a one-turn call.
+void loadLevelStep(Core &core, uint32_t address, uint32_t a0, uint32_t a1, std::string_view owner) {
+  const std::array arguments{a0, a1, 0u, 0u};
+  callFiniteGuestToReturn(
+      core, {address, 0x8007BEC4u, arguments, std::nullopt, owner}, kFiniteInitializationSliceLimit);
+}
+
 void zeroHalfwords(Core &core, uint32_t address, unsigned count) {
   for (unsigned index = 0; index < count; ++index) {
     core.mem_w16(address + index * 2, 0);
@@ -53,8 +62,8 @@ void ResidentPreparation::begin(Core &core, uint32_t level, int playbackMode) {
   core.mem_w16(0x800A14D0u, 0);
 
   callGuest(core, 0x8003A218u);
-  callGuest(core, 0x8007C278u, level_, static_cast<uint32_t>(playbackMode_));
-  callGuest(core, 0x8003D88Cu, level_);
+  loadLevelStep(core, 0x8007C278u, level_, static_cast<uint32_t>(playbackMode_), "level overlay load");
+  loadLevelStep(core, 0x8003D88Cu, level_, 0, "level asset load");
 
   const int bootCountdown = static_cast<int>(core.mem_r32(kBootCountdown));
   bootFieldsRemaining_ = bootCountdown >= 0 ? bootCountdown * 2 : -1;
