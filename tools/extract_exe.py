@@ -10,8 +10,8 @@ gitignored, and the executable is not ours.
 
 THE IDENTITY CHECK IS WEAKER HERE THAN IN THE SIBLING PORTS, AND THAT IS STATED RATHER THAN HIDDEN.
 vagrant and megamanx4 compare against a hash a third-party matching DECOMP declares for its own
-byte-exact build target, which is an independent witness. **There is no decomp of Toy Story 2**
-(docs/references.md), so the expected value is this repo's own measurement (docs/info/exe-identity.txt).
+byte-exact build target, which is an independent witness. **There is no decomp of Toy Story 2**, so the
+expected value is this repo's own measurement (docs/info/exe-identity.txt).
 It can therefore say "this is not the image every number in this repo was measured on"; it cannot say
 which of the two images is the right one.
 
@@ -139,9 +139,9 @@ def main():
     if got == want and len(data) == wantsz:
         print(
             f"[exe] MATCH docs/info/exe-identity.txt ({wantname} {wantsz} B sha1 {want}) — this is the "
-            "image every measurement in this repo was made on (docs/info/claims/001-*). NOTE that the "
+            "image every number in this repo was measured on. NOTE that the "
             "expectation is OUR OWN measurement, not an independent witness: there is no decomp of "
-            "this game to check against (docs/references.md)."
+            "this game to check against."
         )
         return 0
     print(

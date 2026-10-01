@@ -4,8 +4,7 @@
   python3 tools/extract_disc_files.py [/path/to/disc.chd]
   python3 tools/extract_disc_files.py --keep-media          # also extract TOY2FMV/ (525 MB)
 
-Why a flat directory: `tools/code_scan.py --census DIR` and `tools/base_fit.py` both work over a
-directory of files, and this game's interesting files all share four names (LEVEL.BIN, LEVEL1.BIN,
+Why a flat directory: this game's interesting files all share four names (LEVEL.BIN, LEVEL1.BIN,
 LEVEL.DAT, LEVEL.RAW) in ten different directories. Flattening to `LEVEL02__LEVEL.BIN` keeps them
 distinguishable and keeps every downstream tool free of directory-walking logic.
 

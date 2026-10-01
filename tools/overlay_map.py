@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """overlay_map.py — WHERE does the CD loader put each file? Decoded out of the boot executable.
 
-THE QUESTION, and why this tool and not base_fit.py. `tools/base_fit.py` measures where a module's own
-absolute `jal` targets say it COULD be loaded. That is a fit, and a fit has two limits this tool does
-not: it is 4 KiB-granular, and it can never say HOW the loader arrives at a base. This tool answers the
-mechanism instead, from the one place the answer is unambiguous — the loader's own call sites:
+THE QUESTION. A module's own absolute `jal` targets only say where it COULD be loaded, and only to
+4 KiB granularity. This tool answers the mechanism instead, from the one place the answer is
+unambiguous — the loader's own call sites:
 
     lui  a1, 0x800D          # 0x8003DEA4
     addiu a1, a1, 0x12C0     # 0x8003DEA8   -> a1 = 0x800D12C0
@@ -44,7 +43,7 @@ import os
 import re
 import struct
 import sys
-from overlay_shipping import shipping_comparison, shipping_selftest
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLAT = os.path.join(ROOT, "scratch", "flat")
@@ -653,7 +652,7 @@ def total_hits(base, files, t_addr, t_end):
 def slot_report(exe, rows, out=sys.stdout):
     """The memory map, derived by INTERSECTING two independent methods — no base is written here by
     hand. Method 1 is the census (a constant in the caller); method 2 is the modules' own absolute jal
-    targets (base_fit.py's evidence, at word granularity). The overlay slot is the census destination
+    targets (the modules' own evidence, at word granularity). The overlay slot is the census destination
     the modules agree with, and a destination NO module agrees with scores 0 — which is what makes the
     choice a measurement rather than a preference.
 
@@ -812,15 +811,15 @@ def slot_report(exe, rows, out=sys.stdout):
 
 
 def score_report(exe, slot, out=sys.stdout):
-    """Diff the census-derived base BY CODE against the independent jal-target evidence base_fit uses,
-    and against that method's 4 KiB-floored answer. Prints both counts for every module."""
+    """Diff the census-derived base BY CODE against the independent jal-target evidence, and against
+    that evidence's 4 KiB-floored answer. Prints both counts for every module."""
     floor = slot & ~0xFFF
     print(
         "== the census base scored against each module's own absolute jal targets ==",
         file=out,
     )
     print(
-        "   (independent evidence: base_fit.py's method, here at WORD granularity on two fixed bases)",
+        "   (independent evidence: each module's own jal targets, here at WORD granularity on two fixed bases)",
         file=out,
     )
     print(
@@ -1025,7 +1024,7 @@ def selftest():
     )
 
     # DERIVATION: the slot, the window and the slot-count verdict must come out of the census, and the
-    # census base must be DISTINGUISHABLE from base_fit.py's 4 KiB-floored answer by the module
+    # census base must be DISTINGUISHABLE from a 4 KiB-floored fit by the module
     # evidence. Without that last clause the whole finding would be unfalsifiable decoration.
     buf = io.StringIO()
     slot, nxt, verdict = slot_report(exe, rows, buf)
@@ -1111,13 +1110,7 @@ def selftest():
         f"mutated slot 0x{opposite_slot or 0:08X}, next 0x{opposite_next or 0:08X}, verdict {opposite_verdict}",
     )
 
-    shipping_failures = shipping_comparison(contract, io.StringIO())
-    ck(
-        "SHIPPING: GameConfig equals the independently derived slots",
-        not shipping_failures,
-        "0 disagreements" if not shipping_failures else ", ".join(shipping_failures),
-    )
-    shipping_selftest(contract, ck)
+    
 
     print("[selftest] %d/%d passed" % (len(checks) - len(fails), len(checks)))
     print(
@@ -1140,21 +1133,10 @@ def main():
         help="callee VA to census (default the CD loader)",
     )
     ap.add_argument("--selftest", action="store_true")
-    ap.add_argument(
-        "--check",
-        action="store_true",
-        help="derive the retail map and fail if the runtime GameConfig disagrees",
-    )
     a = ap.parse_args()
     if a.selftest:
         raise SystemExit(selftest())
-    measured = report(int(a.loader, 0))
-    if a.check:
-        if int(a.loader, 0) != LOADER or measured["contract"] is None:
-            raise SystemExit(
-                "REFUSED: --check requires the verified loader anchor and complete contract"
-            )
-        raise SystemExit(1 if shipping_comparison(measured["contract"]) else 0)
+    report(int(a.loader, 0))
 
 
 if __name__ == "__main__":

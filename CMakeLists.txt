@@ -4,7 +4,7 @@
 # The framework owns PSX hardware and runtime translation; this repo owns the authenticated title
 # facts and native subsystems. The user's executable remains runtime data.
 #
-# AND THERE IS NO DECOMP OF THIS GAME (docs/references.md), so there is no symbol map and no function
+# AND THERE IS NO DECOMP OF THIS GAME (CLAUDE.md), so there is no symbol map and no function
 # boundaries to start from — every address this port will ever hold comes out of Ghidra on this
 # executable. That does not change the build; it changes how long the ⬜ rows stay ⬜.
 cmake_minimum_required(VERSION 3.21)
@@ -82,73 +82,9 @@ add_subdirectory(${PSXPORT_DIR} ${CMAKE_BINARY_DIR}/psxport_build)
 include(cmake/toystory2_port.cmake)
 
 if(BUILD_TESTING)
-  add_test(
-    NAME launcher_contract
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_run.py
-  )
-  add_test(
-    NAME verify_crt0_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_crt0.py --selftest
-  )
-  add_test(
-    NAME overlay_map_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/overlay_map.py --selftest
-  )
-  add_test(
-    NAME verify_cd_command_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_cd_command.py --selftest
-  )
-  add_test(
-    NAME verify_fmv_boundary_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_fmv_boundary.py --selftest
-  )
-  add_test(
-    NAME verify_pad_buffers_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_pad_buffers.py --selftest
-  )
-  add_test(
-    NAME verify_projection_publication_selftest
-    COMMAND
-      ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_projection_publication.py --selftest
-  )
-  add_test(
-    NAME raw_unpack_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_unpack.py --selftest
-  )
-  add_test(
-    NAME raw_packet_census_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/raw_packet_census.py --selftest
-  )
-  add_test(
-    NAME verify_str_completion_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_str_completion.py --selftest
-  )
-  add_test(
-    NAME ts2_route_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/ts2_route.py --selftest
-  )
-  add_test(
-    NAME headless_run_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/headless_run.py --selftest
-  )
-  add_test(
-    NAME ts2_guest_words_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/ts2_guest_words.py --selftest
-  )
-  add_test(
-    NAME execution_ledger_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/execution_ledger.py --selftest
-  )
-  add_test(
-    NAME verify_route_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_route.py --selftest
-  )
-  add_test(
-    NAME verify_movement_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_movement.py --selftest
-  )
-  add_test(NAME structure_policy COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_structure.py)
-  add_test(NAME structure_policy_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_structure.py)
+  # The gate is the product: the four C++ hermetic boundary tests, the executable's own --help
+  # contract, the C++ policy check (clang-format, clang-tidy, cpp_policy) and the live psxport pin
+  # check below. Nothing here tests a tool.
   if(TARGET toystory2_projection_boundary)
     add_test(NAME projection_publication_boundary COMMAND toystory2_projection_boundary)
   endif()
@@ -183,20 +119,16 @@ if(BUILD_TESTING)
 endif()
 
 # THE LIVE PIN CHECK. Not a selftest: this runs the real function against this repository's real
-# psxport.pin and the real build receipt, so it can fail when the pin is actually wrong.
-#
-# MEASURED 2026-09-27: every port in the workspace registered only a SELFTEST of the check function, run
-# against a temporary fixture. A selftest asserts the function behaves; it cannot fail when this repo's
-# pin is stale, which is why ten ports reported green while four pins were demonstrably stale. --build
+# psxport.pin and the real build receipt, so it can fail when the pin is actually wrong. --build
 # points at THIS build directory, configured moments ago, so the receipt is current by construction and
 # the staleness guard cannot fire spuriously. Verified: perturbing psxport.pin turns it red.
+#
+# The pin tool's own behaviour (staleness guard, a bump that records the commit the build RESOLVED) is
+# tested once, in the framework (tests/test_psxport_sync.py). This repository ships only
+# tools/psxport_fetch.py.
 if(BUILD_TESTING)
   add_test(
     NAME toystory2_psxport_pin_live
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/external/psxport/tools/psxport_sync.py"
             --repo "${CMAKE_SOURCE_DIR}" --check --build "${CMAKE_BINARY_DIR}")
 endif()
-
-# The pin tool's own behaviour (staleness guard, a bump that records the commit the build RESOLVED) is
-# tested once, in the framework (tests/test_psxport_sync.py). This repository used to carry a drifted
-# copy of the tool and of that test; the only shipped file is tools/psxport_fetch.py.

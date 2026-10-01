@@ -69,8 +69,8 @@ def main(argv: list[str] | None = None) -> int:
     project = PROJECT_DIR / f"{args.project}.gpr"
     if not project.is_file():
         return refuse(
-            f"no Ghidra project {project.relative_to(ROOT)}; build the RAM image and import it "
-            "with the commands in docs/re-frontier.md RE-00"
+            f"no Ghidra project {project.relative_to(ROOT)}; build the RAM image with "
+            "tools/ram_image.py and import it first"
         )
     launcher = shutil.which("pyghidraRun")
     if not launcher:

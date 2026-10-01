@@ -49,9 +49,9 @@ import struct
 import sys
 
 RAM_BASE = 0x80000000  # the flat image's KSEG0 import base
-# tools/base_fit.py's fitted overlay load base (claim C003). Held here ONLY as the subject of a
-# regression check — it is NOT a resident base and must never be pasted into a GameConfig or an
-# overlay table. This tool once claimed the boot exe forms it; the check below is why it cannot again.
+# A 4 KiB-floored FITTED overlay load base, recovered from module `jal` targets. Held here ONLY as the
+# subject of a regression check — it is NOT a resident base and must never be pasted into a GameConfig
+# or an overlay table.
 OVERLAY_BASE_FIT = 0x800D1000
 OP_LUI, OP_ADDIU, OP_ORI = 0x0F, 0x09, 0x0D
 LOADS = {0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26}  # lb lh lwl lw lbu lhu lwr
@@ -79,7 +79,7 @@ def defined_reg(w):
     i.e. the earlier version modelled only addiu/ori as register-defining, so any other write left a
     stale hi16 behind and the fold MANUFACTURED an address. On this port that is the worst possible
     failure mode: 0x800D1000 is the fitted overlay base whose existence in the boot exe is the exact
-    question under test (docs/info/claims/003-*), and the tool answered YES by fabrication. An
+    question under test, and the tool answered YES by fabrication. An
     unrecognised word therefore kills ALL tracking rather than being ignored: a missed reference is a
     reported blind spot, a fabricated one is a false finding."""
     op = w >> 26

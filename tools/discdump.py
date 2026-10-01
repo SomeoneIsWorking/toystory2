@@ -129,8 +129,8 @@ def get(disc, path_on_disc, outdir, dd=None):
 
 
 # ---------------------------------------------------------------------------------------------------
-# CLI. `list` exists because this repo's overlay/module inventory has to be ENUMERATED before anything
-# in docs/re-frontier.md RE-03 may be accepted, and enumerating it must not
+# CLI. `list` exists because this repo's overlay/module inventory has to be ENUMERATED before any
+# load-address claim may be accepted, and enumerating it must not
 # require a second implementation of the disc reader.
 #
 # It REFUSES (exit 2) rather than printing an empty listing: `discdump` missing, the disc unresolvable,
@@ -154,8 +154,7 @@ def _main(argv):
             print(f"{path:<32} LBA {lba:<8} {size:>12} bytes")
         print(f"\n[discdump] {len(files)} files, {total} bytes total, on {disc}")
         print("[discdump] DENOMINATOR: this is every entry discdump's ISO9660 walk returned. It says "
-              "nothing about what is INSIDE any of them — for 'is there code in here?' use "
-              "tools/code_scan.py, which prints its own denominators and blind spots.")
+              "nothing about what is INSIDE any of them.")
         return 0
     if len(argv) < 3:
         print("usage: discdump.py get <PATH/ON/DISC> <outdir> [disc]", file=sys.stderr)

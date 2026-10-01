@@ -42,8 +42,8 @@ import sys
 
 BLIND_SPOTS = [
     "does NOT decompress — framing does not prove the bitstream codec",
-    "the codec question is CLOSED by tools/raw_unpack.py (TT DecompressRAW, NOT RNC — "
-    "docs/info/claims/019): this tool remains the framing instrument",
+    "the codec question is CLOSED by tools/raw_unpack.py (TT DecompressRAW, NOT RNC): "
+    "this tool remains the framing instrument",
 ]
 SENTINEL_REASON = "0xFFFFFFFF sentinel"
 

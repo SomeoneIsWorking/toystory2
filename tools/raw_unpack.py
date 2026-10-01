@@ -10,7 +10,7 @@ WHAT THIS ASSERTS. A TS2 .RAW is a stream of chunks whose 14-byte header keeps t
 field layout minus magic (be32 unpackedLen, be32 packedLen, be16 unpackedCRC, be16 packedCRC,
 leeway, chunkCount), terminated by a 0xFFFFFFFF sentinel — but the payload is NOT RNC ProPack.
 It decodes with Traveller's Tales' own LZ scheme, the routine TSR's Ghidra research names
-`DecompressRAW` (mateusfavarin/tsr, MIT — docs/references.md). A chunk PASSES only when BOTH
+`DecompressRAW` (mateusfavarin/tsr, MIT — nothing vendored). A chunk PASSES only when BOTH
 CRC fields verify: packedCRC-16/ARC over the compressed payload AND unpackedCRC-16/ARC over the
 decoded bytes, and the decoder ends exactly at unpackedLen.
 
@@ -27,7 +27,7 @@ ALGORITHM PROVENANCE. The decoder below is a faithful transcription of mateusfav
 `DecompressRAW` (Ghidra). Deliberately kept close to the decompiled control flow — the flag-bit
 shift register, its masking points and the interleaved literal/match state machine are exactly
 what the game executes; renaming deeper would trade provable correctness for looks. SHAPE taken
-and cited per docs/references.md; nothing vendored.
+and cited there; nothing vendored.
 
 EXIT CODES (distinct, machine-readable):
   0  PASS    — every chunk of every named file decompressed with both CRCs verified;
