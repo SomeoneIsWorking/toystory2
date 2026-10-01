@@ -105,6 +105,10 @@ CHAIN: tuple[tuple[str, int, int, str], ...] = (
     ("exe", 0x800949A8, 0x2463FFFF, "end-of-stream test decrements that counter"),
     ("exe", 0x800949AC, 0x1462002B, "end-of-stream test branches away unless it is the last sector"),
     # -- the DMA completion is the guest's own synchronous code, not a host callback ----------
+    ("exe", 0x80093DCC, 0x3C01800C, "stream close materialises the 0x800C page"),
+    ("exe", 0x80093DD0, 0xAC201170, "stream close clears the end-of-stream word 0x800C1170"),
+    ("exe", 0x80093F00, 0x3C01800C, "stream reset materialises the 0x800C page"),
+    ("exe", 0x80093F04, 0xAC201170, "stream reset clears the end-of-stream word 0x800C1170"),
     ("exe", 0x800949BC, 0x3C01800C, "end-of-stream setter materialises the 0x800C page"),
     ("exe", 0x800949C0, 0xAC231170, "the only non-zero store to 0x800C1170"),
     ("exe", 0x80093FA4, 0x3C01800D, "stream open materialises the 0x800D page"),
@@ -124,6 +128,15 @@ CENSUS_TARGETS: tuple[tuple[str, int, str], ...] = (
     ("exe", 0x800CE1B0, "ring base pointer"),
     ("exe", 0x800C9504, "ring head"),
 )
+
+# The CLOSED answer for the two guards: every lui-formed store to each, as measured on the retail
+# images. A census that finds another writer (or loses one) refuses instead of reporting a changed
+# count nobody reads. Each address is the store; its `lui` is the word before it and is asserted in
+# CHAIN above.
+EXPECTED_GUARD_WRITERS: dict[int, tuple[int, ...]] = {
+    0x800CE148: (0x80093FA8,),
+    0x800C1170: (0x80093DD0, 0x80093F04, 0x800949C0),
+}
 
 MODULE_SPAN = 510960
 BIOS_CALL_SHAPE = (0x240A00B0, 0x01400008)  # addiu $t2,$zero,0xB0 ; jr $t2
@@ -303,6 +316,14 @@ def analyze(exe: bytes, fmv: bytes, memory: bytes) -> CompletionEvidence:
         f"{name} 0x{target:08X}": census_lui_stores(blobs[source], source, target)
         for source, target, name in CENSUS_TARGETS
     }
+    for target, expected in EXPECTED_GUARD_WRITERS.items():
+        key = next(name for name in stores if name.endswith(f"0x{target:08X}"))
+        found = tuple(address for address, _ in stores[key])
+        if found != expected:
+            raise Refused(
+                f"the census of 0x{target:08X} found writers {[hex(a) for a in found]}, "
+                f"expected {[hex(a) for a in expected]}: the guard chain changed or the census is broken"
+            )
     scanned = sum(
         hi - lo for source, blob in blobs.items() for lo, hi in (text_range(source, blob),)
     ) // 4
@@ -417,6 +438,18 @@ def selftest() -> int:
         return 1
     print(f"[str-completion][selftest] positive: {evidence.rows} rows, "
           f"{evidence.bios_gate_sites} BIOS gate site(s)")
+
+    # Negative 0: a second writer of a guard must refuse, because the census is closed.
+    extra = bytearray(exe)
+    struct.pack_into("<I", extra, file_offset("exe", 0x80094010), 0x3C01800D)
+    struct.pack_into("<I", extra, file_offset("exe", 0x80094014), 0xAC20E148)
+    try:
+        analyze(bytes(extra), bytes(fmv), bytes(memory))
+    except Refused as refusal:
+        print(f"[str-completion][selftest] negative (closed census): refused -- {refusal}")
+    else:
+        print("[str-completion][selftest] FAILED: an extra guard writer was accepted")
+        return 1
 
     # Negative 1: one instruction word changed must refuse, naming the address.
     broken = bytearray(exe)
