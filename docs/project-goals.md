@@ -2,8 +2,7 @@
 
 Toy Story 2 is a PC-native port of the USA `SLUS_008.93` release. These goals record durable product
 outcomes. Factual delivery coverage lives in `docs/project-state.md`, atomic work in `docs/issues/`,
-ownership and placement in `docs/codemap.md`, and the ordered binary-evidence chain in
-`docs/re-frontier.md`.
+and ownership and placement in `docs/codemap.md`.
 
 ## G001 — Faithful playable PC product
 
