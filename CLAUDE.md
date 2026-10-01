@@ -76,6 +76,6 @@ modular, and DRY. Build outputs live under `build/`; bounded diagnostic artifact
 `scratch/` children. Game assets are never committed or packaged.
 
 Run `uv run --frozen python tools/verify.py`: build plus the product's hermetic C++ boundary tests,
-the executable's help contract, clang-format/clang-tidy/cpp_policy, and the live psxport pin check.
+the executable's help contract, and clang-format/clang-tidy/cpp_policy.
 To see the game rather than gate it, run `tools/headless_run.py`, `tools/verify_route.py` or
 `tools/verify_movement.py` against your own disc.

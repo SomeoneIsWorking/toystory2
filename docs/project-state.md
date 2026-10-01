@@ -1,7 +1,8 @@
 # Project state
 
 Epic intent lives in `docs/project-goals.md`, ownership in `docs/codemap.md`, open bugs in
-`docs/issues/`.
+`docs/issues/`, and which reverse-engineering steps are ground-truth-ready and which are not in
+`docs/re-frontier.md` (read through `tools/re_frontier.py`).
 
 **Comparison baseline**: the unmodified USA PlayStation release `SLUS_008.93` in a general-purpose
 emulator. Intended deltas: a standalone native/dynarec product, host-owned finite frame iteration,

@@ -17,8 +17,8 @@ scratch/
 *.chd
 .env
 
-# The framework. Not tracked: either a link to a pinned worktree of the workspace shared clone (local)
-# or a private clone at psxport.pin (fresh machine). Managed by tools/psxport_fetch.py.
+# The framework. Not tracked: either a relative link to the workspace's live psxport checkout (local)
+# or a clone of its main (CI, fresh machine). Managed by tools/psxport_fetch.py.
 /external/psxport
 *.log
 

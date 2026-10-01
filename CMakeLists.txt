@@ -1,5 +1,5 @@
 # Toy Story 2: Buzz Lightyear to the Rescue! (SLUS-00893, USA) — a PC-native port built on the psxport
-# framework (external/psxport resolves to the shared checkout or a private clone at psxport.pin).
+# framework (external/psxport resolves to the workspace's live checkout, or a clone of its main).
 #
 # The framework owns PSX hardware and runtime translation; this repo owns the authenticated title
 # facts and native subsystems. The user's executable remains runtime data.
@@ -23,11 +23,10 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
 # PSXPORT_DIR — WHERE THE FRAMEWORK SOURCE COMES FROM. Defaults to external/psxport, which is no
-# longer a git submodule (2026-08-16): tools/psxport_fetch.py (called by run.sh) makes it a
-# link to a worktree of the workspace's shared framework clone at this repo's psxport.pin, or a
-# private clone at the same pin on a fresh machine. So a fresh clone of this repo alone still builds standalone:
-# that property is what "each game is its own project using psxport as the framework" means, and it
-# must stay testable.
+# longer a git submodule (2026-08-16): tools/psxport_fetch.py (called by run.sh) makes it a link to
+# the workspace's live framework checkout, or clones psxport main on a machine that has none. So a
+# fresh clone of this repo alone still builds standalone: that property is what "each game is its own
+# project using psxport as the framework" means, and it must stay testable.
 #
 # Point it at a specific framework checkout to build against in-progress framework work:
 #
@@ -44,26 +43,11 @@ if(NOT EXISTS "${PSXPORT_DIR}/cmake/psxport.cmake")
 endif()
 message(STATUS "psxport framework: ${PSXPORT_DIR}")
 
-# RECORD WHAT THIS CONFIGURE RESOLVED, so `external/psxport/tools/psxport_sync.py --check` can compare the framework
-# you actually BUILT against with the one psxport.pin RECORDS. The framework is no longer a git
-# submodule (external/psxport is a symlink to the workspace's shared clone, or a private clone at the
-# pin — see tools/psxport_fetch.py); the pin is provenance, and this file is what keeps it honest.
-execute_process(COMMAND git -C "${PSXPORT_DIR}" rev-parse HEAD
-                OUTPUT_VARIABLE PSXPORT_RESOLVED_SHA OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET RESULT_VARIABLE _psxport_rev_rc)
-if(NOT _psxport_rev_rc EQUAL 0)
-  set(PSXPORT_RESOLVED_SHA "unknown")   # honest: never silently record a plausible-looking sha
-endif()
-file(WRITE "${CMAKE_BINARY_DIR}/psxport_resolved.txt"
-     "dir = ${PSXPORT_DIR}\ncommit = ${PSXPORT_RESOLVED_SHA}\n")
-message(STATUS "psxport commit: ${PSXPORT_RESOLVED_SHA}")
-
-# The framework's OWN nested vendors (vendor/lucent, vendor/beetle-psx/deps/libchdr) are the SHARED
-# clone's concern now: they were initialized once in the dev clone, and external/psxport is a symlink
-# to it. A fresh machine's private clone at the pin gets them from tools/psxport_fetch.py (which
-# inits them non-recursively). If they are somehow missing, the error comes from inside psxport with a
-# clear "does not contain a CMakeLists.txt", and the fix is `git -C external/psxport submodule update
-# --init <vendor>` in the dev clone.
+# The framework's OWN nested vendors (vendor/lucent, vendor/beetle-psx/deps/libchdr) are the checkout's
+# concern: tools/psxport_fetch.py initialises them non-recursively wherever it resolved the framework
+# from. If they are somehow missing, the error comes from inside psxport with a clear "does not contain a
+# CMakeLists.txt", and the fix is `git -C external/psxport submodule update --init <vendor>` in that
+# checkout.
 if(NOT EXISTS "${PSXPORT_DIR}/vendor/lucent/CMakeLists.txt")
   message(FATAL_ERROR "psxport's vendor/lucent is not checked out in the shared clone — run "
                       "`git -C ${PSXPORT_DIR} submodule update --init vendor/lucent` there once.")
@@ -83,8 +67,7 @@ include(cmake/toystory2_port.cmake)
 
 if(BUILD_TESTING)
   # The gate is the product: the four C++ hermetic boundary tests, the executable's own --help
-  # contract, the C++ policy check (clang-format, clang-tidy, cpp_policy) and the live psxport pin
-  # check below. Nothing here tests a tool.
+  # contract, and the C++ policy check (clang-format, clang-tidy, cpp_policy). Nothing here tests a tool.
   if(TARGET toystory2_projection_boundary)
     add_test(NAME projection_publication_boundary COMMAND toystory2_projection_boundary)
   endif()
@@ -116,19 +99,4 @@ if(BUILD_TESTING)
       --root ${CMAKE_SOURCE_DIR}
       --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
   )
-endif()
-
-# THE LIVE PIN CHECK. Not a selftest: this runs the real function against this repository's real
-# psxport.pin and the real build receipt, so it can fail when the pin is actually wrong. --build
-# points at THIS build directory, configured moments ago, so the receipt is current by construction and
-# the staleness guard cannot fire spuriously. Verified: perturbing psxport.pin turns it red.
-#
-# The pin tool's own behaviour (staleness guard, a bump that records the commit the build RESOLVED) is
-# tested once, in the framework (tests/test_psxport_sync.py). This repository ships only
-# tools/psxport_fetch.py.
-if(BUILD_TESTING)
-  add_test(
-    NAME toystory2_psxport_pin_live
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/external/psxport/tools/psxport_sync.py"
-            --repo "${CMAKE_SOURCE_DIR}" --check --build "${CMAKE_BINARY_DIR}")
 endif()

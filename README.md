@@ -28,7 +28,7 @@ the optional positional argument:
 code.
 
 The gate is build + the product's hermetic C++ boundary tests + the executable's own help contract +
-clang-format/clang-tidy/cpp_policy + the live psxport pin check:
+clang-format/clang-tidy/cpp_policy:
 
 ```sh
 CXX=clang++ CC=clang CMAKE_BUILD_PARALLEL_LEVEL=6 uv run --frozen python tools/verify.py

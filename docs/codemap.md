@@ -43,4 +43,4 @@ ToyStory2Runtime -> native title owners -> guest_execution -> psxport Lightrec e
 - Product diagnostics: Lucent at the owning call site.
 - Offline evidence extraction: a modular Python tool under `tools/`; never executable guest source.
 - A measurement, census, or claim-recording tool has no home here. The gate is the product build, its
-  unit tests, the C++ policy checks and the pin check; anything else belongs in psxport or nowhere.
+  unit tests and the C++ policy checks; anything else belongs in psxport or nowhere.
