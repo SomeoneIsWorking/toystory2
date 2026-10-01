@@ -42,6 +42,10 @@ const char *ToyStory2Runtime::discEnvVar() const {
   return facts::kDiscEnvVar;
 }
 
+const HostIdentity *ToyStory2Runtime::hostIdentity() const {
+  return &kHostIdentity;
+}
+
 bool ToyStory2Runtime::guestVramIsPicture(const Game &) const {
   // The measured FrameDriver still dispatches the resident guest renderer and presents guest
   // DrawOTag/VRAM output, including upload-only screens, without dispatching guest VBlank, so guest

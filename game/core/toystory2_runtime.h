@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game_runtime.h"
+#include "guest_facts.h"
 
 namespace ts2 {
 
@@ -18,12 +19,17 @@ public:
   const GuestPadBufferLayout *guestPadBufferLayout() const override;
   const GuestCdStreamCallbackLayout *guestCdStreamCallbackLayout() const override;
   const char *discEnvVar() const override;
+  const HostIdentity *hostIdentity() const override;
   RenderCapabilities renderCapabilities() const override;
   bool guestVramIsPicture(const Game &game) const override;
   const GuestWidescreenProjection *guestWidescreenProjection() const override;
   std::unique_ptr<FrameDriver> createFrameDriver(Game &game) override;
   void registerOverrides(Game &game) override;
   void bootInit(Core &core) override;
+
+private:
+  static constexpr HostIdentity kHostIdentity{
+      facts::kWindowTitle, facts::kCardEnvVar, facts::kCardDefaultPath};
 };
 
 } // namespace ts2

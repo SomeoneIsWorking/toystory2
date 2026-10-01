@@ -204,6 +204,12 @@ static_assert(kVSyncTrap >= kSdkGraphicsWindowLo && kVSyncTrap < kSdkGraphicsWin
 // key on the host side and .env.example documents it.
 inline constexpr const char *kDiscEnvVar = "PSXPORT_TS2_DISC";
 
+// The host window title and the memory-card policy (port facts): the card variable is checked before
+// the generic PSXPORT_CARD, and the default path applies when neither names a card.
+inline constexpr const char *kWindowTitle = "Toy Story 2 (psxport)";
+inline constexpr const char *kCardEnvVar = "PSXPORT_TS2_CARD";
+inline constexpr const char *kCardDefaultPath = "scratch/saves/toystory2.mcr";
+
 // The executable's own boot group (RE-01), resident text (RE-02) and crt0 stack bias, consumed as one
 // group by the framework's crt0 planner: a lone entry beside a zeroed BSS range would run a wrong crt0
 // instead of refusing. Re-run `tools/verify_crt0.py --check` to diff every value against the
