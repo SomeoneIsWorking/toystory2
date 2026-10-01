@@ -68,7 +68,7 @@ def collect(result: headless_run.RunResult, plan: headless_run.RunPlan) -> Captu
     dumps = {}
     pictures = {}
     for frame in plan.dump_at:
-        dumps[frame] = sha256(result.work / "scratch" / "bin" / f"padram_{frame}.bin")
+        dumps[frame] = sha256(dump_path(result, frame))
     for frame in plan.shots:
         pictures[frame] = sha256(screenshots / f"present_{frame}.png")
     non_black = {int(f): (int(n), int(d)) for f, n, d in NON_BLACK.findall(result.log_text)}
@@ -79,27 +79,26 @@ def collect(result: headless_run.RunResult, plan: headless_run.RunPlan) -> Captu
     return Capture(dumps, pictures, non_black, taps)
 
 
-def plan_for(taps: tuple[Tap, ...], binary: Path) -> headless_run.RunPlan:
-    return headless_run.RunPlan(
-        binary=binary,
-        frames=RUN_FRAMES,
-        shots=SHOT_FRAMES,
-        dump_at=DUMP_FRAMES,
-        debug="",
-        timeout=300,
-        disc=headless_run.default_disc(),
-        taps=taps,
-    )
-
-
-def run_once(taps: tuple[Tap, ...], binary: Path) -> tuple[Capture, words.RamDump]:
-    plan = plan_for(taps, binary)
+def execute_route(taps: tuple[Tap, ...], binary: Path, frames: int, shots: tuple[int, ...],
+                  dump_at: tuple[int, ...]) -> tuple[headless_run.RunResult, headless_run.RunPlan]:
+    """One headless run of `taps` that must exit cleanly with its whole pad schedule consumed."""
+    plan = headless_run.RunPlan(binary=binary, frames=frames, shots=shots, dump_at=dump_at, debug="",
+                                timeout=300, disc=headless_run.default_disc(), taps=taps)
     result = headless_run.execute(plan, dict(os.environ))
     if result.code != 0:
         raise RuntimeError(f"the product exited {result.code}; log {result.log}")
     if "replay fully consumed" not in result.log_text:
         raise RuntimeError("the pad schedule was not fully consumed, so the run did not reach the route's end")
-    return collect(result, plan), words.RamDump.read(result.work / "scratch" / "bin" / f"padram_{ARRIVAL_FRAME}.bin")
+    return result, plan
+
+
+def dump_path(result: headless_run.RunResult, frame: int) -> Path:
+    return result.work / "scratch" / "bin" / f"padram_{frame}.bin"
+
+
+def run_once(taps: tuple[Tap, ...], binary: Path) -> tuple[Capture, words.RamDump]:
+    result, plan = execute_route(taps, binary, RUN_FRAMES, SHOT_FRAMES, DUMP_FRAMES)
+    return collect(result, plan), words.RamDump.read(dump_path(result, ARRIVAL_FRAME))
 
 
 def judge_arrival(dump: words.RamDump) -> list[str]:

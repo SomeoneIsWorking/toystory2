@@ -139,6 +139,10 @@ if(BUILD_TESTING)
     NAME verify_route_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_route.py --selftest
   )
+  add_test(
+    NAME verify_movement_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/verify_movement.py --selftest
+  )
   add_test(NAME structure_policy COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_structure.py)
   add_test(NAME structure_policy_selftest COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/test_structure.py)
   if(TARGET toystory2_projection_boundary)
