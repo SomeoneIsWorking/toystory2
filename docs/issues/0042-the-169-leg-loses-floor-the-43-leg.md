@@ -29,6 +29,55 @@ What is wrong is measurable without interpretation:
   y=0..390, 621/606/614 at y=420/450/480, 605 at y=540, 683 at y=630, 558 at y=660, 553 at
   y=690 — a geometry-shaped, per-row boundary.
 
+## ROOT CAUSE FOUND AND FIXED: the presented window was one margin too far right
+
+The defect was **not** in psxport's draw path. Depth and scissor were both cleared of suspicion on
+inspection and by measurement:
+
+- `render_pass_set` clears the depth attachment on every band (`dt.load_op = SDL_GPU_LOADOP_CLEAR`,
+  `clear_depth = 0.0f`), and the world test is `kWorldDepthCompare = GREATER_OR_EQUAL` (reversed-Z),
+  so the backdrop cannot leave depth the floor fails against and the bands cannot poison each other.
+- The 3D scissor is `sc3d = {sx*scale, sy*scale, disp_w*scale, h*scale}` — the display rect, which is
+  correct — and the 3D band is in fact **empty in both legs** (`--debug ires` prints
+  `tri=0 tex=0 semi=0` at 4:3 as well as 16:9: the guest uses an OT0 list, so nothing is depth-tagged).
+- The presenter builds `p.disp[0] = in.sx * scale` against `p.disp[2] = content_w * scale`, where
+  `content_w` falls through to `disp_w` (the port's 684) because `game_guest_picture_is_native_width`
+  is false here.
+
+The cause is the pairing of that origin with that width. The title publishes the draw area and draw
+offset at the margin (`canvasOriginX_` = 86) — which is right, because `ws_2d_local_x` offsets
+everything the guest submits by (wide - native)/2 and that is what lands the guest's 512-wide frame at
+canvas 86..597 — but it published the **display** area at the same origin while the presenter's
+`present_display_width` returns the **whole 684-wide canvas**. Origin and width therefore described
+`canvas[86, 770)`: the left margin's 86 columns were never presented at all, and the rightmost 86
+columns of the window read past the canvas into unwritten VRAM. The floor was being cut one margin's
+worth, which is exactly the width the "missing" strip had.
+
+FIX (`game/render/resident_widescreen.cpp`, `presentField`): the display area starts at the canvas's
+own origin, `displayAreaStart(0, canvas_.top)`. The draw area and draw offset stay at the margin.
+
+MEASURED at pad frame 2500, the floor's right edge per sink row:
+
+```
+   y     origin 86   origin 0
+ 660        1045        1206
+ 690        1036        1197
+ 715        1030        1191
+```
+
+exactly one margin (161 sink columns) further right, and now past the 4:3 frame's own edge at sink
+1117; the previously cropped left margin now shows the quilt wall. 4:3 is **byte-identical** before and
+after (`cmp` clean), which it must be — this only runs when the widening is active. Captures:
+`scratch/wide/user/sx0_2500.png` (after) against `after3_2500.png` (before), `sx0_43_2500.png` (4:3).
+
+This also explains every earlier null result at last: the floor was never culled, never frustum-tested
+and never unsent — it was submitted, rasterised, and then not presented.
+
+RESIDUAL: the floor still ends ~40 canvas columns short of the right canvas edge at the bottom of the
+frame. With every submitted primitive now presented, that remainder is the room's own floor boundary
+rather than a presentation fault; it has not been re-verified against an independent 4:3 reference and
+is left as the open tail of this issue.
+
 ## Packet evidence (`PSXPORT_PRIMDUMP=2495:2505`)
 
 Captured at both aspects for the same route and frame, `scratch/wide/user/prims_4x3.csv` and

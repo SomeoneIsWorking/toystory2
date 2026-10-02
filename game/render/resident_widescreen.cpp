@@ -286,7 +286,31 @@ void ResidentWidescreenProjection::presentField(Core &core) const {
   gpu_gp0(&core, drawAreaTopLeft(canvasOriginX_, canvas_.top));
   gpu_gp0(&core, drawAreaBottomRight(right, bottom));
   gpu_gp0(&core, drawOffset(canvasOriginX_, canvas_.top));
-  gpu_gp1(&core, displayAreaStart(canvasOriginX_, canvas_.top));
+  // THE DISPLAY AREA IS THE WHOLE CANVAS, AND THAT IS NOT THE SAME ORIGIN AS THE DRAW AREA.
+  //
+  // The draw area and the draw offset stay one margin in (86 columns), because ws_2d_local_x in
+  // gpu_native.cpp offsets everything the guest submits by (wide - native) / 2: that is what puts the
+  // guest's own 512-wide frame at canvas columns 86..597 inside the 684-wide canvas, leaving the
+  // margin either side of it.
+  //
+  // The DISPLAY area is what the presenter samples, and the presenter pairs its origin with the
+  // WIDTH THE PORT PUBLISHES (present_display_width in present_plan.h returns the whole 684). Origin
+  // and width therefore have to describe ONE rectangle, and publishing the margin as the origin
+  // together with the full canvas as the width described canvas[86, 86+684) = [86, 770) — a window
+  // one margin too far right: the left margin's 86 columns were never presented at all, and the
+  // rightmost 86 columns of the window read past the canvas into unwritten VRAM.
+  //
+  // MEASURED, pad frame 2500 in Andy's House, the floor's right edge per sink row:
+  //
+  //     y     origin 86   origin 0
+  //   660       1045        1206
+  //   690       1036        1197
+  //   715       1030        1191
+  //
+  // exactly one margin (161 sink columns) further right, and now past the 4:3 frame's own edge at
+  // sink 1117. The left margin, which the window had been cropping, now shows the quilt wall. 4:3 is
+  // byte-identical before and after, which it must be: this only runs when the widening is active.
+  gpu_gp1(&core, displayAreaStart(0, canvas_.top));
 }
 
 } // namespace ts2
