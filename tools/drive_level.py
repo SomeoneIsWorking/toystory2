@@ -39,7 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = ROOT / "external" / "psxport"
 sys.path.insert(0, str(FRAMEWORK / "tools"))
 
-from dbgclient import LiveClient  # noqa: E402
+from dbgclient import LiveClient
 
 BUTTONS = ("up", "down", "left", "right")
 PLAYER = 0x800B2188
@@ -49,8 +49,12 @@ TOKEN_SLOT_STATE = 0x800A866C
 TOKEN_SLOT_STRIDE = 0x10
 TOKEN_COLLECTED_FLAG = 0x800A1544
 TOKEN_SLOTS = 5
-MAX_READ = 64          # the control surface's own per-command cap; it states the cap when it refuses
-WORLD_SHIFT = 5        # the guest's own getter shifts the level's 16-bit object coordinates by 5
+MAX_READ = (
+    64  # the control surface's own per-command cap; it states the cap when it refuses
+)
+WORLD_SHIFT = (
+    5  # the guest's own getter shifts the level's 16-bit object coordinates by 5
+)
 
 
 def s32(value: int) -> int:
@@ -111,8 +115,13 @@ class Session:
             position_record = self.word(record + 0x14)
             if not (0x80000000 <= position_record < 0x80200000):
                 continue
-            objects.append(AreaObject(index, tuple(s32(w) for w in self.read(position_record, 3)),
-                                      self.word(record + 0x18)))
+            objects.append(
+                AreaObject(
+                    index,
+                    tuple(s32(w) for w in self.read(position_record, 3)),
+                    self.word(record + 0x18),
+                )
+            )
         return objects
 
     def token_ids(self) -> list[int]:
@@ -124,14 +133,20 @@ class Session:
         """Where the guest's own token ids point in THIS area: table[id - 1], the guest's own index."""
         objects = self.area_objects()
         by_index = {obj.index: obj for obj in objects}
-        return [by_index[token - 1].position for token in self.token_ids() if token - 1 in by_index]
+        return [
+            by_index[token - 1].position
+            for token in self.token_ids()
+            if token - 1 in by_index
+        ]
 
     def collected(self) -> dict[str, int]:
         """The guest's own collection state: the flag it raises and each slot's state word."""
         return {
             "flag": self.word(TOKEN_COLLECTED_FLAG),
-            "slots": [self.word(TOKEN_SLOT_STATE + TOKEN_SLOT_STRIDE * index)
-                      for index in range(TOKEN_SLOTS)],
+            "slots": [
+                self.word(TOKEN_SLOT_STATE + TOKEN_SLOT_STRIDE * index)
+                for index in range(TOKEN_SLOTS)
+            ],
         }
 
     def save_recording(self, path: str, frames: int = 0) -> str:
@@ -171,22 +186,33 @@ class Walker:
             direction = unit(after[0] - before[0], after[2] - before[2])
             if direction:
                 self.axis[button] = direction
-            print(f"  {button:>5}: ({before[0]},{before[2]}) -> ({after[0]},{after[2]})"
-                  f"  step=({after[0] - before[0]},{after[2] - before[2]})")
+            print(
+                f"  {button:>5}: ({before[0]},{before[2]}) -> ({after[0]},{after[2]})"
+                f"  step=({after[0] - before[0]},{after[2] - before[2]})"
+            )
         self.session.held(())
         time.sleep(settle)
 
     def best_button(self, dx: float, dz: float, skip=()) -> str:
         """The d-pad direction whose measured world vector points most nearly at (dx, dz)."""
-        ranked = sorted(self.axis.items(), key=lambda item: -(item[1][0] * dx + item[1][1] * dz))
+        ranked = sorted(
+            self.axis.items(), key=lambda item: -(item[1][0] * dx + item[1][1] * dz)
+        )
         for button, _ in ranked:
             if button not in skip:
                 return button
         return ranked[0][0]
 
-    def walk_to(self, target, tolerance: int = 200, seconds: float = 90.0, settle: float = 0.12,
-                hold: float = 0.50, slide: float = 0.60, detours_allowed: int = 12
-                ) -> tuple[float | None, str]:
+    def walk_to(
+        self,
+        target,
+        tolerance: int = 200,
+        seconds: float = 90.0,
+        settle: float = 0.12,
+        hold: float = 0.50,
+        slide: float = 0.60,
+        detours_allowed: int = 12,
+    ) -> tuple[float | None, str]:
         """Walk one leg toward `target`. Returns the remaining distance, or None with why it stopped.
 
         One direction at a time, held long enough to be worth measuring: the guest turns into a
@@ -233,29 +259,50 @@ class Walker:
             self.session.held(())
             detours += 1
             if detours > detours_allowed:
-                return None, (f"gave up after {detours} detours; closest approach {closest:.0f} "
-                              f"short of {target}")
+                return None, (
+                    f"gave up after {detours} detours; closest approach {closest:.0f} "
+                    f"short of {target}"
+                )
         return None, f"out of time, closest approach {closest:.0f} short of {target}"
 
-    def drive(self, targets, tolerance: int = 200, seconds: float = 90.0) -> dict[int, tuple]:
+    def drive(
+        self, targets, tolerance: int = 200, seconds: float = 90.0
+    ) -> dict[int, tuple]:
         report = {}
         for number, target in enumerate(targets, start=1):
-            distance, outcome = self.walk_to(target, tolerance=tolerance, seconds=seconds)
+            distance, outcome = self.walk_to(
+                target, tolerance=tolerance, seconds=seconds
+            )
             report[number] = (target, distance, outcome, self.session.buzz())
-            print(f"  target {number} {target}: {outcome}"
-                  + (f", {distance:.0f} away" if distance is not None else "")
-                  + f", Buzz at {report[number][3]}", flush=True)
+            print(
+                f"  target {number} {target}: {outcome}"
+                + (f", {distance:.0f} away" if distance is not None else "")
+                + f", Buzz at {report[number][3]}",
+                flush=True,
+            )
         return report
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--port", type=int, required=True, help="PSXPORT_DEBUG_SERVER port of a live run")
-    parser.add_argument("--tolerance", type=int, default=200, help="how close counts as arrived")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        required=True,
+        help="PSXPORT_DEBUG_SERVER port of a live run",
+    )
+    parser.add_argument(
+        "--tolerance", type=int, default=200, help="how close counts as arrived"
+    )
     parser.add_argument("--seconds", type=float, default=90.0, help="budget per target")
-    parser.add_argument("--save", help="cut the live session into this .pad replay when finished")
-    parser.add_argument("--frames", type=int, default=0, help="frames to keep in the saved replay")
+    parser.add_argument(
+        "--save", help="cut the live session into this .pad replay when finished"
+    )
+    parser.add_argument(
+        "--frames", type=int, default=0, help="frames to keep in the saved replay"
+    )
     args = parser.parse_args(argv)
 
     session = Session(args.port)
