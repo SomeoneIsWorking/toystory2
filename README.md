@@ -42,8 +42,7 @@ gameplay compatibility.
 
 To look at the game, drive it, or capture frames, use the maintainer tools: `tools/headless_run.py`
 (one bounded headless run, with `--tap`, `--shot-at`, `--aspect`, `--dump-at`), `tools/ts2_route.py`
-and `tools/verify_route.py` (exact-frame pad routes), `tools/verify_movement.py` (gameplay judged
-from guest RAM), and `tools/drive_level.py` (walks Buzz through a live run's own level and token
-tables with the d-pad, against `--control-port`). None of them are part of the gate.
+and `tools/verify_route.py` (exact-frame pad routes), and `tools/verify_movement.py` (gameplay judged
+from guest RAM). None of them are part of the gate.
 
 Game files, extracted executables, build products, and runtime captures are not tracked or packaged.
