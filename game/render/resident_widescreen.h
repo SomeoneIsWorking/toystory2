@@ -65,11 +65,20 @@ public:
   // submitter draws against.
   void install(Core &core);
 
-  // Follow the guest's own display mode, once per field. The widening's denominator is the width the
-  // guest itself scans out, and the guest publishes GP1(08) some time AFTER its graphics initializer
-  // returns: publishing inside the initializer measured a 256- or 320-wide front end and latched a
-  // 428-column plan that a 512-column resident frame could never widen past.
-  void syncToGuestDisplay(Core &core);
+  // Follow the guest's own display mode, once per field, for the leg the host is actually
+  // presenting. The widening's denominator is the width the guest itself scans out, and the guest
+  // publishes GP1(08) some time AFTER its graphics initializer returns: publishing inside the
+  // initializer measured a 256- or 320-wide front end and latched a 428-column plan that a
+  // 512-column resident frame could never widen past.
+  //
+  // `residentFrame` is the OTHER half of the question, and it is the half the guest cannot answer.
+  // The front end publishes 512-wide screens of its own (the Level map), so a width test alone
+  // widened a 2D MENU: its panel kept the width it was authored at, the widened display area made
+  // the guest lay the map preview out beside it, and the menu stopped filling its own frame. This
+  // widening is the RESIDENT frame's widening — the room is 3D and its projection is what has to
+  // change — so the host says which leg it is presenting and every front-end screen is presented at
+  // the width it authored, centred by the letterbox.
+  void syncToGuestDisplay(Core &core, bool residentFrame);
 
   // The horizontal projection centre, before the guest transforms this field's vertices, and the
   // clip, the drawing offset, the display origin and the backdrop cover after its update and before
@@ -121,7 +130,7 @@ public:
 
 private:
   void publish(Core &core);
-  void retire();
+  void retire(Core &core);
   ResidentFrameCanvas canvas_{};
   GuestProjectionPlan plan_{};
   bool active_ = false;

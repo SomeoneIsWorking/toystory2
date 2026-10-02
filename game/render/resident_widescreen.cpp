@@ -170,14 +170,18 @@ void ResidentWidescreenProjection::install(Core &core) {
   installResidentOverride(core, kScreenRectPublisherLeaf, "screen-rect-publisher", screenRectPublisherOverride);
 }
 
-void ResidentWidescreenProjection::syncToGuestDisplay(Core &core) {
+void ResidentWidescreenProjection::syncToGuestDisplay(Core &core, bool residentFrame) {
   const int guestWidth = core.game->gpu.s_disp_w;
-  if (guestWidth == canvas_.width) {
+  // The resident frame is the one the widening exists for, and it is the one whose canvas the
+  // latched plan describes. Both conditions must hold: the guest must be scanning out the canvas
+  // this owner widens, AND the host must be presenting the resident leg.
+  const bool residentCanvas = residentFrame && guestWidth == canvas_.width;
+  if (residentCanvas) {
     if (!active_) {
       publish(core);
     }
   } else if (active_) {
-    retire();
+    retire(core);
   }
 }
 
@@ -205,8 +209,16 @@ void ResidentWidescreenProjection::publish(Core &core) {
   canvasOriginX_ = plan_.projectionHorizontalMargin;
 }
 
-void ResidentWidescreenProjection::retire() {
+// RETIRING IS A PUBLICATION, NOT A FLAG. The host reads the latched plan, not this object's
+// `active_`, so clearing the flag alone left the widened plan in force for every later frame: this
+// title's front end publishes 320x240 and 256x240 screens of its own, and from the first 512-wide
+// frame onward the presenter sampled 684 columns of them — the guest's 320-wide Level card sat at the
+// origin of a 684-wide frame and the rest of the picture was unwritten VRAM. Publishing the native
+// plan here says what is true: this title is not widening the frame the guest is drawing now, so the
+// presenter samples the columns it authored and the letterbox centres them at their own aspect.
+void ResidentWidescreenProjection::retire(Core &core) {
   active_ = false;
+  gpu_vk_unlatch_guest_projection(core);
 }
 
 void ResidentWidescreenProjection::widenDrawEnv(Core &core, std::uint32_t drawEnv) {

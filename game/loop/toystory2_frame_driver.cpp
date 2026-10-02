@@ -100,6 +100,13 @@ public:
     return pacedAtTwoFields ? 2 : 1;
   }
 
+  // The leg the host is presenting: the 3D resident frame and the level start that hands over to it.
+  // Everything before that — movies, the title, the front-end poll, the Level map — is the guest's
+  // own 2D/4:3 front end, and the 16:9 widening is not its owner.
+  bool residentLeg() const {
+    return outerLoop_.phase == OuterLoopPhase::residentSetup || outerLoop_.phase == OuterLoopPhase::resident;
+  }
+
   void beginLogicFrame(uint32_t frame) override {
     fieldsDelivered_ = 0;
     core_.game->timing.logicFrame = frame;
@@ -121,8 +128,9 @@ public:
     // Learn the guest's live display width and re-centre the horizontal projection for this field,
     // before the guest transforms its vertices: the guest publishes OFX once at graphics init and
     // never moves it again, so at 16:9 the projection would otherwise stay centred on the 512-wide
-    // 4:3 canvas. Both are no-ops in the 4:3 leg.
-    context(core_).widescreen.syncToGuestDisplay(core_);
+    // 4:3 canvas. Both are no-ops in the 4:3 leg. The widening is the resident frame's: the front end
+    // publishes 512-wide screens of its own, and widening those reflowed a menu instead of a view.
+    context(core_).widescreen.syncToGuestDisplay(core_, residentLeg());
     context(core_).widescreen.beginField(core_);
   }
 
