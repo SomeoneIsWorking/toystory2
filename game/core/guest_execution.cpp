@@ -109,6 +109,12 @@ ResumableGuestCall::Progress ResumableGuestCall::advance() {
       ++fields_;
       return Progress::fieldBoundary;
     }
+    if (result.reason == psx::cpu::ExecutionExitReason::CooperativeYield) {
+      // A native replacement (the FMV movie player) finished one slice of work and handed the turn
+      // back. It is NOT a display field, so fields_ does not move; the caller still takes its step,
+      // which is what keeps the frame loop, the control channel and the movie all running.
+      return Progress::hostSlice;
+    }
     if (result.reason != psx::cpu::ExecutionExitReason::BudgetExhausted) {
       psx::cpu::requireGuestReturn(result, call_.owner);
       std::abort();

@@ -169,6 +169,11 @@ public:
   }
 
   void present(int guestFields) override {
+    // A native movie owns the display for as long as it plays. Its frame was delivered from inside
+    // the guest call, which is BEFORE this present, so the host's own present would cover it with the
+    // guest's 2D layers. Present the guest's layers as usual — they are real and the ledger must see
+    // them delivered — then put the movie back on top, which is the layer the player watches.
+    const bool movieOnScreen = core_.game->fmv.presenting();
     // The guest re-publishes its drawing environment, drawing offset and display origin every frame,
     // alternating one 512-wide canvas between the two halves of VRAM. The wide canvas is asserted
     // here, after the update and before the captured GP0 stream is rasterized, so the whole frame is
@@ -179,6 +184,9 @@ public:
     // invoked, it never commits a field, and its previous-endpoint flag never rises — so a declared
     // fps60 capability silently does nothing.
     core_.game->presentation.commit(&core_, guestFields, core_.game->temporalPresentation.get());
+    if (movieOnScreen) {
+      core_.game->fmv.replayLastFrame(core_);
+    }
   }
 
   void initializeFrontEnd() override {
@@ -204,8 +212,10 @@ public:
 
   // The intro sequence is MEMORY status 2, 0, 1 and then the queued screen. Each enters the FMV
   // overlay, whose loop plays a whole movie inside one guest call and waits on VSync 0x80088628 once
-  // per movie frame, so one step here delivers one display field. A status call returning nonzero
-  // ends the sequence, as the guest's own `&&` chain does.
+  // per movie frame, so one step here delivers one display field. The overlay's own player is
+  // replaced natively, which yields one movie frame per host turn instead — that is a hostSlice, and
+  // it takes the same step. A status call returning nonzero ends the sequence, as the guest's own
+  // `&&` chain does.
   bool stepIntroMovies() override {
     while (true) {
       if (!fieldCall_.active()) {
@@ -216,7 +226,9 @@ public:
         const std::array arguments{step.a0, step.a1, step.a2, 0u};
         fieldCall_.begin({step.address, 0x8007A9E8u, arguments, std::nullopt, "front-end movie"});
       }
-      if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+      const auto progress = fieldCall_.advance();
+      if (progress == ResumableGuestCall::Progress::fieldBoundary ||
+          progress == ResumableGuestCall::Progress::hostSlice) {
         return false;
       }
       const bool gated = kIntroMovieSteps[introMovieStep_].address == kMemoryStatus;

@@ -13,6 +13,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/core/title_session.cpp
   game/core/toystory2_context.cpp
   game/core/toystory2_runtime.cpp
+  game/fmv/guest_movie_player.cpp
   game/input/native_pad_owner.cpp
   game/loop/outer_loop.cpp
   game/loop/resident_frame.cpp

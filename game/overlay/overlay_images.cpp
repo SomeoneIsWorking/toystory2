@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "disc.h"
+#include "fmv/guest_movie_player.h"
 #include "game.h"
 #include "guest_execution.h"
 #include "toystory2_context.h"
@@ -88,6 +89,14 @@ void observeFileLoad(Core *core) {
   if (!slot->publish(*core, *module, discBytes, why)) {
     lucent::error("ts2-overlay", "{} image publication refused: {}", slot->module(*module).identityName, why);
     std::abort();
+  }
+  // The FMV module is one whose published contents the port replaces with a native owner: its movie
+  // player streams sectors through a CD path this port serves instantly, which floods the audio ring
+  // and stalls the disc mid-movie. Publishing it is what makes the player entry addressable as that
+  // module rather than as whatever else shares 0x800D5D20, so the native player is installed here,
+  // scoped to the identity just published. No other module in the slot has one.
+  if (slot->module(*module).identityName == SharedSlotImage::kFmvIdentityName) {
+    fmv::installGuestMoviePlayer(*core);
   }
   const auto identity = slot->activeIdentity();
   lucent::info("ts2-overlay",

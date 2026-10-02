@@ -32,13 +32,18 @@ inline constexpr std::uint32_t kFiniteInitializationSliceLimit = 64;
 inline constexpr std::uint32_t kResidentUpdateSliceLimit = 8;
 
 // One guest call that spans display fields: an FMV overlay's whole-movie loop waits on VSync once per
-// movie frame, and each wait exits the executor as a `FrameBoundary`. `advance` runs the call until the
+// movie frame, and each wait exits the executor as a `FrameBoundary`. A native player that does one
+// movie frame per host turn yields instead, and yields are the same thing from here — the host has
+// done one slice of work and the frame loop should take its field. `advance` runs the call until the
 // next such boundary or its return, resuming from the guest's own continuation with the original
 // return sentinel, so the host can present one field per step. Any other exit than a budget turn
 // ending is a fault and terminates.
 class ResumableGuestCall {
 public:
-  enum class Progress { fieldBoundary, returned };
+  // fieldBoundary: the guest reached a display field (VSync, or its own wait). hostSlice: a native
+  // replacement did one slice of work and yielded the turn. Both mean "one step, then present a
+  // field"; they are distinct because only the first is a guest display field and only it counts.
+  enum class Progress { fieldBoundary, hostSlice, returned };
 
   explicit ResumableGuestCall(Core &core);
 
