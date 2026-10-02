@@ -1,5 +1,6 @@
 #include "toystory2_runtime.h"
 
+#include "audio/guest_sound_bank.h"
 #include "boot/guest_main_boot.h"
 #include "boot/native_sync_overrides.h"
 #include "cd/file_transfer.h"
@@ -105,6 +106,7 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   installNativeSyncOverrides(game.core);
   installOverlayLoadObserver(game.core);
   cd::installFileTransferOverride(game.core);
+  audio::installSoundBankProcessorOverride(game.core);
   installNativePadOverrides(game.core);
   installResidentSceneObservationOverrides(game.core);
   render::installResidentProjectionScopes(game.core);

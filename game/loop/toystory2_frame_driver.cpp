@@ -50,7 +50,6 @@ constexpr uint32_t kCommitMemoryState = 0x80078CC4u;
 constexpr uint32_t kResetGraphics = 0x8003A774u;
 constexpr uint32_t kPlaybackSetup = 0x80079B58u;
 constexpr uint32_t kInteractiveSelection = 0x80041240u;
-constexpr uint32_t kBeginFade = 0x80077598u;
 constexpr uint32_t kCheckSave = 0x800415E4u;
 constexpr uint32_t kLoadSave = 0x8004171Cu;
 constexpr uint32_t kShutdownGraphics = 0x8003A838u;
@@ -345,25 +344,12 @@ public:
     // The retail caller's entry state for the play loop, DECOMPILED WHOLE (Ghidra, exact bytes, in
     // 0x8007A9E8 immediately after its `jal 0x8007bec4` at 0x8007AE14): it clears the transition flags
     // and the per-level counters, publishes `[0x800A1174] = 0`, arms the exit countdown at
-    // `[0x800A155C] = 90` and `[0x800A1430] = [0x800C166C] << 1`, and begins the fade. The loop those
-    // words feed -- `FUN_8003FA68(2)` then `FUN_8007B254`/`FUN_8007B850` -- is the resident main loop,
-    // which the frame driver owns as `updateResident` plus the deferred field service, so publishing
-    // its entry state is this step's job. The level start itself is the guest's own routine now (see
-    // `ResidentPreparation`), which is why no phase or timer below is one this port invented.
-    core_.mem_w32(0x800A1480u, 0);
-    core_.mem_w32(0x800A11E4u, 0);
-    core_.mem_w32(kAlternateUpdateMode, 0);
-    core_.mem_w32(0x800A11A4u, 0);
-    core_.mem_w32(0x800A15BCu, 0);
-    core_.mem_w32(0x800A1324u, 0);
-    core_.mem_w16(0x800A1638u, 0);
-    core_.mem_w16(0x800A163Au, 0);
-    core_.mem_w32(kElapsedFields, 0);
-    core_.mem_w16(0x800A136Eu, 0);
-    core_.mem_w16(0x800A155Cu, 90);
-    const int32_t bootCountdown = static_cast<int32_t>(core_.mem_r32(kBootCountdown));
-    core_.mem_w32(0x800A1430u, static_cast<uint32_t>(bootCountdown * 2));
-    callGuest(core_, kBeginFade, 128, 128, 128, 6);
+    // `[0x800A155C] = 90` and `[0x800A1430] = [0x800C166C] << 1`, and begins the fade. `ResidentPreparation`
+    // now RUNS that block instead of this step replaying it, so those words are written by the guest
+    // stores that own them -- including the halfword granularity and the `[0x800A1430]` value the
+    // hand-written word stores did not reproduce. The loop those words feed -- `FUN_8003FA68(2)` then
+    // `FUN_8007B254`/`FUN_8007B850` -- is the resident main loop, which the frame driver owns as
+    // `updateResident` plus the deferred field service; the guest is left parked in its own barrier.
     context(core_).camera.reset();
     context(core_).scene.reset();
     return ResidentPreparationProgress::ready;

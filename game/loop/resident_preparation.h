@@ -5,6 +5,7 @@
 #include "core/guest_execution.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 
 class Core;
@@ -23,6 +24,11 @@ namespace ts2 {
 // publishes the number of fields the wait covered at `[0x800A1174]`, services the deferred display,
 // and yields to the host so each authored field is presented. The level start therefore spans display
 // fields exactly like the front-end poll and the resident update, one presented field per step.
+//
+// A successful level start is followed by the main loop's own entry state at 0x8007AE20, which this
+// owner also runs rather than replaying. The guest ends that block parked in the play loop's own
+// two-field barrier, and the frame driver owns the loop body from the next field exactly as it owns
+// every later resident update.
 class ResidentPreparation {
 public:
   ResidentPreparationProgress step(Core &core, uint32_t level, int playbackMode);
@@ -30,6 +36,7 @@ public:
 private:
   // Constructed with the Core on the first step: a resumable call is bound to one executor.
   std::optional<ResumableGuestCall> levelStart_{};
+  std::optional<ResumableGuestCall> playLoopEntry_{};
 };
 
 } // namespace ts2

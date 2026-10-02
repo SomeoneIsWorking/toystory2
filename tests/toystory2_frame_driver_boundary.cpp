@@ -178,7 +178,7 @@ static void test_runtime_supplies_title_frame_driver() {
   CHECK(game->frameDriver != nullptr);
 }
 
-static void test_runtime_declares_guest_widescreen_without_false_native_or_lerp_claims() {
+static void test_runtime_declares_guest_widescreen_without_false_native_claims() {
   static ts2::ToyStory2Runtime runtime;
   psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
@@ -186,7 +186,11 @@ static void test_runtime_declares_guest_widescreen_without_false_native_or_lerp_
   const RenderCapabilities capabilities = runtime.renderCapabilities();
   CHECK(capabilities.defaultPath == RenderPath::Gte);
   CHECK(!capabilities.nativeRenderPath);
-  CHECK(!capabilities.temporalInterpolation);
+  // The declared in-between is the guest-primitive one (RenderCapabilities::guestInterpolated): the
+  // real path is still GTE, so the temporal product is interpolated guest geometry and not a native
+  // renderer's output.
+  CHECK(capabilities.temporalInterpolation);
+  CHECK(capabilities.defaultFaceOrder == RenderCapabilities::guestInterpolated().defaultFaceOrder);
 
   const GuestWidescreenProjection *policy = runtime.guestWidescreenProjection();
   CHECK(policy != nullptr);
@@ -639,7 +643,7 @@ int main() {
   RUN(measured_resident_order_has_one_two_field_present);
   RUN(transition_frame_owns_one_field);
   RUN(runtime_supplies_title_frame_driver);
-  RUN(runtime_declares_guest_widescreen_without_false_native_or_lerp_claims);
+  RUN(runtime_declares_guest_widescreen_without_false_native_claims);
   RUN(native_pad_owner_publishes_and_decodes_digital_packet);
   RUN(resident_camera_history_reads_authored_state_and_interpolates_wrap);
   RUN(resident_scene_history_reads_exact_owner_and_mesh_arguments);

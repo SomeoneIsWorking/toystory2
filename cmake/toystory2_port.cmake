@@ -5,6 +5,7 @@ option(PSXPORT_BUILD_PORT "Build the Toy Story 2 native/dynarec product" ON)
 include(${PSXPORT_DIR}/cmake/psxport.cmake)
 
 set(TOYSTORY2_RUNTIME_SOURCES
+  game/audio/guest_sound_bank.cpp
   game/boot/guest_main_boot.cpp
   game/boot/native_sync_overrides.cpp
   game/cd/file_transfer.cpp

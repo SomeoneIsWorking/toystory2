@@ -47,6 +47,12 @@ public:
     return active_;
   }
   Progress advance();
+  // Give the call up at the field boundary it stopped on, leaving the guest parked inside its own
+  // field barrier. Used only where the guest's own loop, not this call, owns what comes next; the
+  // caller must not advance it afterwards.
+  void abandon() {
+    active_ = false;
+  }
   // The guest `$v0` of the call that last returned.
   std::uint32_t result() const;
 
@@ -66,6 +72,9 @@ std::uint32_t callFiniteGuestToReturn(Core &core, const GuestCall &call, std::ui
 psx::cpu::ExecutionResult
 executeFiniteGuestCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBudget budget, std::uint32_t maxSlices);
 void callOriginalToReturn(Core &core, std::uint32_t address, std::string_view owner);
+// The same call for a guest body that may legitimately need more host turns than one: it resumes the
+// original across bounded turns (kMaxResumedHostTurns) and refuses, by name, if it never returns.
+void callOriginalToReturnResuming(Core &core, std::uint32_t address, std::string_view owner);
 void installResidentOverride(Core &core, std::uint32_t address, std::string_view name, NativeGuestFunction function);
 
 } // namespace ts2

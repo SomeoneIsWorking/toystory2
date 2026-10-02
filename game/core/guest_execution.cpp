@@ -132,6 +132,10 @@ void callOriginalToReturn(Core &core, std::uint32_t address, std::string_view ow
   psx::cpu::callOriginalToReturn(core, address, psx::cpu::ExecutionBudget::currentTurn(core), owner);
 }
 
+void callOriginalToReturnResuming(Core &core, std::uint32_t address, std::string_view owner) {
+  psx::cpu::callOriginalToReturnResuming(core, address, psx::cpu::ExecutionBudget::currentTurn(core), owner);
+}
+
 void installResidentOverride(Core &core, std::uint32_t address, std::string_view name, NativeGuestFunction function) {
   const auto identity = core.currentImageIdentity(address);
   if (!identity) {
