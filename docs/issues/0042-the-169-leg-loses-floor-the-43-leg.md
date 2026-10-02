@@ -31,13 +31,48 @@ What is wrong is measurable without interpretation:
 
 ## What was ruled out
 
-Three genuine 4:3 horizontal bounds in `game/render/resident_widescreen.cpp`'s owners were
-widened in turn. Each was confirmed present in guest memory at pad frame 2300 by dumping RAM,
-and each left the frame-2500 capture **byte-identical**, so none is the gate and none was kept:
+Five candidates, each widened in its owner and each verified present in guest RAM by dumping at pad
+frame 2300. None changes the capture, and none was kept.
+
+**The frustum side-plane hypothesis is FALSIFIED, with a direct experiment.** The room/floor
+drawer `FUN_80020074` programs the GTE's H register (COP2 register 17, at `0x8800`) itself, from an
+immediate of its own rather than from the guest's shared projection — H being exactly the
+frustum side-plane half-angle:
+
+```
+0x80020198  addiu $t0, $zero, 0x1000   ; H = 4096, the 4:3 half-angle; V = 3072 at 0x8002019C
+0x800201A0  mtc2  $t0, 0x8800
+0x80020538  addiu $t0, $zero, 0x1999   ; the same mode-A pair again later in the body
+0x80020540  mtc2  $t0, 0x8800
+```
+
+(the mode-B path instead takes H from the sector record, `lhu $t0, 0xC($s1)` + `srl 2` at
+`0x800201D4`/`0x800201DC`, so it carries no immediate). Setting those to the correctly widened
+`4096 * 684 / 512 = 5472` changed the frame by **zero pixels**. So a probe was run with H forced to
+**256** — a 21x change in half-angle. That probe DID change the frame: geometry visibly compressed
+toward the centre, the crib bars and wardrobe narrowing. So the routine executes, and its H governs
+this scene's projection. But the floor's right edge is **pixel-identical at H = 256, 4096 and 5472**:
+
+```
+   y   H=4096   H=5472   H=256
+ 400     1279     1279    1279
+ 500     1208     1208    1208
+ 660     1045     1045    1045
+ 715     1030     1030    1030
+```
+
+**The truncation is invariant to the horizontal projection scale, so it is not a frustum, a
+field-of-view, or any screen-space cull.** What is missing is geometry the room drawer never puts
+into its visible list at all — `FUN_80020074` builds two lists, walking them into `DAT_800BB4D8`
+and `DAT_800C0AB0` and counting into `iVar3`/`iVar4`, and the floor simply is not in them past that
+point. That is where the next attempt should look, and it is a submission question, not a
+clipping one. (Careful: Ghidra shows no bounds check in that append, so "the list is full" is not
+established — only the absence of the geometry.)
+
+The other four, all literal `0x200` horizontal bounds, likewise verified in guest RAM:
 
 1. `FUN_8001FB64` +1044 (`0x8001FF78/84/90/9C`) — the four-vertex reject,
-   `beq` past it when all four projected x are `>= 512`. The renderer root `FUN_8002A070` calls
-   this quad drawer at `0x8002A1D0`. (`0x8001FFA8`, `ori $t1,$t1,0x200` in the delay slot, is a
+   `beq` past it when all four projected x are `>= 512`. (`0x8001FFA8`, `ori $t1,$t1,0x200` in the delay slot, is a
    flag bit and not a width.)
 2. `FUN_80027AF0` +1484 and following — eight `slti $v0,$v0,0x200` at
    `0x800280BC/D4`, `0x80028344/5C`, `0x800285CC/E4`, `0x80028854/6C`, the per-edge reject inside
@@ -45,9 +80,18 @@ and each left the frame-2500 capture **byte-identical**, so none is the gate and
    rectangle the leaf is *handed* cannot reach it, because the bound is an immediate.
 3. The same leaf's screen-box clamp, `addiu $s6,$zero,0x200` at `0x80027B48`, the width stored as
    each object box's right edge (`sh $s6,($s0)`).
+4. The published submission rectangle is NOT the gate either: `widenScreenRect` already publishes
+   `(-4096, 4096)`, far outside the observed boundary.
 
-All three were reverted: a patch to guest code with a measured effect of zero is not a fix and
+All were reverted: a patch to guest code with a measured effect of zero is not a fix and
 would only hide the real gate. **The gate is still unidentified.**
+
+## A correction that will bite the next attempt
+
+The immediate of an `addiu <rt>, <rs>, imm` is the **low** halfword of the instruction word, and this
+disc is little-endian, so it is written at the instruction's own address. Writing it at `site + 2`
+rewrites the opcode instead: the first attempt at this fix destroyed the picture completely (the
+run diverged to an unrelated scene) before the offset was corrected.
 
 ## Notes for whoever picks it up
 
@@ -55,13 +99,21 @@ would only hide the real gate. **The gate is still unidentified.**
   against a text base of **`0x8000F800`**, so disc offset + `0x8000F800` = runtime address. Getting
   this wrong puts you 0x7800 low and every "function" you disassemble is a different, plausible-
   looking function; the running address of `FUN_8002A070`'s body is confirmed by dumping RAM.
-- The floor path reached from `FUN_8002A070` is not fully mapped: the renderer's own `jal` targets
-  in `0x8002A070..0x8002A800` do not include `FUN_8001FB64`, so the call the pipeline attributes
-  to `0x8002A1D0` and the bytes at that address disagree. Resolve that before trusting any
-  "the renderer calls X" claim.
-- `FUN_80020074` and `FUN_8001ECD4` are unexplored world-draw routines and are the next place to
-  look for a bound that is not the literal `0x200` — one loaded from the display environment or
-  the published screen rectangle.
-- Captures: `scratch/wide/user/{c43,before,after,after2,after3}_2500.png`, the aligned-strip and
-  difference images beside them, and `scratch/wide/png.py` (scratch-only PNG crop/compare, since
-  the locked environment has no Pillow or numpy).
+- The floor path is `FUN_80020074`: it takes a camera matrix and position, walks the room's sector
+  records at `DAT_800A8860` (26-byte records, but the polygon chain is LINKED through the record's
+  `+0x10` field and each polygon advances 0x14, not a fixed stride), and appends surviving polygons
+  into two visible lists at `DAT_800BB4D8` and `DAT_800C0AB0`. Its own per-polygon tests are
+  `SX3 + radius > 0`, `SX3 + radius - |SX1| > -1`, `SX2 + radius - |SX3| > -1` and
+  `SX1 - radius - 4*DAT_800A134C < 0` — all measured against screen column **0**, never 512, so the
+  right-hand side of this room is not gated by them. That asymmetry (everything tested against the
+  left edge) is itself worth a look.
+- 66 sites in the executable program GTE register 17 (H). All but the two above read the guest's
+  shared projection, which the port already widens.
+- The renderer's own `jal` targets in `FUN_8002A070..0x8002A800` do not include `FUN_8001FB64`, so
+  the call the pipeline attributes to `0x8002A1D0` and the bytes at that address disagree. Resolve
+  that before trusting any "the renderer calls X" claim.
+- `FUN_8001ECD4`, the second world-draw routine, has no `mtc2` to register 17 anywhere in its body
+  and is unexplored.
+- Captures: `scratch/wide/user/{c43,before,after,after2,after3,h169b,hprobe}_2500.png`, the
+  aligned-strip and difference images beside them, and `scratch/wide/png.py` (scratch-only PNG
+  crop/compare, since the locked environment has no Pillow or numpy).
