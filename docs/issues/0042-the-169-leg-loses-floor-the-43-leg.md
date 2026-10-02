@@ -29,6 +29,55 @@ What is wrong is measurable without interpretation:
   y=0..390, 621/606/614 at y=420/450/480, 605 at y=540, 683 at y=630, 558 at y=660, 553 at
   y=690 — a geometry-shaped, per-row boundary.
 
+## Packet evidence (`PSXPORT_PRIMDUMP=2495:2505`)
+
+Captured at both aspects for the same route and frame, `scratch/wide/user/prims_4x3.csv` and
+`prims_16x9.csv`. Note each leg has its OWN draw-area origin, so guest coordinates are recovered by
+subtracting it — 512 for 4:3 (`dax0=512, offx=512`), 86 for 16:9 (`dax0=0, offx=0`, the port's
+margin). Vertical mapping is identical in both legs (707 of 720 rows agree at guest column 0), so
+only the horizontal window differs and there is no stretch.
+
+**1. The `(33,33,33)` fill is the guest's own BACKDROP, drawn UNDER everything — not a mask over the
+floor.** In the wide leg, OT id 0 is `op 0x60` (a rectangle) with the background flag set, spanning
+the whole canvas, `rgb(32,32,32)`:
+
+```
+16:9  id 0    op 60  bg=1  guest rect (-86, 0)..(598, 240)  rgb 32,32,32
+```
+
+The 4:3 leg has **no such primitive** — its only `op 0x60` is an unrelated small rectangle (16:9 id
+13, `rgb 8,32,0`). Because it is OT id 0 it is the first thing drawn, so it can only ever be a
+background showing through where nothing follows, never an overdraw. Its own edge is already
+correct under the widescreen rule: a screen-filling primitive spanning the widened canvas.
+
+**2. The floor is submitted at PIXEL-IDENTICAL guest coordinates in both legs.** Matching on
+(op, x0, y0, x1, y1, r, g, b, textured), **1140 of the 1183 4:3 primitives reappear in the 16:9 leg
+with identical geometry and identical shading**, including 87 textured Gouraud/quad floor primitives
+that span the disputed band — e.g. 4:3 id 179 `x 471..595 y 168..268 rgb 144,120,112` is 16:9 id
+277, the same numbers; 4:3 175/176 are 16:9 271/272; 4:3 292 is 16:9 396; 4:3 1182..1185 are 16:9
+1328/1329/1340/1341.
+
+So the wide leg draws the floor at exactly the coordinates the narrow leg does. That eliminates the
+whole family this issue has been chasing — no cull, no frustum plane, no FOV, and no missing
+submission can explain a hole in geometry that is present, identical and submitted. The earlier five
+no-effect patches are consistent with that, and the H=256 probe is consistent with it.
+
+**3. What the wide leg actually adds:** 204 primitives that exist only at 16:9 (margin content), 322
+prims reaching past guest x 512 against 50 in 4:3, and the one full-canvas backdrop of (1).
+
+**Therefore the open question is now sharply stated:** identical floor primitives at identical
+coordinates are rendered by the 4:3 leg and covered by the backdrop in the 16:9 leg. The only
+differences between the legs on the draw path are the backdrop's presence, the draw-area origin
+(512 vs 0), and the presented window. The next thing to test is **depth and ordering against that
+backdrop** — whether it writes depth at a plane the floor loses — before looking anywhere else. A
+depth/dither flag on the primitive would settle it; the CSV does not carry the depth bit, which is
+the one piece of attribution still missing.
+
+Also settled along the way: the guest's projected screen x legitimately reaches the GTE's signed
+16-bit overflow (prims at x 1023 are geometry far outside the view, clipped by the draw area), and
+`op 0x60`/`0x3C`/`0x34`/`0x38` are rectangle / textured Gouraud triangle / textured Gouraud quad /
+flat-shaded triangle respectively.
+
 ## What was ruled out
 
 Five candidates, each widened in its owner and each verified present in guest RAM by dumping at pad
