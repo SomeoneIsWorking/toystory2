@@ -3,6 +3,7 @@
 #include "core.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <lucent/log.h>
 
@@ -15,6 +16,21 @@ constexpr uint32_t kRotationOffset = 12u;
 constexpr uint16_t kRotationMask = 0x0FFFu;
 constexpr int kRotationPeriod = 0x1000;
 constexpr int kRotationHalfPeriod = kRotationPeriod / 2;
+
+// THE CUT BOUND IS THE GUEST'S. Camera producer 0x8002C848 publishes every authored angle as a 12-bit
+// turn and, each field, compares it with the game's own target for that axis as
+// `uVar8 = (target - angle) & 0xfff; if (uVar8 < 0x801) { forward } else { uVar8 - 0x1000 }` — half a
+// turn is where the game itself decides a difference runs backwards rather than forwards. A camera
+// the game is STEERING never crosses that within one field: its swing is a per-field rate, not a
+// jump. So an authored angle that moves by half a turn or more between two consecutive fields is a
+// discontinuity in the guest's own terms, and the frame after it has no halfway: it is presented as
+// the real frame, exactly as the first field after a level start is.
+//
+// The POSITION is deliberately not part of the rule. The game publishes no per-field bound for how
+// far its camera may travel, so any threshold here would be this port's number rather than the
+// guest's; the level-start route the frame driver already observes covers the camera being re-authored
+// with the room.
+constexpr int kCameraCutRotation = kRotationHalfPeriod;
 
 ResidentCameraSample readCamera(Core &core) {
   ResidentCameraSample sample;
@@ -31,12 +47,28 @@ float interpolateRotation(uint16_t from, uint16_t to, float t) {
   return static_cast<float>(from) + static_cast<float>(shortestDelta) * t;
 }
 
+// The shortest signed distance between two authored angles, in the guest's own 12-bit turn units.
+int rotationStep(uint16_t from, uint16_t to) {
+  const int wrappedDelta = (static_cast<int>(to) - static_cast<int>(from) + kRotationHalfPeriod) & kRotationMask;
+  return wrappedDelta - kRotationHalfPeriod;
+}
+
+bool isCameraCut(const ResidentCameraSample &from, const ResidentCameraSample &to) {
+  for (int axis = 0; axis < 3; ++axis) {
+    if (std::abs(rotationStep(from.rotation[axis], to.rotation[axis])) >= kCameraCutRotation) {
+      return true;
+    }
+  }
+  return false;
+}
+
 } // namespace
 
 void ResidentCameraHistory::reset() {
   previous_ = {};
   current_ = {};
   ready_ = false;
+  continuous_ = true;
 }
 
 void ResidentCameraHistory::capture(Core &core) {
@@ -57,14 +89,20 @@ void ResidentCameraHistory::capture(const ResidentCameraSample &sample) {
     previous_ = sample;
     current_ = sample;
     ready_ = true;
+    continuous_ = true;
     return;
   }
   previous_ = current_;
   current_ = sample;
+  continuous_ = !isCameraCut(previous_, current_);
 }
 
 bool ResidentCameraHistory::ready() const {
   return ready_;
+}
+
+bool ResidentCameraHistory::continuous() const {
+  return ready_ && continuous_;
 }
 
 const ResidentCameraSample &ResidentCameraHistory::previous() const {

@@ -28,7 +28,9 @@ namespace ts2 {
 //   3. The per-object visibility window at 0x80027AF0, which the guest's visibility pass hands the
 //      literal console frame (0, 0x200, 0, 0xf0) and then recurses through the object tree, passing
 //      each parent's box as the child's window. Its flag is read only by the renderer's two
-//      mesh-submission passes, so widening it draws more and decides nothing.
+//      mesh-submission passes, so widening it draws more and decides nothing. The console frame the
+//      leaf bakes in is not reachable through its arguments, so the widened leg hands it the whole
+//      signed range its screen boxes are stored in; measured at kCullWindowLeft.
 //   4. The screen rectangle the mesh submitter PUBLISHES at 0x80010000, which is where the widened
 //      frame actually takes effect: the leaf above clamps each stored box to the console frame
 //      (0x200 at 0x800280D4) before the submitter reads it, so the leaf's rectangle alone cannot
@@ -81,7 +83,9 @@ public:
 
   // The horizontal screen rectangle ONE guest object cull was handed, widened. Public for the same
   // reason: the rectangle is a register argument at the call site, and the cull is what decides
-  // whether an object's mesh is submitted at all.
+  // whether an object's mesh is submitted at all. The widened leg hands the leaf the whole signed
+  // range its screen boxes are stored in, not the canvas: the console frame is baked into the leaf
+  // and a conservative box that reaches past the canvas would otherwise drop faces that are on it.
   void widenCullRect(Core &core) const;
 
   // The horizontal extent of the screen rectangle the guest is about to PUBLISH for the object it
@@ -91,14 +95,6 @@ public:
   // publisher is where the window is actually stated. See the measured note at
   // kScreenRectPublisherLeaf.
   void widenScreenRect(Core &core) const;
-
-  // The left edge, in the guest's own screen space, that the widened cull must reach: the console
-  // frame's left edge minus the framework's horizontal margin. The guest's projection centre moves
-  // to the wide canvas centre, so the world that 4:3 culled now lands at screen x >= 0 and the
-  // margin's worth of columns to its left is what the cull has to stop dropping.
-  int cullLeft() const {
-    return -horizontalMargin();
-  }
 
   bool active() const {
     return active_;

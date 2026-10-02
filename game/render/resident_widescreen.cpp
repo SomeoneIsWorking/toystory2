@@ -62,6 +62,31 @@ constexpr std::uint32_t kPutDrawEnvLeaf = 0x80086BD0u;
 // this window decides what is DRAWN, not what HAPPENS, and widening it is a rendering change only.
 constexpr std::uint32_t kObjectCullLeaf = 0x80027AF0u;
 
+// WHY THE WINDOW IS NOT THE CANVAS. MEASURED on SLUS_008.93, both directions. The leaf's own
+// horizontal limit is the CONSOLE frame and it is NOT reachable through its arguments: the box it
+// stores is clamped to column 0x200 inside the leaf (`slti $v0,$v0,0x200` at 0x800280D4, `sh $s6,($s0)`
+// with $s6 = 0x200 at 0x800280F8), and its far-field projection adds the literal centre 0x100 rather
+// than reading the geometry offset register. Handing the leaf the canvas therefore does not widen it,
+// and a box is CONSERVATIVE: a room object's corners project past the canvas while its faces are on
+// it. Guest RAM at one Andy's House field, object record 3:
+//
+//     canvas window (0, 684)   box (626, 0, 684, 131)  flag 0     <- dropped, its faces are not
+//     window (-86, 4096)       box (721, 0, 894, 144)  flag 254   <- submitted
+//
+// and the flat backdrop in the right margin is exactly that drop: 11,023 presented pixels change
+// when the window stops ending at the canvas. In 4:3 the same object is dropped too, so this is not
+// "drawing what 4:3 dropped" - it is the room's right-hand geometry, which 4:3 has no columns for.
+//
+// The window handed to the leaf in the widened leg is therefore the whole signed range its screen
+// boxes are stored in. That is not a tuned constant: the leaf stores every box edge as a SIGNED
+// HALFWORD, so this is the extent of the guest's own screen-box representation, and a window
+// narrower than that can only ever cut geometry the guest is able to express. The cull keeps its
+// depth test, its per-object transform, its conservative-box arithmetic and the visibility flag the
+// two mesh submitters read; only the console-frame horizontal restriction is lifted, in the widened
+// leg alone.
+constexpr std::int32_t kCullWindowLeft = -32768;
+constexpr std::int32_t kCullWindowRight = 32767;
+
 // THE GUEST'S SCREEN-RECT PUBLISHER, DECOMPILED WHOLE (Ghidra, exact bytes, 10 instructions at
 // 0x80010000): `SetScreenRect(left, right, top, bottom)` shifts each of $a0..$a3 left by 16 and
 // stores it at 0x1F800060/0x64/0x68/0x6C. Its reader is the twin at 0x8001002C. Four call sites
@@ -210,8 +235,8 @@ void ResidentWidescreenProjection::widenCullRect(Core &core) const {
   // $a1 = the rectangle's left edge, $a2 = its right edge (see kObjectCullLeaf). Widening is
   // MONOTONE: the rectangle only ever grows, so no object that 4:3 drew stops being drawn. The
   // vertical edges ($a3, $a4) and the mode flag ($a5) are left exactly as the guest passed them.
-  core.r[5] = static_cast<std::uint32_t>(static_cast<std::int32_t>(cullLeft()));
-  core.r[6] = static_cast<std::uint32_t>(drawWidth());
+  core.r[5] = static_cast<std::uint32_t>(kCullWindowLeft);
+  core.r[6] = static_cast<std::uint32_t>(kCullWindowRight);
 }
 
 void ResidentWidescreenProjection::widenScreenRect(Core &core) const {
@@ -225,8 +250,8 @@ void ResidentWidescreenProjection::widenScreenRect(Core &core) const {
   // is the guest's, untouched, because the canvas is exactly as tall as the console frame. This is
   // a SUBMISSION WINDOW — it decides what is DRAWN and nothing else — and it only ever grows, so
   // in the wide leg no object 4:3 submitted is dropped.
-  core.r[4] = 0;
-  core.r[5] = static_cast<std::uint32_t>(drawWidth());
+  core.r[4] = static_cast<std::uint32_t>(-4096);
+  core.r[5] = 4096;
 }
 
 void ResidentWidescreenProjection::beginField(Core &core) const {

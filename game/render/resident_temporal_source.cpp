@@ -5,7 +5,7 @@
 namespace ts2::render {
 
 bool ResidentTemporalSource::continuousWithPrevious(Core &core) {
-  return context(core).camera.ready();
+  return context(core).camera.continuous();
 }
 
 } // namespace ts2::render

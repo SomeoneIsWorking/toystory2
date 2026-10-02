@@ -9,6 +9,8 @@
 //   0x80017FF8  rigid mesh drawer of the   re-pointed by the caller for every instance it submits:
 //               second submitter 0x80026D34 0x8002622C cases 9/C and 0x80026D34 cases 1/9 alike)
 //   0x8002518C  animated object renderer   a0, the object record (position, parts, animation)
+//   0x80029614  per-frame visibility pass   nothing: it takes no arguments and runs once per field,
+//                                          so its only identity is its occurrence in this frame
 //   0x8002AC40, 0x8002B1D4, 0x8002B6F0,    a0, the model, plus its occurrence in this frame: these are
 //   0x8002C278  hierarchical model drawers reached from the scene owner's cases 2/3/10 with the model
 //                                          only, so two instances of one model differ by order alone
@@ -32,6 +34,10 @@ public:
   static constexpr std::uint32_t kMeshSubmitter = 0x800100E4u;
   static constexpr std::uint32_t kRigidMeshDrawer = 0x80017FF8u;
   static constexpr std::uint32_t kInstanceSlotTable = 0x800A11CCu;
+  // The per-frame visibility pass. It reads no argument (DECOMPILED WHOLE, Ghidra: `void
+  // FUN_80029614(void)`) and the scene root calls it once per field, so its occurrence in the frame
+  // is the whole of its identity.
+  static constexpr std::uint32_t kVisibilityPass = 0x80029614u;
 
   // A resident update is about to run: occurrence counts restart.
   void beginFrame();
@@ -40,6 +46,8 @@ public:
   static std::uint64_t slotTableInstance(Core &core, std::uint32_t producer);
   // The scope of a producer call keyed by its first argument and its occurrence in this frame.
   std::uint64_t producerInstance(std::uint32_t producer, std::uint32_t argument);
+  // The scope of an argument-free producer call, keyed by its occurrence in this frame alone.
+  std::uint64_t passInstance(std::uint32_t producer);
 
 private:
   std::unordered_map<std::uint64_t, std::uint32_t> occurrences_;

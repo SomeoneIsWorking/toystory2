@@ -6,6 +6,8 @@
 #include "game.h"
 #include "hw_bind.h"
 #include "platform_hle.h"
+#include "render/resident_camera_history.h"
+#include "render/resident_projection_scopes.h"
 #include "testutil.h"
 #include "toystory2_runtime.h"
 
@@ -106,10 +108,84 @@ static void test_screen_leaf_completes_same_core_projection() {
   CHECK(core.rsub.projParams.geomValid());
 }
 
+// The provenance scope of the visibility pass is its occurrence in the field: the guest calls it
+// with no arguments, so nothing in the registers distinguishes one call from another, and the count
+// restarts with every resident update. Two calls in one field must not share a key (their primitives
+// would pair against each other), and the same call in the next field must get the same key again.
+static void test_visibility_pass_scope_is_its_occurrence_in_the_field() {
+  ts2::render::ResidentProjectionScopes scopes;
+  const std::uint64_t first = scopes.passInstance(ts2::render::ResidentProjectionScopes::kVisibilityPass);
+  const std::uint64_t second = scopes.passInstance(ts2::render::ResidentProjectionScopes::kVisibilityPass);
+  CHECK(first != 0u);
+  CHECK(first != second);
+  CHECK(scopes.passInstance(ts2::render::ResidentProjectionScopes::kVisibilityPass) != first);
+  scopes.beginFrame();
+  CHECK_EQ(scopes.passInstance(ts2::render::ResidentProjectionScopes::kVisibilityPass), first);
+}
+
+// A modelled producer keys on what the guest uses to tell its instances apart: the first argument,
+// plus the call's occurrence in the field, so the same model drawn twice is two instances and the
+// count restarts with every resident update.
+static void test_modelled_producer_scope_keys_argument_and_occurrence() {
+  ts2::render::ResidentProjectionScopes scopes;
+  constexpr std::uint32_t kModel = 0x8002AC40u;
+  const std::uint64_t modelA = scopes.producerInstance(kModel, 0x80100000u);
+  const std::uint64_t modelB = scopes.producerInstance(kModel, 0x80200000u);
+  const std::uint64_t modelAAgain = scopes.producerInstance(kModel, 0x80100000u);
+  CHECK(modelA != modelB);
+  CHECK(modelA != modelAAgain);
+  scopes.beginFrame();
+  CHECK_EQ(scopes.producerInstance(kModel, 0x80100000u), modelA);
+}
+
+// 60 fps continuity is a statement about the GUEST's camera, not about this port's taste. A field
+// that continues the last one keeps the camera continuous; a field in which an authored angle moves
+// by half the guest's own turn or more is a cut and has no in-between; and until the camera has been
+// captured there is nothing to pair with.
+static void test_camera_cut_is_the_guests_own_half_turn() {
+  ts2::ResidentCameraHistory camera;
+  CHECK(!camera.ready());
+  CHECK(!camera.continuous());
+
+  ts2::ResidentCameraSample sample;
+  sample.position[0] = 100;
+  sample.rotation[1] = 0x0100; // the camera eases: 0x10 of a turn in one field
+  camera.capture(sample);
+  CHECK(camera.ready());
+  CHECK(camera.continuous());
+
+  sample.rotation[1] = 0x0110;
+  sample.position[0] = 140;
+  camera.capture(sample);
+  CHECK(camera.continuous());
+  CHECK_EQ(camera.previous().position[0], 100);
+  CHECK_EQ(camera.current().position[0], 140);
+
+  // A wrap the short way round is not a cut: 0x0FFF -> 0x0011 is 0x12 of a turn forwards.
+  sample.rotation[1] = 0x0FFF;
+  camera.capture(sample);
+  sample.rotation[1] = 0x0011;
+  camera.capture(sample);
+  CHECK(camera.continuous());
+
+  // Half a turn in one field is not something the game steers, so it is a cut.
+  sample.rotation[1] = 0x0011 + 0x800;
+  camera.capture(sample);
+  CHECK(!camera.continuous());
+
+  // The field after the cut is continuous again: the cut is one field wide, not a latch.
+  sample.rotation[1] = 0x0011 + 0x810;
+  camera.capture(sample);
+  CHECK(camera.continuous());
+}
+
 int main() {
   RUN(measured_windows_install_projection_gpu_timeout_and_vsync_owners);
   RUN(gpu_timeout_pair_completes_without_guest_vsync);
   RUN(offset_leaf_preserves_retail_state_and_records_projection);
   RUN(screen_leaf_completes_same_core_projection);
+  RUN(visibility_pass_scope_is_its_occurrence_in_the_field);
+  RUN(modelled_producer_scope_keys_argument_and_occurrence);
+  RUN(camera_cut_is_the_guests_own_half_turn);
   return pt_summary();
 }

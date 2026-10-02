@@ -1,3 +1,5 @@
+// resident_camera_history.h - the guest's authored camera, and whether the field about to be
+// presented continues the one before it.
 #pragma once
 
 #include <cstdint>
@@ -26,6 +28,10 @@ public:
   void capture(const ResidentCameraSample &sample);
 
   bool ready() const;
+  // False when the camera the guest just published is not a continuation of the one before it: a
+  // cut, which has no halfway between its two ends. See resident_camera_history.cpp for the bound,
+  // which is the guest's own.
+  bool continuous() const;
   const ResidentCameraSample &previous() const;
   const ResidentCameraSample &current() const;
   InterpolatedResidentCamera interpolate(float t) const;
@@ -34,6 +40,7 @@ private:
   ResidentCameraSample previous_{};
   ResidentCameraSample current_{};
   bool ready_ = false;
+  bool continuous_ = true;
 };
 
 } // namespace ts2

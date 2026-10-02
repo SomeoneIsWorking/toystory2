@@ -78,6 +78,7 @@ class RunPlan:
     disc: str
     control_port: int = 0
     taps: tuple[Tap, ...] = ()
+    sink: str = "960x720"
     stop_frame: int = 0
     settings: Path = SETTINGS_4X3
 
@@ -97,7 +98,7 @@ def build_environment(base: dict[str, str], plan: RunPlan, log: Path, pad: Path 
     env = agent_environment(base, settings=plan.settings)
     env.update(
         {
-            "PSXPORT_PRESENT_SINK": "960x720",
+            "PSXPORT_PRESENT_SINK": plan.sink,
             "PSXPORT_LOG_FILE": str(log),
             "PSXPORT_DISC": plan.disc,
             "PSXPORT_DEBUG": plan.debug,
@@ -256,6 +257,8 @@ def main() -> int:
     parser.add_argument("--tap", action="append", default=[], help="PADFRAME:BUTTON[:HOLD], repeatable, exact")
     parser.add_argument("--dump-at", default="", help="pad frames at which to write the 2 MiB guest RAM")
     parser.add_argument("--stop-frame", type=int, default=0, help="quit once this presented frame is reached")
+    parser.add_argument("--sink", default="960x720",
+                        help="the headless presentation sink WxH (PSXPORT_PRESENT_SINK)")
     parser.add_argument("--aspect", choices=("4x3", "16x9"), default="4x3",
                         help="which tracked shipping settings file configures the run")
     args = parser.parse_args()
@@ -267,7 +270,7 @@ def main() -> int:
     dump_at = tuple(int(f) for f in args.dump_at.split(",") if f)
     plan = RunPlan(
         args.binary.resolve(), args.frames, shots, dump_at, args.debug, args.timeout, disc, args.control_port, taps,
-        args.stop_frame, SETTINGS_16X9 if args.aspect == "16x9" else SETTINGS_4X3,
+        args.sink, args.stop_frame, SETTINGS_16X9 if args.aspect == "16x9" else SETTINGS_4X3,
     )
     return run(plan, dict(os.environ))
 

@@ -17,7 +17,8 @@ namespace ts2::render {
 class ResidentTemporalSource final : public psxport::temporal::GuestGeometrySceneSource {
 protected:
   // A level start resets the resident camera history; until the camera has been captured twice there
-  // is no previous gameplay frame to pair with.
+  // is no previous gameplay frame to pair with, and a cut publishes a real frame because the guest's
+  // camera jumped rather than moved.
   bool continuousWithPrevious(Core &core) override;
 };
 
