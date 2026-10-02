@@ -167,7 +167,11 @@ public:
     // here, after the update and before the captured GP0 stream is rasterized, so the whole frame is
     // rasterized into and presented from the same 684 columns. A no-op in the 4:3 leg.
     context(core_).widescreen.presentField(core_);
-    core_.game->presentation.commit(&core_, guestFields);
+    // The temporal presenter must be handed to commit explicitly. The two-argument overload forwards
+    // `temporal = nullptr`, which takes the real-frame path every time: the presenter is never
+    // invoked, it never commits a field, and its previous-endpoint flag never rises — so a declared
+    // fps60 capability silently does nothing.
+    core_.game->presentation.commit(&core_, guestFields, core_.game->temporalPresentation.get());
   }
 
   void initializeFrontEnd() override {
@@ -392,6 +396,7 @@ public:
   void updateResident() override {
     const bool alternate = core_.mem_r32(kAlternateUpdateMode) != 0;
     context(core_).scene.beginFrame();
+    context(core_).projectionScopes.beginFrame();
     const std::array noArguments{0u, 0u, 0u, 0u};
     callFiniteGuestToReturn(
         core_,

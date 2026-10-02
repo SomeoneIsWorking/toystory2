@@ -4,6 +4,7 @@
 #include "boot/native_sync_overrides.h"
 #include "cd/file_transfer.h"
 #include "core.h"
+#include "fps60.h"
 #include "game.h"
 #include "guest_facts.h"
 #include "input/native_pad_owner.h"
@@ -11,7 +12,9 @@
 #include "loop/toystory2_frame_driver.h"
 #include "overlay/overlay_images.h"
 #include "render/guest_widescreen.h"
+#include "render/resident_projection_scopes.h"
 #include "render/resident_scene_history.h"
+#include "render/resident_temporal_source.h"
 #include "render/resident_view_matrix.h"
 #include "toystory2_context.h"
 
@@ -76,7 +79,14 @@ bool ToyStory2Runtime::guestVramIsPicture(const Game &) const {
 }
 
 RenderCapabilities ToyStory2Runtime::renderCapabilities() const {
-  return RenderCapabilities::widescreenOnly();
+  // Gte stays the shipping path and its real frames are presented exactly as captured. The temporal
+  // product is an in-between made of the guest's own primitives, each vertex interpolated between two
+  // real frames by projection provenance (render/resident_temporal_source.h, docs/issues/0036).
+  return RenderCapabilities::guestInterpolated();
+}
+
+std::unique_ptr<TemporalFramePresentation> ToyStory2Runtime::createTemporalFramePresentation(Game &game) {
+  return std::make_unique<Fps60>(game, std::make_unique<render::ResidentTemporalSource>());
 }
 
 const GuestWidescreenProjection *ToyStory2Runtime::guestWidescreenProjection() const {
@@ -97,6 +107,7 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   cd::installFileTransferOverride(game.core);
   installNativePadOverrides(game.core);
   installResidentSceneObservationOverrides(game.core);
+  render::installResidentProjectionScopes(game.core);
   context(game.core).widescreen.install(game.core);
 }
 

@@ -22,6 +22,10 @@ public:
   const char *discEnvVar() const override;
   const HostIdentity *hostIdentity() const override;
   RenderCapabilities renderCapabilities() const override;
+  // fps60 is created HERE, by the runtime, and nowhere else: a direct runtime's default returns
+  // nullptr, so without this the capability declares interpolation that no presenter exists to
+  // perform, and the request silently produces the 30fps path.
+  std::unique_ptr<TemporalFramePresentation> createTemporalFramePresentation(Game &game) override;
   bool guestVramIsPicture(const Game &game) const override;
   const GuestWidescreenProjection *guestWidescreenProjection() const override;
   std::unique_ptr<FrameDriver> createFrameDriver(Game &game) override;

@@ -1,7 +1,10 @@
 #include "render/resident_scene_history.h"
 
+#include "render/resident_projection_scopes.h"
+
 #include "core.h"
 #include "guest_execution.h"
+#include "projection_provenance.h"
 #include "toystory2_context.h"
 
 #include <cstdlib>
@@ -93,6 +96,10 @@ void observeMeshSubmitter(Core *core) {
   if (history.capturing()) {
     history.captureMeshSubmission(*core, core->r[4], core->r[5], core->r[6], core->r[7]);
   }
+  // The mesh instance is the projection scope of everything this call projects (60 fps provenance).
+  const psxport::temporal::ProjectionProvenance::Scope scope(
+      core->rsub.projectionProvenance,
+      render::ResidentProjectionScopes::slotTableInstance(*core, render::ResidentProjectionScopes::kMeshSubmitter));
   callOriginalToReturn(*core, 0x800100E4u, "resident mesh submitter original");
 }
 
