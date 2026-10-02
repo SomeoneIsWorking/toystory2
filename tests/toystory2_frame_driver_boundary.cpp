@@ -129,12 +129,22 @@ public:
     operations.emplace_back("finish-resident");
     return postResidentTransition;
   }
+  std::optional<int> pollLevelTransitionEvent() override {
+    operations.emplace_back("level-transition");
+    if (levelTransitionFieldsRemaining > 0) {
+      --levelTransitionFieldsRemaining;
+      return std::nullopt;
+    }
+    return levelTransitionEvent;
+  }
   void shutdown() override {
     operations.emplace_back("shutdown");
   }
 
   int event = 0;
-  int pollFieldsRemaining = 0; // fields the poll spans before it returns its event
+  int pollFieldsRemaining = 0;            // fields the poll spans before it returns its event
+  int levelTransitionFieldsRemaining = 0; // fields the post-level transition spans before it returns
+  int levelTransitionEvent = 1;           // 0 = the boot countdown finished, 1 = prepare the next level
   bool introMoviesFinished = true;
   bool playback = true;
   bool needsInteractive = true;
@@ -494,6 +504,39 @@ static void test_outer_loop_reaches_normal_resident_in_finite_steps() {
   CHECK(boundary.operations == expected);
 }
 
+static void test_the_level_transition_spans_fields_and_then_prepares_the_next_level() {
+  ts2::OuterLoopState state{ts2::OuterLoopPhase::resident};
+  RecordingOuterLoop boundary;
+  boundary.residentIsActive = false;
+  boundary.postResidentTransition = ts2::PostResidentTransition::levelTransition;
+  boundary.levelTransitionFieldsRemaining = 2;
+
+  // The end of the level hands the phase over in one step and does no work of its own.
+  ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::levelTransition);
+  CHECK(boundary.operations == (std::vector<std::string>{"finish-resident"}));
+
+  // Each display field of the transition is one step, and a running transition prepares nothing:
+  // the next level is not prepared until the guest's own call has returned.
+  for (int field = 0; field < 2; ++field) {
+    ts2::stepOuterLoop(state, boundary);
+    CHECK(state.phase == ts2::OuterLoopPhase::levelTransition);
+  }
+  CHECK(boundary.operations == (std::vector<std::string>{"finish-resident", "level-transition", "level-transition"}));
+  ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::residentSetup);
+  CHECK(boundary.operations.back() == "level-transition");
+}
+
+static void test_a_finished_boot_countdown_at_the_level_transition_ends_the_game() {
+  ts2::OuterLoopState state{ts2::OuterLoopPhase::levelTransition};
+  RecordingOuterLoop boundary;
+  boundary.levelTransitionEvent = 0;
+  ts2::stepOuterLoop(state, boundary);
+  CHECK(state.phase == ts2::OuterLoopPhase::finished);
+  CHECK(boundary.operations == (std::vector<std::string>{"level-transition", "shutdown"}));
+}
+
 static void test_intro_movies_yield_one_field_per_step_until_finished() {
   ts2::OuterLoopState state{ts2::OuterLoopPhase::introMovies};
   RecordingOuterLoop boundary;
@@ -619,6 +662,7 @@ static void test_post_resident_routes_are_finite_state_transitions() {
       {ts2::PostResidentTransition::coldRestart, ts2::OuterLoopPhase::coldRestart},
       {ts2::PostResidentTransition::frontEndSetup, ts2::OuterLoopPhase::frontEndSetup},
       {ts2::PostResidentTransition::residentSetup, ts2::OuterLoopPhase::residentSetup},
+      {ts2::PostResidentTransition::levelTransition, ts2::OuterLoopPhase::levelTransition},
       {ts2::PostResidentTransition::finished, ts2::OuterLoopPhase::finished},
   };
 
@@ -649,6 +693,8 @@ int main() {
   RUN(resident_scene_history_reads_exact_owner_and_mesh_arguments);
   RUN(outer_loop_reaches_normal_resident_in_finite_steps);
   RUN(intro_movies_yield_one_field_per_step_until_finished);
+  RUN(the_level_transition_spans_fields_and_then_prepares_the_next_level);
+  RUN(a_finished_boot_countdown_at_the_level_transition_ends_the_game);
   RUN(backing_out_of_the_selection_screen_reenters_the_front_end_poll);
   RUN(front_end_poll_spans_fields_without_leaving_its_phase_until_it_returns);
   RUN(outer_loop_interactive_path_yields_between_selection_iterations);

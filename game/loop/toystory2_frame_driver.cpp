@@ -195,9 +195,7 @@ public:
     // Continue this initialization transaction with its original return sentinel. Ordinary
     // per-frame guest calls still require a return within one turn.
     const std::array loadArguments{10u, 0u};
-    callFiniteGuestToReturn(core_,
-                            {kMemoryDispatcher, 0x8007A9E8u, loadArguments, std::nullopt, "cold front-end asset load"},
-                            kFiniteInitializationSliceLimit);
+    callMemoryDispatcher(loadArguments[0], loadArguments[1], "cold front-end asset load");
     introMovieStep_ = kIntroMovieSteps.size();
     if (core_.mem_r32(kFrontEndEvent) != 9) {
       introMovieStep_ = 0;
@@ -245,6 +243,19 @@ public:
     core_.mem_w32(kFrontEndEvent, 0);
     core_.mem_w32(kSelectionActive, 0);
     callGuest(core_, kResetGraphics);
+  }
+
+  // Retail 0x8007BC74 is the memory dispatcher. Argument 10 (the cold front end) only loads an asset
+  // set through 0x8003D88C -> 0x8003B544 -> 0x80021190, whose live back-reference decode no one-turn
+  // budget can finish: the cold LEVEL00/LEVEL.RAW corpus is 160,484 bytes and seven CRC-verified
+  // chunks, 15.2M cycles over 28 host turns. So a call that only loads is a finite initialization
+  // transaction on the shared bound. The arguments that go on to DRAW a screen (4, the post-level
+  // transition; 2, the title poll; 0/1, the resident movies) are field-spanning instead, and are
+  // driven as resumable field calls so their own field barrier delivers a present.
+  void callMemoryDispatcher(uint32_t a0, uint32_t a1, std::string_view owner) {
+    const std::array arguments{a0, a1, 0u, 0u};
+    callFiniteGuestToReturn(
+        core_, {kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, owner}, kFiniteInitializationSliceLimit);
   }
 
   // The front-end poll (MEMORY 0x800D92C4) is the title screen's own loop: it draws, waits on VSync
@@ -298,8 +309,11 @@ public:
     callGuest(core_, kPlaybackSetup);
     core_.mem_w32(0x800A1640u, static_cast<uint32_t>(-2));
     core_.mem_w32(0x800A163Cu, 0);
-    callGuest(core_, kPrepareMemoryState, kMemoryState);
-    callGuest(core_, kCommitMemoryState, kMemoryState);
+    // The same two asset decoders `prepareFrontEnd` runs, on the same finite initialization owner:
+    // playback mode reaches this pair through `selectPlaybackLevel`, and a per-frame budget here cut
+    // the decode mid-chunk exactly as it did on the post-level route.
+    callFiniteInitialization(kPrepareMemoryState, "playback memory-state preparation", kMemoryState);
+    callFiniteInitialization(kCommitMemoryState, "playback memory-state commit", kMemoryState);
     core_.mem_w16(kPlaybackLevel, selection);
   }
 
@@ -364,7 +378,7 @@ public:
   }
 
   void showMemoryDialog() override {
-    callGuest(core_, kMemoryDispatcher, 9, 0x80);
+    callMemoryDispatcher(9, 0x80, "memory dialog asset load");
   }
 
   void checkSaveSelection() override {
@@ -378,7 +392,7 @@ public:
   }
 
   void restartFrontEnd() override {
-    callGuest(core_, kMemoryDispatcher, 8, 0);
+    callMemoryDispatcher(8, 0, "front-end restart asset load");
     core_.mem_w32(kFrontEndEvent, 0);
     prepareFrontEnd();
   }
@@ -450,7 +464,7 @@ public:
       core_.mem_w16(kLoopExitReason, 1);
     }
     if (core_.mem_r16(kLoopExitReason) == 1) {
-      return finishSequenceLevel(level);
+      return beginSequenceLevel(level);
     }
     return PostResidentTransition::residentSetup;
   }
@@ -492,43 +506,65 @@ private:
   }
 
   PostResidentTransition finishSequenceMemory() {
-    callGuest(core_, kMemoryDispatcher, 5, 0x40);
+    callMemoryDispatcher(5, 0x40, "sequence memory asset load");
     return bootCountdownFinished() ? PostResidentTransition::finished : PostResidentTransition::coldRestart;
   }
 
-  PostResidentTransition finishSequenceLevel(uint32_t level) {
-    const uint16_t selection = core_.mem_r16(kPlaybackLevel);
+  // Retail exit reason 1 is the sequence level's own end-of-level route. `level % 3 == 0` is the
+  // inter-level screen route, which is two one-turn calls plus a queued screen and needs no
+  // transition; every other level loads the next asset set and draws the transition screen, which is
+  // a field-spanning guest call owned by `pollLevelTransitionEvent`.
+  PostResidentTransition beginSequenceLevel(uint32_t level) {
     if (level % 3 == 0) {
-      callGuest(core_, kSetSequenceMode, 4);
-      const uint32_t completionFlag = 0x800C1628u + selection;
-      const uint8_t wasComplete = core_.mem_r8(completionFlag);
-      core_.mem_w8(completionFlag, 1);
-      if (level == 0xF) {
-        core_.mem_w8(0x800C1639u, 1);
-      }
-      callGuest(core_, kCommitSequenceState);
-      if (wasComplete == 0) {
-        callGuest(core_, kQueueScreen, selection + 1, 0x1E, 1);
-      }
-      if (level == 0xF) {
-        callGuest(core_, kQueueScreen, 0x12, 0x1F, 1);
-        callGuest(core_, kMemoryDispatcher, 0xB, 0xC0);
-        return PostResidentTransition::coldRestart;
-      }
-      return PostResidentTransition::residentSetup;
+      return finishSequenceScreen(level);
     }
+    return PostResidentTransition::levelTransition;
+  }
 
-    callGuest(core_, kMemoryDispatcher, 4, 0x40);
-    if (bootCountdownFinished()) {
-      return PostResidentTransition::finished;
+  PostResidentTransition finishSequenceScreen(uint32_t level) {
+    const uint16_t selection = core_.mem_r16(kPlaybackLevel);
+    callGuest(core_, kSetSequenceMode, 4);
+    const uint32_t completionFlag = 0x800C1628u + selection;
+    const uint8_t wasComplete = core_.mem_r8(completionFlag);
+    core_.mem_w8(completionFlag, 1);
+    if (level == 0xF) {
+      core_.mem_w8(0x800C1639u, 1);
     }
     callGuest(core_, kCommitSequenceState);
+    if (wasComplete == 0) {
+      callGuest(core_, kQueueScreen, selection + 1, 0x1E, 1);
+    }
+    if (level == 0xF) {
+      callGuest(core_, kQueueScreen, 0x12, 0x1F, 1);
+      callMemoryDispatcher(0xB, 0xC0, "finale asset load");
+      return PostResidentTransition::coldRestart;
+    }
+    return PostResidentTransition::residentSetup;
+  }
+
+  // Retail 0x8007BC74(4, 0x40), the other end of that route: it loads the next asset set and then
+  // draws the transition screen, waiting on its own field barrier between screens. That is a
+  // field-spanning guest call, exactly like the front-end poll, so it is begun here and advanced one
+  // display field per step below, which then runs the two one-turn bookkeeping calls that follow it in
+  // `beginSequenceLevel` and reports whether the boot countdown still has fields to run.
+  std::optional<int> pollLevelTransitionEvent() override {
+    if (!fieldCall_.active()) {
+      const std::array arguments{4u, 0x40u};
+      fieldCall_.begin({kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "level transition"});
+      context(core_).yieldAtFieldBarrier = true;
+    }
+    if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+      return std::nullopt;
+    }
+    context(core_).yieldAtFieldBarrier = false;
+    callGuest(core_, kCommitSequenceState);
+    const uint16_t selection = core_.mem_r16(kPlaybackLevel);
     const uint32_t authoredLevel = core_.mem_r32(kLevelTable + static_cast<uint32_t>(selection) * 4);
     if (core_.mem_r32(0x800A1540u) != core_.mem_r8(0x800C1617u + authoredLevel) &&
         ((callGuest(core_, kScreenStatus) >> 16) & 0xFF) == 0x32) {
       callGuest(core_, kQueueScreen, 0x11, 0x10, 0);
     }
-    return PostResidentTransition::residentSetup;
+    return bootCountdownFinished() ? 0 : 1;
   }
 
   Core &core_;

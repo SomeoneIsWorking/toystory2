@@ -45,6 +45,11 @@ FRAMEWORK = ROOT / "external" / "psxport"
 SCRATCH = ROOT / "scratch" / "headless"
 SETTINGS_4X3 = ROOT / "config" / "aspect_4x3.ini"
 SETTINGS_16X9 = ROOT / "config" / "aspect_16x9.ini"
+# The 60 fps shipping configurations. `fps60` is a separate product switch from the aspect, so it is a
+# separate tracked file rather than an env var: a run that gates the interpolated presentation must say
+# so in the same file the launcher hands the product, or the gate is measuring the 30 fps product.
+SETTINGS_4X3_FPS60 = ROOT / "config" / "aspect_4x3_fps60.ini"
+SETTINGS_16X9_FPS60 = ROOT / "config" / "aspect_16x9_fps60.ini"
 # The tracked shipping configuration a run uses. 4:3 is the product default; --settings names the
 # 16:9 file for the widening evidence, so both legs are the same product, the same route and the same
 # capture code path differing only in the aspect the settings file asks for.
@@ -261,6 +266,8 @@ def main() -> int:
                         help="the headless presentation sink WxH (PSXPORT_PRESENT_SINK)")
     parser.add_argument("--aspect", choices=("4x3", "16x9"), default="4x3",
                         help="which tracked shipping settings file configures the run")
+    parser.add_argument("--fps60", action="store_true",
+                        help="gate the interpolated 60 fps configuration (the tracked *_fps60.ini files)")
     args = parser.parse_args()
     disc = args.disc or default_disc()
     shots = tuple(int(s) for s in args.shot_at.split(",") if s)
@@ -270,7 +277,9 @@ def main() -> int:
     dump_at = tuple(int(f) for f in args.dump_at.split(",") if f)
     plan = RunPlan(
         args.binary.resolve(), args.frames, shots, dump_at, args.debug, args.timeout, disc, args.control_port, taps,
-        args.sink, args.stop_frame, SETTINGS_16X9 if args.aspect == "16x9" else SETTINGS_4X3,
+        args.sink, args.stop_frame,
+        (SETTINGS_16X9_FPS60 if args.fps60 else SETTINGS_16X9) if args.aspect == "16x9"
+        else (SETTINGS_4X3_FPS60 if args.fps60 else SETTINGS_4X3),
     )
     return run(plan, dict(os.environ))
 

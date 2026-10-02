@@ -14,6 +14,7 @@ enum class OuterLoopPhase {
   interactiveSelection,
   residentSetup,
   resident,
+  levelTransition,
   finished,
 };
 
@@ -21,6 +22,7 @@ enum class PostResidentTransition {
   coldRestart,
   frontEndSetup,
   residentSetup,
+  levelTransition,
   finished,
 };
 
@@ -43,7 +45,8 @@ struct OuterLoopState {
 };
 
 // Finite title operations extracted from main 0x8007A9E8. One call to stepOuterLoop performs at
-// most one front-end poll field, one interactive-selection iteration, or one resident update.
+// most one front-end poll field, one interactive-selection iteration, one resident update, or one
+// post-level transition field.
 class OuterLoopBoundary {
 public:
   virtual ~OuterLoopBoundary() = default;
@@ -71,6 +74,9 @@ public:
   virtual bool residentActive() const = 0;
   virtual void updateResident() = 0;
   virtual PostResidentTransition finishResident() = 0;
+  // One display field of the post-level transition (the guest's next asset set load and the
+  // transition screen it draws): nullopt while it is still running, the event once it returns.
+  virtual std::optional<int> pollLevelTransitionEvent() = 0;
   virtual void shutdown() = 0;
 };
 

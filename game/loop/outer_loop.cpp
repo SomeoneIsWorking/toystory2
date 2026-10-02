@@ -103,6 +103,25 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
     }
     return;
 
+  case OuterLoopPhase::levelTransition: {
+    // The guest's own post-level transition loads the next asset set and then draws the transition
+    // screen, waiting on its field barrier between screens. It is therefore a field-spanning guest
+    // call like the front-end poll, presented one field per step, and NOT a finite transaction: a
+    // finite call supplies its barriers without delivering a field, so the guest's screen loop ran
+    // free (~4,500 display lists in 0.47 s) and the frame's capture overflowed the render queue.
+    const std::optional<int> event = boundary.pollLevelTransitionEvent();
+    if (!event) {
+      return;
+    }
+    if (*event == 0) {
+      state.phase = OuterLoopPhase::finished;
+      boundary.shutdown();
+      return;
+    }
+    state.phase = OuterLoopPhase::residentSetup;
+    return;
+  }
+
   case OuterLoopPhase::residentSetup:
     switch (boundary.prepareResident()) {
     case ResidentPreparationProgress::pending:
@@ -128,6 +147,9 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
       return;
     case PostResidentTransition::frontEndSetup:
       state.phase = OuterLoopPhase::frontEndSetup;
+      return;
+    case PostResidentTransition::levelTransition:
+      state.phase = OuterLoopPhase::levelTransition;
       return;
     case PostResidentTransition::residentSetup:
       state.phase = OuterLoopPhase::residentSetup;
