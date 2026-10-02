@@ -1,5 +1,7 @@
 #include "boot/native_sync_overrides.h"
 
+#include "boot/level_start_presentation.h"
+
 #include "core.h"
 #include "core/toystory2_context.h"
 #include "execution_control.h"
@@ -263,54 +265,11 @@ void initializeResidentGraphicsWithoutGuestVSync(Core &core) {
   std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core.r));
 }
 
-// FUN_8007C278(DAT_800A16A8, DAT_800A120C) — the level start's FIRST presentation. It opens
-// `if ((param_2 != 0) && (param_2 != 0x7b)) param_1 = 0;` and hands the result to FUN_8003FB0C, the
-// scene-graphic selector, whose case 0 is `gfx\loading.raw`. DAT_800A120C is the attract/demo flag,
-// so when demo mode is running the guard forces graphic id 0, this routine loads the game's own
-// "LOADING..." card, and its 28-field loop presents it behind a field barrier.
-//
-// Under instant CD there is no load left to cover: FUN_8007C278 returns immediately after the
-// synchronous load in FUN_8007BEC4 already completed. Presenting the card only delays the level's
-// first real picture, so the demo-forced card is not presented and not waited for.
-//
-// This is a complete transition, not a skipped step. The routine's own unconditional entry stores
-// are still made, so the state the level start expects is the state it would have found. Its fade
-// is deliberately left alone: the fade belongs to the card that is no longer drawn, nothing is
-// presented between here and FUN_8007C344, and that callee re-establishes the fade with
-// FUN_80077598(0,0,0,0xc) before it draws anything. Driving the fade here would be a timer write
-// pretending to be progress.
-constexpr std::uint32_t kLevelStartFirstPresentation = 0x8007C278u;
-// The two words FUN_8007C278 clears on entry, before its loop and independent of it.
-constexpr std::uint32_t kPresentationCounterA = 0x800A0CE0u;
-constexpr std::uint32_t kPresentationCounterB = 0x800A0CE4u;
-// DAT_800A120C values that do NOT trip the guard: the level's own graphic shows on these routes.
-constexpr int kDemoGuardExemptMode = 0x7B;
-
-// True when the guest's own demo guard rewrites the requested graphic to id 0, which is exactly
-// when FUN_8007C278 would load and present `gfx\loading.raw`. Pure decision, no guest state.
-bool demoGuardForcesLoadingCard(int demoMode) {
-  return demoMode != 0 && demoMode != kDemoGuardExemptMode;
-}
-
-void levelStartFirstPresentationOverride(Core *core) {
-  const int demoMode = static_cast<int>(core->r[5]);
-  if (!demoGuardForcesLoadingCard(demoMode)) {
-    // Every other route — the level's own title graphic, and the exempt modes — is the guest's.
-    callOriginalToReturn(*core, kLevelStartFirstPresentation, "level-start first presentation");
-    return;
-  }
-  core->mem_w32(kPresentationCounterA, 0);
-  core->mem_w32(kPresentationCounterB, 0);
-  core->r[2] = 0; // void routine; the guest leaves $v0 undefined and no caller reads it
-}
-
 void installNativeSyncOverrides(Core &core) {
   installResidentOverride(core, 0x8003A218u, "graphics-init", initializeGraphicsWithoutGuestVSync);
   installResidentOverride(core, 0x80039D9Cu, "resident-graphics-init", initializeResidentGraphicsOverride);
   installResidentOverride(core, 0x8003A838u, "graphics-shutdown", shutdownGraphicsWithoutGuestVSync);
   installResidentOverride(core, 0x8003FA68u, "field-barrier", completeOwnedFieldBarrier);
-  installResidentOverride(core, kLevelStartFirstPresentation, "level-start-first-presentation",
-                         levelStartFirstPresentationOverride);
 }
 
 } // namespace ts2

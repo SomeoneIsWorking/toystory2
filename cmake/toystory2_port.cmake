@@ -7,6 +7,7 @@ include(${PSXPORT_DIR}/cmake/psxport.cmake)
 set(TOYSTORY2_RUNTIME_SOURCES
   game/audio/guest_sound_bank.cpp
   game/boot/guest_main_boot.cpp
+  game/boot/level_start_presentation.cpp
   game/boot/native_sync_overrides.cpp
   game/cd/file_transfer.cpp
   game/core/guest_execution.cpp
@@ -14,6 +15,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/core/toystory2_context.cpp
   game/core/toystory2_runtime.cpp
   game/fmv/guest_movie_player.cpp
+  game/input/toystory2_input_phase.cpp
   game/input/native_pad_owner.cpp
   game/loop/outer_loop.cpp
   game/loop/resident_frame.cpp

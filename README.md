@@ -41,7 +41,8 @@ boundary. Maintained dependency overrides use `PSXPORT_LIGHTREC_DIR` and
 gameplay compatibility.
 
 To look at the game, drive it, or capture frames, use the maintainer tools: `tools/headless_run.py`
-(one bounded headless run, with `--tap`, `--shot-at`, `--aspect`, `--dump-at`), `tools/ts2_route.py`
+(one bounded headless run, with `--tap` for an exact-frame schedule, `--pad` to replay a recorded
+phase-keyed `.pad`, `--shot-at`, `--aspect`, `--dump-at`), `tools/ts2_route.py`
 and `tools/verify_route.py` (exact-frame pad routes), and `tools/verify_movement.py` (gameplay judged
 from guest RAM). None of them are part of the gate.
 

@@ -2,6 +2,9 @@
 
 #include "game_runtime.h"
 #include "guest_facts.h"
+#include "input/toystory2_input_phase.h"
+
+#include <cstdint>
 
 namespace ts2 {
 
@@ -31,9 +34,16 @@ public:
   std::unique_ptr<FrameDriver> createFrameDriver(Game &game) override;
   void registerOverrides(Game &game) override;
   void bootInit(Core &core) override;
+  // The pad recording's phase key (game/input/toystory2_input_phase.h). Declared HERE rather than left at the
+  // framework's default, because a recording keyed on absolute pad frames is what sent every earlier
+  // route into attract: the title screen discards a Start press inside its own 30-field lockout.
+  std::uint64_t inputPhase(Core &core) const override {
+    return inputPhase_.of(core);
+  }
 
 private:
   static constexpr HostIdentity kHostIdentity{facts::kWindowTitle, facts::kCardEnvVar, facts::kCardDefaultPath};
+  InputPhase inputPhase_;
 };
 
 } // namespace ts2

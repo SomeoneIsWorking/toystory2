@@ -39,14 +39,22 @@ ResidentPreparationProgress ResidentPreparation::step(Core &core, uint32_t level
     levelStart_.emplace(core);
     core.mem_w32(kLevelId, level);
     core.mem_w32(kPlaybackMode, static_cast<uint32_t>(playbackMode));
+    // The level start's FIRST presentation (FUN_8007C278) presents the game's LOADING card on the
+    // attract routes only, where the instant-CD port has nothing left for it to cover. That
+    // suppression is armed here, from the same `DAT_800A120C` the guest's own guard reads, and only
+    // there: on a player level the routine is not intercepted at all and the level's own card is
+    // presented by the level start's own field-spanning call.
+    context(core).levelStartPresentation.arm(core, playbackMode);
     const std::array arguments{level};
     levelStart_->begin({kLevelStart, kLevelStartReturn, arguments, std::nullopt, "resident level start"});
     context(core).yieldAtFieldBarrier = true;
   }
   if (levelStart_->active()) {
-    if (levelStart_->advance() == ResumableGuestCall::Progress::fieldBoundary) {
-      // Still inside the routine's own transition loop: `[0x800A1174]` holds the fields the wait
-      // covered, `[0x800A1480]` and `[0x800A155C]` are the guest's own, and the next field is presented.
+    if (levelStart_->advance() != ResumableGuestCall::Progress::returned) {
+      // Still inside the routine: a display field at its own transition barrier, or a host slice
+      // (the level start's first presentation hands the turn back between its own compute slices).
+      // Either way `[0x800A1174]` holds the fields the wait covered, `[0x800A1480]` and
+      // `[0x800A155C]` are the guest's own, and the next field is presented.
       return ResidentPreparationProgress::pending;
     }
     context(core).yieldAtFieldBarrier = false;

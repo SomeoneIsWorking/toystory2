@@ -86,6 +86,10 @@ class RunPlan:
     sink: str = "960x720"
     stop_frame: int = 0
     settings: Path = SETTINGS_4X3
+    # A RECORDED phase-keyed `.pad` to replay instead of a tap schedule. `tools/ts2_route.py`
+    # compiles taps into an absolute (unkeyed) schedule; this is the other half of the same input
+    # path, a replay whose presses are offsets from the phase each screen was entered on.
+    pad: Path | None = None
 
     @property
     def pad_frames(self) -> int:
@@ -124,6 +128,8 @@ def build_environment(base: dict[str, str], plan: RunPlan, log: Path, pad: Path 
         if pad is None:
             raise ValueError("taps need a compiled pad schedule file")
         env["PSXPORT_PAD_REPLAY"] = str(pad)
+    elif plan.pad:
+        env["PSXPORT_PAD_REPLAY"] = str(plan.pad)
     return env
 
 
@@ -192,7 +198,11 @@ def execute(plan: RunPlan, base: dict[str, str]) -> RunResult:
     log.unlink(missing_ok=True)
     work = prepare_workdir()
     pad = work / "route.pad"
-    if plan.taps:
+    if plan.pad:
+        if plan.taps:
+            raise ValueError("--pad and --tap are two ways to drive one replay; pass one")
+        pad = plan.pad.resolve()
+    elif plan.taps:
         pad.write_bytes(compile_pad(plan.taps, plan.pad_frames))
     env = build_environment(base, plan, log, pad)
     process = subprocess.Popen([str(plan.binary)], cwd=work, env=env, stdout=subprocess.DEVNULL,
@@ -266,6 +276,8 @@ def main() -> int:
                         help="the headless presentation sink WxH (PSXPORT_PRESENT_SINK)")
     parser.add_argument("--aspect", choices=("4x3", "16x9"), default="4x3",
                         help="which tracked shipping settings file configures the run")
+    parser.add_argument("--pad", type=Path, default=None,
+                        help="a recorded phase-keyed .pad to replay instead of --tap schedules")
     parser.add_argument("--fps60", action="store_true",
                         help="gate the interpolated 60 fps configuration (the tracked *_fps60.ini files)")
     args = parser.parse_args()
@@ -280,6 +292,7 @@ def main() -> int:
         args.sink, args.stop_frame,
         (SETTINGS_16X9_FPS60 if args.fps60 else SETTINGS_16X9) if args.aspect == "16x9"
         else (SETTINGS_4X3_FPS60 if args.fps60 else SETTINGS_4X3),
+        args.pad.resolve() if args.pad else None,
     )
     return run(plan, dict(os.environ))
 

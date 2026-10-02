@@ -280,7 +280,7 @@ public:
       fieldCall_.begin({kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "front-end poll"});
       context(core_).yieldAtFieldBarrier = true;
     }
-    if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+    if (fieldCall_.advance() != ResumableGuestCall::Progress::returned) {
       return std::nullopt;
     }
     context(core_).yieldAtFieldBarrier = false;
@@ -344,7 +344,7 @@ public:
     if (!fieldCall_.active()) {
       beginSelectionCall();
     }
-    if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+    if (fieldCall_.advance() != ResumableGuestCall::Progress::returned) {
       return SelectionProgress::pending;
     }
     context(core_).yieldAtFieldBarrier = false;
@@ -565,7 +565,7 @@ private:
       fieldCall_.begin({kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "level transition"});
       context(core_).yieldAtFieldBarrier = true;
     }
-    if (fieldCall_.advance() == ResumableGuestCall::Progress::fieldBoundary) {
+    if (fieldCall_.advance() != ResumableGuestCall::Progress::returned) {
       return std::nullopt;
     }
     context(core_).yieldAtFieldBarrier = false;

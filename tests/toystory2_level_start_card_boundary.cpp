@@ -6,7 +6,7 @@
 // suppressing a level's own title graphic, or letting the loading card through — so the guard's two
 // exemptions are pinned here rather than left to the decompilation staying true.
 
-#include "boot/native_sync_overrides.h"
+#include "boot/level_start_presentation.h"
 
 #include "testutil.h"
 
