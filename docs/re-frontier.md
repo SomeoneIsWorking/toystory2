@@ -153,6 +153,14 @@ runtime.
 - gap: none for framing and decompression
 - notes: A single chunk can falsely resemble RNC2; the full corpus is the discriminator.
 
+### RE-18 — the level's own object list and token bookkeeping
+- status: re-partial
+- deps: RE-01
+- evidence: All of it read out of a live guest through the control channel (`rw` only — no guest word was ever written) and cross-checked against the decompilations. The area's placed-object table is the word at `0x800A1274`, which points at `[count][entry…]`; `0x800A1274` itself was read as 0x80149F94 with a count of 81 in Andy's House room 1. `FUN_8002EA98` reads `table[slot + 1]`, then `*(entry + 0x10)`, then `*(that + 0x14)` and shifts the three words left by 5 — so those three words are the level's 16-bit object coordinates and the guest's own world units are the same `<< 5`, which is the same shift Buzz's object at `0x800B2188` needs. `FUN_80048638` reads `*(record + 0x18)` and returns `!= 0`: in room 1 exactly 5 of the 54 populated records are non-zero, which is the same count as the token slots. The level's five token ids live at `0x800A8668` as 16-bit values at stride 8 (`0x39`, `0x7968`, `0x3A`, `0x7978`, `0x3B`); `FUN_8007678C` case 2 walks that table with stride 4, compares each object's id against a slot, and on a match stores `2` to `0x800A866C + 16*slot`, `0` to `0x800A8674 + 16*slot`, ORs `1 << slot` into a collected byte, and sets `0x800A1544 = 1` — that flag and those five state words are the guest's own collection oracle, readable while driving.
+- where: `tools/drive_level.py`
+- gap: The three ids that fall inside room 1's 81-entry table (`0x39`, `0x3A`, `0x3B` → `table[56]`, `table[57]`, `table[58]`) resolve to positions `(8616, 3516, -5469)`, `(16795, 5955, -3919)`, `(19190, 4839, -12319)` in shifted world units, and their second coordinate does not agree with Buzz's own Y (1875), so which field of that triple is height is still unresolved; walking to the XZ of a candidate has not yet raised `0x800A1544`, so the id→object mapping is a hypothesis, not a proven pickup. `FUN_80044B5C`'s classifier is a four-level dereference (`table[i]` → `+0x10` → `+0x10` → `ushort +0x10`) whose result the tool's simpler read does not reproduce: the type word read at `record + 0x10` is never in the ranges its `case 2` can return.
+- notes: Two Ghidra renderings of the same table contradict each other (`FUN_80044B5C`/`FUN_80048638` use `DAT_800A1274 + 4` as the array base, `FUN_8002EA98` dereferences `0x800A1274`), and only the dereference form returns RAM pointers; treat the `_DAT_` constants in these routines as unreliable until the instructions behind them are read by hand.
+
 ### RE-09 — scene, collision and animation formats
 - status: todo
 - deps: RE-00, RE-08
