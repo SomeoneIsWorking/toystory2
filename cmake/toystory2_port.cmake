@@ -69,6 +69,14 @@ toystory2_configure_target(toystory2_cd_hle_boundary)
 target_include_directories(toystory2_cd_hle_boundary PRIVATE ${PSXPORT_DIR}/tests)
 
 add_executable(
+  toystory2_level_start_card_boundary
+  tests/toystory2_level_start_card_boundary.cpp
+  ${TOYSTORY2_RUNTIME_SOURCES}
+)
+toystory2_configure_target(toystory2_level_start_card_boundary)
+target_include_directories(toystory2_level_start_card_boundary PRIVATE ${PSXPORT_INCLUDE_DIRS} ${PSXPORT_DIR}/tests)
+
+add_executable(
   toystory2_frame_driver_boundary
   tests/toystory2_frame_driver_boundary.cpp
   ${TOYSTORY2_RUNTIME_SOURCES}
