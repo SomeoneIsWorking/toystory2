@@ -12,9 +12,12 @@ native input and render ownership, true widescreen, interpolated 60 fps.
 loading-only presentation; the one load still unmeasured is the post-level transition
 `0x8007BC74(4, 0x40)`, which no verified route reaches. Playing a level to completion is ABANDONED
 (issue 0039), and RE-21 settles the alternative: the level gate is the persisted byte
-`0x800C1628 + cursor`, written only by the level-completion path, and the game exposes no cheat or
-pad-input route past it (attract mode loads levels 0/3/7/10/13, never 1). Level index 1 is therefore
-unreachable from any verified route, and with it every later area.
+`0x800C1628 + cursor`, written only by the level-completion path, and there is no cheat. The game DOES
+offer a no-input route to several later areas: idle at the title and attract mode rotates levels
+0/3/7/10/13 (verified loading an arcade interior and a Wild West barn yard). Level index 1 is not in
+that rotation, so the second level specifically stays unreachable, and `0x8007BC74(4, 0x40)` remains
+unmeasured by it. Inventorying those attract level loads for G004 is the next step.
+MEASURED on the attract route: idle-at-title loads the arcade interior (~frame 3200) and the Wild West barn yard with the guest's own `DEMO MODE` text (~frame 5900), returning to the title between. Its inter-level black window (~frames 3500-4800, 0.00% non-black throughout) is NOT a loading-only wait: pressing Start at frame 4000 ends it by 4100, where unpressed it persists past 4400 and resumes only at 4800, so it is Start-cancellable authored presentation (an FMV, which headless cannot show — issue 0040 — or the demo's own cutscene), not a load. 4:3 at 960x720.
 
 | ID | Capability | State | Evidence or exact gap |
 |---|---|---|---|
