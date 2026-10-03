@@ -3,6 +3,7 @@
 #include "core.h"
 #include "execution/guest_execution.h"
 #include "game.h"
+#include "runtime/toystory2_context.h"
 
 #include <cstdlib>
 #include <lucent/log.h>
@@ -31,21 +32,21 @@ void writeNativePackets(Core &core) {
   }
 }
 
-void initializeNativePadOverride(Core *core) {
-  initializeNativePad(*core);
+void initializeOverride(Core *core) {
+  context(*core).pad.initialize(*core);
 }
 
-void shutdownNativePadOverride(Core *core) {
-  shutdownNativePad(*core);
+void shutdownOverride(Core *core) {
+  context(*core).pad.shutdown(*core);
 }
 
-void decodeNativeDigitalPadOverride(Core *core) {
-  core->r[2] = decodeNativeDigitalPad(*core);
+void decodeOverride(Core *core) {
+  core->r[2] = context(*core).pad.decode(*core);
 }
 
 } // namespace
 
-void initializeNativePad(Core &core) {
+void PadOwner::initialize(Core &core) {
   // The retail owner waits two fields, starts linked libpad, negotiates vibration/analog mode, then
   // waits five more fields. The native producer deliberately exposes one digital pad and no
   // actuator, so those asynchronous negotiations have no host-side work to complete.
@@ -58,18 +59,18 @@ void initializeNativePad(Core &core) {
   core.mem_w16(kPadEnabled, 1);
 }
 
-void shutdownNativePad(Core &core) {
+void PadOwner::shutdown(Core &core) {
   // 0x8003EF78 brackets PadStopCom with four VSync calls. The host Pad object is process-owned and
   // stays alive across title display resets; only the guest-visible title gate is shut down.
   core.mem_w32(kDeferredDisplayRequest, 0);
   core.mem_w16(kPadEnabled, 0);
 }
 
-void serviceNativePad(Core &core) {
+void PadOwner::service(Core &core) {
   writeNativePackets(core);
 }
 
-uint16_t decodeNativeDigitalPad(Core &core) {
+uint16_t PadOwner::decode(Core &core) {
   if (core.mem_r16(kPadEnabled) == 0) {
     return 0;
   }
@@ -100,10 +101,10 @@ uint16_t decodeNativeDigitalPad(Core &core) {
   return static_cast<uint16_t>(~core.mem_r16(kPadSlot0 + 2));
 }
 
-void installNativePadOverrides(Core &core) {
-  installResidentOverride(core, 0x8003EEF0u, "pad-init", initializeNativePadOverride);
-  installResidentOverride(core, 0x8003EF78u, "pad-shutdown", shutdownNativePadOverride);
-  installResidentOverride(core, 0x8003AC58u, "digital-pad-decode", decodeNativeDigitalPadOverride);
+void PadOwner::install(Core &core) {
+  installResidentOverride(core, 0x8003EEF0u, "pad-init", initializeOverride);
+  installResidentOverride(core, 0x8003EF78u, "pad-shutdown", shutdownOverride);
+  installResidentOverride(core, 0x8003AC58u, "digital-pad-decode", decodeOverride);
 }
 
 } // namespace ts2

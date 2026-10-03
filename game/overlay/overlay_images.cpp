@@ -18,6 +18,8 @@ namespace {
 
 constexpr std::uint32_t kFileLoader = 0x80082508u;
 constexpr std::uint32_t kSectorBytes = 2048u;
+// A guest path is a bounded ISO9660 name; see `guestString`.
+constexpr std::size_t kMaxGuestPath = 128u;
 
 std::vector<std::uint8_t> readDiscImage(Core &core, const OverlayModule &module) {
   std::uint32_t firstSector = 0;
@@ -41,18 +43,6 @@ std::vector<std::uint8_t> readDiscImage(Core &core, const OverlayModule &module)
     std::copy_n(sector.begin(), count, bytes.begin() + offset);
   }
   return bytes;
-}
-
-std::string guestPathText(Core &core, std::uint32_t guestPath) {
-  std::string text;
-  for (std::uint32_t offset = 0; guestPath != 0 && offset < 64u; ++offset) {
-    const char c = static_cast<char>(core.mem_r8(guestPath + offset));
-    if (c == 0) {
-      break;
-    }
-    text.push_back(c);
-  }
-  return text;
 }
 
 void observeFileLoad(Core *core) {
@@ -82,7 +72,7 @@ void observeFileLoad(Core *core) {
     lucent::info("ts2-overlay",
                  "slot 0x{:08X} loaded non-module '{}'; identity retired",
                  destination,
-                 guestPathText(*core, guestPath));
+                 guestString(*core, guestPath, kMaxGuestPath));
     slot->retire(*core);
     return;
   }
@@ -96,7 +86,7 @@ void observeFileLoad(Core *core) {
   // module rather than as whatever else shares 0x800D5D20, so the native player is installed here,
   // scoped to the identity just published. No other module in the slot has one.
   if (slot->module(*module).identityName == SharedSlotImage::kFmvIdentityName) {
-    fmv::installGuestMoviePlayer(*core);
+    context(*core).moviePlayer.install(*core);
   }
   const auto identity = slot->activeIdentity();
   lucent::info("ts2-overlay",
@@ -119,7 +109,7 @@ OverlaySlot *OverlayImages::slotAt(std::uint32_t destination) {
   return nullptr;
 }
 
-void installOverlayLoadObserver(Core &core) {
+void OverlayImages::installLoadObserver(Core &core) {
   installResidentOverride(core, kFileLoader, "overlay-image-loader", observeFileLoad);
 }
 

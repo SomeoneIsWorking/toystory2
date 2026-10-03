@@ -44,8 +44,15 @@ public:
   // the guest's own normalized spelling (upper case, ISO9660 version suffix already stripped by the
   // loader at 0x80082508), `destination` is a guest RAM address.
   Outcome transfer(Core &core, std::uint32_t guestPath, std::uint32_t destination) const;
+
+  // Install the whole-file read and the bounded retry policy in its caller.
+  static void install(Core &core);
 };
 
+// `install` registers the native load path: the whole-file read at `0x80082608` and the bounded
+// retry policy in its caller `0x80082728`. It is registered once the resident image is authenticated,
+// alongside the other resident overrides, because it publishes nothing until it has been asked to.
+//
 // Its CALLER is the last unbounded wait in the load path, so this owner owns that too. `0x80082728`
 // retries the whole-file read in two `do { ... } while` loops — an inner one that repeats while the
 // read failed and an outer one that repeats while a guest word (`DAT_800A15A8`) says to — and its only
@@ -55,9 +62,4 @@ public:
 // making the retry bounded and observable: a read that can be honoured does so on its first attempt,
 // and a read that cannot is reported as the guest's failure value instead of never returning.
 //
-// Install the native load path: the whole-file read at `0x80082608` and the bounded retry policy in
-// its caller `0x80082728`. Registered only once the resident image is authenticated, alongside the
-// other resident overrides, because it publishes nothing until it has been asked to.
-void installFileTransferOverride(Core &core);
-
 } // namespace ts2::cd

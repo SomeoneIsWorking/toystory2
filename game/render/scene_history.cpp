@@ -327,7 +327,7 @@ const ResidentSceneFrame &ResidentSceneHistory::current() const {
   return current_;
 }
 
-void installResidentSceneObservationOverrides(Core &core) {
+void ResidentSceneHistory::install(Core &core) {
   installResidentOverride(core, 0x8002622Cu, "resident-scene-observer", observeSceneOwner);
   installResidentOverride(core, 0x800100E4u, "resident-mesh-observer", observeMeshSubmitter);
 }

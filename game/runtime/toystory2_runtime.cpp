@@ -1,8 +1,5 @@
 #include "runtime/toystory2_runtime.h"
 
-#include "audio/sound_bank.h"
-#include "boot/graphics_sync.h"
-#include "boot/guest_main_boot.h"
 #include "cd/file_transfer.h"
 #include "core.h"
 #include "facts/guest_facts.h"
@@ -11,7 +8,6 @@
 #include "fps60/temporal_source.h"
 #include "frame/frame_driver.h"
 #include "game.h"
-#include "input/pad_owner.h"
 #include "legacy_game_hooks.h"
 #include "overlay/overlay_images.h"
 #include "render/scene_history.h"
@@ -103,18 +99,19 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   // `Core::hooks` and takes it from the runtime installed before the first Core is built.
   // The title FrameDriver owns field delivery directly. In particular, no graphics-init override
   // registers a host turn and no host path dispatches guest VBlank 0x80039D60.
-  installNativeSyncOverrides(game.core);
-  installOverlayLoadObserver(game.core);
-  cd::installFileTransferOverride(game.core);
-  audio::installSoundBankProcessorOverride(game.core);
-  installNativePadOverrides(game.core);
-  installResidentSceneObservationOverrides(game.core);
-  render::installResidentProjectionScopes(game.core);
-  context(game.core).widescreen.install(game.core);
+  ToyStory2Context &title = context(game.core);
+  title.graphicsSync.install(game.core);
+  title.overlays.installLoadObserver(game.core);
+  cd::FileTransfer::install(game.core);
+  title.soundBank.install(game.core);
+  title.pad.install(game.core);
+  title.scene.install(game.core);
+  title.projectionScopes.install(game.core);
+  title.widescreen.install(game.core);
 }
 
 void ToyStory2Runtime::bootInit(Core &core) {
-  initializeGuestMain(core);
+  context(core).guestMainBoot.initialize(core);
 }
 
 } // namespace ts2

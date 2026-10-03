@@ -26,12 +26,12 @@ public:
   // The slot a load to `destination` fills, or null when the destination is not an overlay slot.
   OverlaySlot *slotAt(std::uint32_t destination);
 
+  // Observe the retail file loader: authenticate and publish, or retire, the slot each load fills.
+  void installLoadObserver(Core &core);
+
 private:
   OverlaySlot level_;
   OverlaySlot shared_;
 };
-
-// Observe the retail file loader and authenticate/publish or retire the slot each load fills.
-void installOverlayLoadObserver(Core &core);
 
 } // namespace ts2

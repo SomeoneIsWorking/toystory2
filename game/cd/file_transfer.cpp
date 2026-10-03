@@ -40,18 +40,6 @@ constexpr std::uint32_t kSectorBytes = 2048u;
 // version suffix, and a longer string than this is not a path this title ever builds.
 constexpr std::size_t kMaxGuestPath = 128u;
 
-std::string guestPathText(Core &core, std::uint32_t guestPath) {
-  std::string text;
-  for (std::size_t offset = 0; offset < kMaxGuestPath; ++offset) {
-    const char c = static_cast<char>(core.mem_r8(guestPath + static_cast<std::uint32_t>(offset)));
-    if (c == 0) {
-      return text;
-    }
-    text.push_back(c);
-  }
-  return std::string();
-}
-
 void publishGuestTransferState(Core &core) {
   core.mem_w32(kTransferWordLo, 0);
   core.mem_w32(kTransferWordHi, 0);
@@ -127,7 +115,7 @@ FileTransfer::Outcome FileTransfer::transfer(Core &core, std::uint32_t guestPath
     outcome.why = "the destination is not guest RAM";
     return outcome;
   }
-  const std::string path = guestPathText(core, guestPath);
+  const std::string path = guestString(core, guestPath, kMaxGuestPath);
   if (path.empty()) {
     outcome.why = "the path is empty or longer than a disc name can be";
     return outcome;
@@ -173,7 +161,7 @@ FileTransfer::Outcome FileTransfer::transfer(Core &core, std::uint32_t guestPath
   return outcome;
 }
 
-void installFileTransferOverride(Core &core) {
+void FileTransfer::install(Core &core) {
   installResidentOverride(core, kWholeFileRead, "cd-file-transfer", fileTransferOverride);
   installResidentOverride(core, kLoadFile, "cd-load-file", loadFileOverride);
 }

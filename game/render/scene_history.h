@@ -84,6 +84,10 @@ private:
 
 class ResidentSceneHistory {
 public:
+  // Install the observation wrappers that record the 0x8002622C candidate batches and the 0x800100E4
+  // mesh arguments without changing guest state.
+  void install(Core &core);
+
   void reset();
   void beginFrame();
   void captureOwnerSubmission(
@@ -104,9 +108,5 @@ private:
   bool capturing_ = false;
   bool ready_ = false;
 };
-
-// Runtime observation wrappers preserve the guest owners as dynarec original calls. They record the exact
-// 0x8002622C candidate batches and 0x800100E4 mesh arguments without changing guest state.
-void installResidentSceneObservationOverrides(Core &core);
 
 } // namespace ts2

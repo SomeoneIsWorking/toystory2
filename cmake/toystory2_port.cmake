@@ -80,12 +80,20 @@ toystory2_configure_target(toystory2_level_start_card_boundary)
 target_include_directories(toystory2_level_start_card_boundary PRIVATE ${PSXPORT_INCLUDE_DIRS} ${PSXPORT_DIR}/tests)
 
 add_executable(
-  toystory2_frame_driver_boundary
-  tests/toystory2_frame_driver_boundary.cpp
+  toystory2_frame_turn_boundary
+  tests/frame_turn_boundary.cpp
   ${TOYSTORY2_RUNTIME_SOURCES}
 )
-toystory2_configure_target(toystory2_frame_driver_boundary)
-target_include_directories(toystory2_frame_driver_boundary PRIVATE ${PSXPORT_DIR}/tests)
+toystory2_configure_target(toystory2_frame_turn_boundary)
+target_include_directories(toystory2_frame_turn_boundary PRIVATE ${PSXPORT_DIR}/tests)
+
+add_executable(
+  toystory2_resident_producers_boundary
+  tests/resident_producers_boundary.cpp
+  ${TOYSTORY2_RUNTIME_SOURCES}
+)
+toystory2_configure_target(toystory2_resident_producers_boundary)
+target_include_directories(toystory2_resident_producers_boundary PRIVATE ${PSXPORT_DIR}/tests)
 
 add_executable(
   toystory2_execution_boundary
@@ -98,7 +106,8 @@ target_include_directories(toystory2_execution_boundary PRIVATE ${PSXPORT_DIR}/t
 foreach(target IN ITEMS
     toystory2_projection_boundary
     toystory2_cd_hle_boundary
-    toystory2_frame_driver_boundary
+    toystory2_frame_turn_boundary
+    toystory2_resident_producers_boundary
     toystory2_execution_boundary)
   set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 endforeach()

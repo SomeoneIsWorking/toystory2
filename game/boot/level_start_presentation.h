@@ -12,10 +12,6 @@ inline constexpr std::uint32_t levelStartPresentationAddress() {
   return 0x8007C278u;
 }
 
-// True when the guest's own demo guard rewrites the requested graphic to id 0, which is exactly when
-// FUN_8007C278 would load and present `gfx\loading.raw`. Pure decision, no guest state.
-bool demoGuardForcesLoadingCard(int demoMode);
-
 // What the port owns at FUN_8007C278, and only that.
 //
 // RE-20/RE-22: the routine opens `if ((param_2 != 0) && (param_2 != 0x7b)) param_1 = 0;`, hands the
@@ -39,6 +35,10 @@ bool demoGuardForcesLoadingCard(int demoMode);
 // faulted at the CD wait continuation (the BIOS trampoline 0x8008B378) immediately afterwards.
 class LevelStartPresentation {
 public:
+  // True when the guest's own demo guard rewrites the requested graphic to id 0, which is exactly
+  // when FUN_8007C278 would load and present `gfx\loading.raw`. Pure decision, no guest state.
+  static bool demoGuardForcesLoadingCard(int demoMode);
+
   // Arm or retire the override for one level start, from the demo flag the guest's guard reads.
   void arm(Core &core, int playbackMode);
 

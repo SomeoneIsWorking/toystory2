@@ -24,22 +24,12 @@ constexpr std::uint32_t kMoviePlayer = 0x800D7088u;
 // player returns it as the skip result, and zeroes its `arg` when it is already set, so during the
 // cold intro a skip returns 1 and ends the intro sequence.
 constexpr std::uint32_t kColdStartFlag = 0x800A1670u;
-
-std::string guestPath(Core &core, std::uint32_t pointer) {
-  std::string text;
-  for (std::uint32_t offset = 0; offset < 128u; ++offset) {
-    const auto c = static_cast<char>(core.mem_r8(pointer + offset));
-    if (c == 0) {
-      return text;
-    }
-    text.push_back(c);
-  }
-  return text;
-}
+// A guest path is a bounded ISO9660 name; see `guestString`.
+constexpr std::size_t kMaxGuestPath = 128u;
 
 void moviePlayerOverride(Core *core) {
   // The guest's own argument names the movie; nothing here re-decides which movie to play.
-  const std::string path = guestPath(*core, core->r[4]);
+  const std::string path = guestString(*core, core->r[4], kMaxGuestPath);
   if (path.empty()) {
     lucent::error("ts2-fmv", "movie player refused: empty path at 0x{:08X}", core->r[4]);
     core->r[2] = 0;
@@ -72,7 +62,7 @@ void moviePlayerOverride(Core *core) {
 
 } // namespace
 
-void installGuestMoviePlayer(Core &core) {
+void GuestMoviePlayer::install(Core &core) {
   installResidentOverride(core, kMoviePlayer, "guest-movie-player", moviePlayerOverride);
 }
 

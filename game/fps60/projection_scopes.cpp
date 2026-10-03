@@ -80,7 +80,7 @@ std::uint64_t ResidentProjectionScopes::passInstance(std::uint32_t producer) {
   return producerInstance(producer, 0);
 }
 
-void installResidentProjectionScopes(Core &core) {
+void ResidentProjectionScopes::install(Core &core) {
   for (const ScopedProducer &producer : kScopedProducers) {
     installResidentOverride(core, producer.address, producer.name, producer.function);
   }

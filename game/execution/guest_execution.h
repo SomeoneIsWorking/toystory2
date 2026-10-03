@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 
 class Core;
@@ -76,6 +77,9 @@ std::uint32_t callGuestToReturn(Core &core, const GuestCall &call);
 std::uint32_t callFiniteGuestToReturn(Core &core, const GuestCall &call, std::uint32_t maxSlices);
 psx::cpu::ExecutionResult
 executeFiniteGuestCall(Core &core, const GuestCall &call, psx::cpu::ExecutionBudget budget, std::uint32_t maxSlices);
+// Read a NUL-terminated string out of guest RAM. `maxBytes` is the longest name this title's guest
+// ever spells; a string with no terminator inside that bound is not one of them and reads as empty.
+std::string guestString(Core &core, std::uint32_t address, std::size_t maxBytes);
 void callOriginalToReturn(Core &core, std::uint32_t address, std::string_view owner);
 // The same call for a guest body that may legitimately need more host turns than one: it resumes the
 // original across bounded turns (kMaxResumedHostTurns) and refuses, by name, if it never returns.

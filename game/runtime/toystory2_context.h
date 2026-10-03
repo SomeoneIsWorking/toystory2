@@ -1,8 +1,13 @@
 #pragma once
 
+#include "audio/sound_bank.h"
+#include "boot/graphics_sync.h"
+#include "boot/guest_main_boot.h"
 #include "boot/level_start_presentation.h"
+#include "fmv/movie_player.h"
 #include "fps60/camera_history.h"
 #include "fps60/projection_scopes.h"
+#include "input/pad_owner.h"
 #include "overlay/overlay_images.h"
 #include "render/scene_history.h"
 #include "widescreen/resident_widescreen.h"
@@ -11,19 +16,29 @@ class Core;
 
 namespace ts2 {
 
+// Everything one Core owns, in the order a run reaches it. The runtime registers the registrations
+// (`*::install`), the frame turn calls the operations, and the per-Core guest state each owner reads
+// or advances lives in guest RAM rather than here.
 struct ToyStory2Context {
+  // Boot: the guest main prefix, the graphics and field-barrier replacements, and the level start's
+  // first presentation.
+  GuestMainBoot guestMainBoot;
+  GraphicsSync graphicsSync;
+  LevelStartPresentation levelStartPresentation;
+  // Loading: the code images the guest's loader fills, the whole-file read, and the sound banks each
+  // asset decode opens.
   OverlayImages overlays;
+  audio::SoundBankProcessor soundBank;
+  // Playback: the native pad, and the movie player that replaces the FMV overlay's own once the FMV
+  // image is published.
+  PadOwner pad;
+  fmv::GuestMoviePlayer moviePlayer;
+  // Presentation: the resident observation and provenance the 60 fps in-between pairs from, the
+  // authored camera, and the 16:9 widening of the resident frame canvas.
   ResidentCameraHistory camera;
   ResidentSceneHistory scene;
-  // Which guest calls are which producer instances, for the 60 fps in-between's vertex provenance.
   render::ResidentProjectionScopes projectionScopes;
-  // The title-owned 16:9 widening of the resident frame canvas. It is per-Core because the plan and
-  // the canvas geometry belong to the Core that published them, exactly like the histories above.
   ResidentWidescreenProjection widescreen;
-  // The level start's first presentation (FUN_8007C278): the demo-forced LOADING card is suppressed
-  // there, and every other route runs the guest's own field-spanning routine. It holds the resume
-  // point of that run, so it is per-Core like the histories above.
-  LevelStartPresentation levelStartPresentation;
   // True while a guest call suspended between display fields (the front-end poll) is running. Its
   // field barrier then waits for the host: it completes with the fields it asked for and exits the
   // executor at the field boundary so the host can present, instead of spinning through the loop.

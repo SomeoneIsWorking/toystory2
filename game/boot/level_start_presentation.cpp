@@ -21,7 +21,7 @@ constexpr int kDemoGuardExemptMode = 0x7B;
 
 } // namespace
 
-bool demoGuardForcesLoadingCard(int demoMode) {
+bool LevelStartPresentation::demoGuardForcesLoadingCard(int demoMode) {
   return demoMode != 0 && demoMode != kDemoGuardExemptMode;
 }
 

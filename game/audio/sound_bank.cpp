@@ -17,7 +17,7 @@ void soundBankProcessorOverride(Core *core) {
 
 } // namespace
 
-void installSoundBankProcessorOverride(Core &core) {
+void SoundBankProcessor::install(Core &core) {
   installResidentOverride(core, kSoundBankProcessor, "sound-bank-processor", soundBankProcessorOverride);
 }
 

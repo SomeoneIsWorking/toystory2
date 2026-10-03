@@ -2,12 +2,10 @@
 
 #include "frame/frame_boundary.h"
 
-#include "boot/guest_main_boot.h"
 #include "core.h"
 #include "facts/guest_facts.h"
 #include "game.h"
 #include "game_runtime.h"
-#include "input/pad_owner.h"
 #include "runtime/toystory2_context.h"
 
 #include <array>
@@ -112,7 +110,7 @@ void CoreFrameBoundary::sampleInput() {
   core_.game->pad.serviceFrame();
   // Retail republishes the guest pad packet once per VBlank; this title's decoder reads that
   // buffer, so the publish has to ride the same per-frame service that advances the host pad.
-  serviceNativePad(core_);
+  context(core_).pad.service(core_);
 }
 
 void CoreFrameBoundary::tickDisplayField() {
@@ -188,7 +186,7 @@ void CoreFrameBoundary::present(int guestFields) {
 }
 
 void CoreFrameBoundary::initializeFrontEnd() {
-  finishGuestMainBoot(core_);
+  context(core_).guestMainBoot.finishOverlayInitialization(core_);
   restartColdFrontEnd();
 }
 

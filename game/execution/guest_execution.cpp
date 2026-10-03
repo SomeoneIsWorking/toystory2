@@ -8,6 +8,7 @@
 
 #include <cstdlib>
 #include <lucent/log.h>
+#include <string>
 
 namespace ts2 {
 
@@ -132,6 +133,21 @@ std::uint32_t callFiniteGuestToReturn(Core &core, const GuestCall &call, std::ui
     std::abort();
   }
   return core.r[2];
+}
+
+std::string guestString(Core &core, std::uint32_t address, std::size_t maxBytes) {
+  if (address == 0) {
+    return {};
+  }
+  std::string text;
+  for (std::size_t offset = 0; offset < maxBytes; ++offset) {
+    const char c = static_cast<char>(core.mem_r8(address + static_cast<std::uint32_t>(offset)));
+    if (c == 0) {
+      return text;
+    }
+    text.push_back(c);
+  }
+  return {};
 }
 
 void callOriginalToReturn(Core &core, std::uint32_t address, std::string_view owner) {

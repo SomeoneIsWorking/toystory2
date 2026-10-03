@@ -77,5 +77,5 @@ modular, and DRY. Build outputs live under `build/`; bounded diagnostic artifact
 
 Run `uv run --frozen python tools/verify.py`: build plus the product's hermetic C++ boundary tests,
 the executable's help contract, and clang-format/clang-tidy/cpp_policy.
-To see the game rather than gate it, run `tools/headless_run.py`, `tools/verify_route.py` or
-`tools/verify_movement.py` against your own disc.
+To see the game rather than gate it, run `tools/headless_run.py` (with `--pad` for a recorded
+replay) or `tools/verify_route.py` against your own disc.

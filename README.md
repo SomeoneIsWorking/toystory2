@@ -43,7 +43,7 @@ gameplay compatibility.
 To look at the game, drive it, or capture frames, use the maintainer tools: `tools/headless_run.py`
 (one bounded headless run, with `--tap` for an exact-frame schedule, `--pad` to replay a recorded
 phase-keyed `.pad`, `--shot-at`, `--aspect`, `--dump-at`), `tools/ts2_route.py`
-and `tools/verify_route.py` (exact-frame pad routes), and `tools/verify_movement.py` (gameplay judged
-from guest RAM). None of them are part of the gate.
+and `tools/verify_route.py` (exact-frame pad routes), with gameplay judged from guest RAM through
+`tools/ts2_guest_words.py` over a recorded `replays/*.pad`. None of them are part of the gate.
 
 Game files, extracted executables, build products, and runtime captures are not tracked or packaged.

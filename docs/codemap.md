@@ -34,10 +34,10 @@ that is not in this table does not belong to this title.
 |---|---|---|
 | `ts2` | `TitleSession` | One boot-to-exit run: self-provision the executable from the disc, bring up the peripherals in binding order, register overrides, enter the native boot, and tear everything down by destruction. |
 | `ts2` | `kDefaultExe`, `kDiscExePath` | The executable name SYSTEM.CNF boots and the disc path it is extracted from. |
-| `ts2` | `initializeGuestMain`, `finishGuestMainBoot` | Run the measured initialization prefix of guest main `0x8007A9E8` and then its overlay initialization, and stop before the non-returning guest outer loop, which `ts2::stepOuterLoop` owns. |
-| `ts2` | `installNativeSyncOverrides` | Install the graphics-init, resident-graphics-init, graphics-shutdown and field-barrier replacements (`0x8003A218`, `0x80039D9C`, `0x8003A838`, `0x8003FA68`): the same guest state transitions with no guest-owned VSync. |
+| `ts2` | `GuestMainBoot` | Run the measured initialization prefix of guest main `0x8007A9E8` (`initialize`) and then its overlay initialization (`finishOverlayInitialization`), stopping before the non-returning guest outer loop, which `ts2::stepOuterLoop` owns. |
+| `ts2` | `GraphicsSync` | `install` the graphics-init, resident-graphics-init, graphics-shutdown and field-barrier replacements (`0x8003A218`, `0x80039D9C`, `0x8003A838`, `0x8003FA68`): the same guest state transitions with no guest-owned VSync. |
 | `ts2` | `LevelStartPresentation` | Arm or retire the `0x8007C278` override per level start from the demo flag the guest's own guard reads, and suppress only the demo-forced LOADING card. |
-| `ts2` | `demoGuardForcesLoadingCard`, `levelStartPresentationAddress`, `levelStartFirstPresentationEntry` | The demo-guard decision, its guest address, and the override entry point. |
+| `ts2` | `LevelStartPresentation::demoGuardForcesLoadingCard`, `levelStartPresentationAddress`, `levelStartFirstPresentationEntry` | The demo-guard decision, its guest address, and the override entry point. |
 
 ### `game/frame/` — the frame turn
 
@@ -62,6 +62,7 @@ that is not in this table does not belong to this title.
 | `ts2` | `callGuestToReturn`, `callFiniteGuestToReturn`, `executeFiniteGuestCall` | Bounded guest calls that must return: one turn, or a bounded number of resumed turns for a finite initialization transaction. |
 | `ts2` | `ResumableGuestCall` | One guest call that spans display fields or host slices: `begin`, `advance` to the next field boundary / host slice / return, `result`, `abandon`. |
 | `ts2` | `callOriginalToReturn`, `callOriginalToReturnResuming` | Run a guest body that a native override replaced, once, or resumed across bounded turns. |
+| `ts2` | `guestString` | The one reader for a NUL-terminated string out of guest RAM, bounded by the longest name this title's guest spells. |
 | `ts2` | `installResidentOverride` | Register one image-scoped native override, refusing when the resident image identity is unavailable. |
 | `ts2` | `kFiniteInitializationSliceLimit`, `kResidentUpdateSliceLimit` | The slice bounds an asset decode and a resident update may take before they fail closed. |
 
@@ -76,23 +77,21 @@ that is not in this table does not belong to this title.
 | Namespace | Owner | Responsibility |
 |---|---|---|
 | `ts2` | `ToyStory2Runtime` | The `GameRuntime` the framework runs: every measured fact group, the render capabilities, the fps60 presenter, the widescreen policy, the frame driver, the input phase, and the registration of every resident override. |
-| `ts2` | `ToyStory2Context` | The per-`Core` title state: overlay images, camera and scene histories, projection scopes, the resident widening, and the level-start presentation. |
+| `ts2` | `ToyStory2Context` | Everything one `Core` owns, in the order a run reaches it: the boot owners, the code images and sound banks, the pad and the movie player, the camera/scene histories, the projection scopes and the resident widening. `ToyStory2Runtime::registerOverrides` calls each owner's `install` here. |
 | `ts2` | `context(Core&)` | The one accessor for that per-`Core` state; refuses a Core with no context. |
 
 ### `game/input/` — host input
 
 | Namespace | Owner | Responsibility |
 |---|---|---|
-| `ts2` | `initializeNativePad`, `shutdownNativePad`, `decodeNativeDigitalPad`, `serviceNativePad` | The native pad owner: publish the host packet into the retail slot buffers (`0x800CF8A0`, `0x800CF8C8`) once per frame, and answer the guest's decode from that buffer. |
-| `ts2` | `installNativePadOverrides` | Install the pad-init, pad-shutdown and digital-pad-decode overrides. |
+| `ts2` | `PadOwner` | The native pad owner: `service` publishes the host packet into the retail slot buffers (`0x800CF8A0`, `0x800CF8C8`) once per frame, `decode` answers the guest's decode from that buffer, `initialize`/`shutdown` are the ends of the guest's pad lifetime, and `install` registers the three overrides. |
 | `ts2` | `InputPhase` | The phase a pad recording is keyed on: four guest words that hold still while the screen that owns them is up, packed into the key `GameRuntime::inputPhase` returns. |
 
 ### `game/cd/` — loading and CD facts
 
 | Namespace | Owner | Responsibility |
 |---|---|---|
-| `ts2::cd` | `FileTransfer` | Answer the guest's whole-file read (`0x80082608`) from the authenticated disc image, or refuse it with a reason and transfer nothing. |
-| `ts2::cd` | `installFileTransferOverride` | Install the whole-file read and the bounded retry policy in its caller (`0x80082728`). |
+| `ts2::cd` | `FileTransfer` | Answer the guest's whole-file read (`0x80082608`) from the authenticated disc image, or refuse it with a reason and transfer nothing; `FileTransfer::install` registers it and the bounded retry policy in its caller (`0x80082728`). |
 | `ts2::cd` | `StockLibcdLayout`, `kStockLibcdLayout` | The identity-checked stock-libcd entry points and state the title configuration and its boundary test consume. |
 | `ts2::cd` | `StrCompletionLayout`, `kStrCompletionLayout`, `kFmvWaitEntry`, `kFmvWaitRetries` | The STR ring state the FMV player blocks on, and the FMV overlay's own bounded wait. |
 
@@ -102,21 +101,20 @@ that is not in this table does not belong to this title.
 |---|---|---|
 | `ts2` | `OverlaySlot` | The code-image owner of one fixed guest-RAM slot: authenticate the disc source and the transferred bytes, publish one image identity, retire with translated-code invalidation over the slot window. |
 | `ts2` | `OverlayModule` | One retail file the loader places in a slot: guest spelling, disc location, exact byte count and SHA-256. |
-| `ts2` | `OverlayImages` | Both slots (LEVEL `0x800D12C0`, shared MEMORY/FMV `0x800D5D20`) and the slot a load destination fills. |
-| `ts2` | `installOverlayLoadObserver` | Observe the retail file loader (`0x80082508`), run the original, then authenticate, publish or retire the slot it filled. |
+| `ts2` | `OverlayImages` | Both slots (LEVEL `0x800D12C0`, shared MEMORY/FMV `0x800D5D20`), the slot a load destination fills, and `installLoadObserver`: observe the retail file loader (`0x80082508`), run the original, then authenticate, publish or retire the slot it filled. |
 | `ts2` | `LevelSlotImage`, `SharedSlotImage` | The retail module tables for the two slots. |
 
 ### `game/audio/` — sound banks
 
 | Namespace | Owner | Responsibility |
 |---|---|---|
-| `ts2::audio` | `installSoundBankProcessorOverride` | Run the guest's own VAB bank routine (`0x8007F108`) through the framework's bounded resume loop, so its size assertion costs bounded display fields and ends as a named refusal. |
+| `ts2::audio` | `SoundBankProcessor` | `install` the guest's own VAB bank routine (`0x8007F108`) to run through the framework's bounded resume loop, so its size assertion costs bounded display fields and ends as a named refusal. |
 
 ### `game/fmv/` — movies
 
 | Namespace | Owner | Responsibility |
 |---|---|---|
-| `ts2::fmv` | `installGuestMoviePlayer` | Replace the FMV overlay's own streaming player (`0x800D7088`) with psxport's native player, scoped to the FMV image generation: one movie frame per host turn, and exactly the retail return value (0 at end, the cold-start word on a skip). |
+| `ts2::fmv` | `GuestMoviePlayer` | `install` the replacement for the FMV overlay's own streaming player (`0x800D7088`), scoped to the FMV image generation: one movie frame per host turn, and exactly the retail return value (0 at end, the cold-start word on a skip). |
 
 ### `game/widescreen/` — 16:9
 
@@ -130,8 +128,7 @@ that is not in this table does not belong to this title.
 
 | Namespace | Owner | Responsibility |
 |---|---|---|
-| `ts2` | `ResidentSceneHistory`, `ResidentSceneFrame` | Capture the guest's own visibility batches (`0x8002622C`) and mesh submissions (`0x800100E4`) per frame, decoded, as the input a future native producer would read. |
-| `ts2` | `installResidentSceneObservationOverrides` | Install the observation wrappers that record those arguments without changing guest state. |
+| `ts2` | `ResidentSceneHistory`, `ResidentSceneFrame` | `install` the observation wrappers that record the guest's own visibility batches (`0x8002622C`) and mesh submissions (`0x800100E4`) per frame, decoded, without changing guest state — the input a future native producer would read. |
 | `ts2` | `ResidentMeshLayout`, `ResidentMeshVertex`, `ResidentMeshCommand`, `ResidentMeshPrimitive`, `ResidentMeshCommandSummary`, `ResidentMeshMaterialState`, `ResidentMeshDescriptorSample`, `ResidentMeshMaterialCensus` | The checked source layout and command walk of one resident mesh. |
 | `ts2` | `decodeResidentMeshLayout`, `decodeResidentMeshVertex`, `decodeResidentMeshCommand`, `decodeResidentMeshPrimitive`, `summarizeResidentMeshCommands` | Those decoders. |
 | `ts2::render` | `readResidentView` | The camera the GUEST publishes at the GTE addresses (`0x1F800384`, `0x1F800394`), as the view a time between two fields is built from. |
@@ -141,16 +138,15 @@ that is not in this table does not belong to this title.
 | Namespace | Owner | Responsibility |
 |---|---|---|
 | `ts2::render` | `ResidentTemporalSource` | Declare whether the frame about to be presented continues the previous one; a cut or a level start publishes a real frame. |
-| `ts2::render` | `ResidentProjectionScopes` | Which guest call is which producer instance, keyed by what the guest itself uses to tell its instances apart (slot-table pointer, first argument, or occurrence in the field). |
-| `ts2::render` | `installResidentProjectionScopes` | Install the scope-opening observers for the modelled producers. |
+| `ts2::render` | `ResidentProjectionScopes` | Which guest call is which producer instance, keyed by what the guest itself uses to tell its instances apart (slot-table pointer, first argument, or occurrence in the field); `install` the scope-opening observers for the modelled producers. |
 | `ts2` | `ResidentCameraHistory`, `ResidentCameraSample`, `InterpolatedResidentCamera` | The authored camera the guest publishes, its previous/current pair, whether the field continues, and the interpolation between them. |
 
 ### `tools/`, `tests/`, `cmake/`
 
 | Path | Responsibility |
 |---|---|
-| `tools/` | Modular Python owners: the launcher (`run.py`, `psxport_fetch.py`), the gameplay controls (`headless_run.py`, `ts2_route.py`, `verify_route.py`, `verify_movement.py`, `ts2_guest_words.py`, `execution_ledger.py`) and the binary/asset evidence extractors (`extract_exe.py`, `overlay_map.py`, `ghidra_xref.py`, `re_xref.py`, `ram_image.py`, `raw_probe.py`, `raw_unpack.py`, `discdump.py`, `resolve_disc.py`, `re_frontier.py`). |
-| `tests/` | The hermetic C++ boundaries: projection publication, stock libcd, the frame driver, title execution, the level-start card. They exercise the shipping owners through a seam and never reimplement them. |
+| `tools/` | Modular Python owners: the launcher (`run.py`, `psxport_fetch.py`), the gameplay controls (`headless_run.py`, `ts2_route.py`, `verify_route.py`, `ts2_guest_words.py`, `execution_ledger.py`) and the binary/asset evidence extractors (`extract_exe.py`, `overlay_map.py`, `ghidra_xref.py`, `re_xref.py`, `ram_image.py`, `raw_probe.py`, `raw_unpack.py`, `discdump.py`, `resolve_disc.py`, `re_frontier.py`). |
+| `tests/` | The hermetic C++ boundaries: `toystory2_projection_boundary` (projection publication), `toystory2_cd_hle_boundary` (stock libcd), `frame_turn_boundary.cpp` (the per-field order, the outer-loop sequencing, the runtime factories), `resident_producers_boundary.cpp` (the pad owner, the authored camera, the mesh observation), `toystory2_execution_boundary` (title execution) and `toystory2_level_start_card_boundary`. They exercise the shipping owners through a seam and never reimplement them. |
 | `cmake/toystory2_port.cmake`, `CMakeLists.txt` | The title source list, the include root (`game`), and the CTest surface. |
 
 ## Who owns it
@@ -167,9 +163,9 @@ that is not in this table does not belong to this title.
 ### Host input → guest pad buffer
 
 - psxport's `Pad` reads the host keyboard/controller and is serviced once per frame by `ResidentFrameBoundary::sampleInput` → `core.game->pad.serviceFrame()`.
-- The same step calls `ts2::serviceNativePad(Core&)`, which fills the retail slot buffers `0x800CF8A0` / `0x800CF8C8` through `Pad::fillBuffer`.
-- The guest reads that buffer through its own `0x8003AC58`, which `installNativePadOverrides` replaces with `ts2::decodeNativeDigitalPad` (active-low, release `0xFF`).
-- **Movie skip**: a Start press travels the ordinary pad path above; psxport's native FMV owner resolves it and the title's `moviePlayerOverride` returns the cold-start word `0x800A1670`, which ends the remaining intro movies.
+- The same step calls `ts2::PadOwner::service(Core&)`, which fills the retail slot buffers `0x800CF8A0` / `0x800CF8C8` through `Pad::fillBuffer`.
+- The guest reads that buffer through its own `0x8003AC58`, which `PadOwner::install` replaces with `PadOwner::decode` (active-low, release `0xFF`).
+- **Movie skip**: a Start press travels the ordinary pad path above; psxport's native FMV owner resolves it and the title's `GuestMoviePlayer` override returns the cold-start word `0x800A1670`, which ends the remaining intro movies.
 - **The debug control channel** (loopback, always open) drives host input through psxport's own pad path, so a channel-injected press is the same press a player makes.
 - **Replay phase**: `ts2::InputPhase::of(Core&)` packs four still guest words into the key `ToyStory2Runtime::inputPhase` returns, so a recording's presses are offsets from the screen that owns them.
 
@@ -183,7 +179,7 @@ that is not in this table does not belong to this title.
 
 ### CD and streaming
 
-- The guest's own file loader (`0x80082508`) runs through `installOverlayLoadObserver`, which authenticates the disc source and the transferred bytes, publishes or retires the slot identity, and installs the FMV player when the shared slot published FMV.
+- The guest's own file loader (`0x80082508`) runs through `OverlayImages::installLoadObserver`, which authenticates the disc source and the transferred bytes, publishes or retires the slot identity, and installs the FMV player when the shared slot published FMV.
 - A whole-file read is answered by `ts2::cd::FileTransfer::transfer` from the authenticated disc image, with the retry policy in its caller bounded.
 - Asset decodes (`0x8003D88C` → `0x80021190`) run inside `callFiniteGuestToReturn` on the initialization bound; a sound-bank processor that reaches its assertion is bounded by `callOriginalToReturnResuming`.
 

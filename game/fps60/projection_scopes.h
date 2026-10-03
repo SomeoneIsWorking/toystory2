@@ -29,6 +29,11 @@ namespace ts2::render {
 
 class ResidentProjectionScopes {
 public:
+  // Install the scope-opening observers on the producers above other than 0x800100E4, whose override
+  // belongs to the resident scene observer (render/scene_history.cpp), which opens the mesh scope
+  // itself.
+  void install(Core &core);
+
   // The two producers that write an instance's faces into its own persistent packet slots, and the
   // guest's per-instance slot-table pointer their callers publish before each call.
   static constexpr std::uint32_t kMeshSubmitter = 0x800100E4u;
@@ -52,9 +57,5 @@ public:
 private:
   std::unordered_map<std::uint64_t, std::uint32_t> occurrences_;
 };
-
-// Install scope-opening observers on the producers above other than 0x800100E4, whose override belongs
-// to the resident scene observer (resident_scene_history.cpp), which opens the mesh scope itself.
-void installResidentProjectionScopes(Core &core);
 
 } // namespace ts2::render

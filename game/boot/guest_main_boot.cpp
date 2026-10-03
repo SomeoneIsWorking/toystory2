@@ -38,7 +38,7 @@ void callGuest(Core &core, uint32_t address, uint32_t returnAddress, uint32_t a0
 
 } // namespace
 
-void initializeGuestMain(Core &core) {
+void GuestMainBoot::initialize(Core &core) {
   // Preserve the guest main's live stack frame: the original never unwinds it because its outer loop
   // never returns. Finite title steps continue using the same guest stack below this frame.
   core.r[29] -= 48;
@@ -76,7 +76,7 @@ void initializeGuestMain(Core &core) {
                kGuestMain);
 }
 
-void finishGuestMainBoot(Core &core) {
+void GuestMainBoot::finishOverlayInitialization(Core &core) {
   // MEMORY initialization may use the measured field barrier. It therefore begins only inside a
   // finite host frame, after the shell has delivered this title's field quota.
   callGuest(core, kLoadMemoryOverlay, 0x8007AABCu);

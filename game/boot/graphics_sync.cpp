@@ -26,6 +26,25 @@ constexpr uint32_t kElapsedFields = 0x800A1174u;
 constexpr uint32_t kFieldAccumulator = 0x800A14D4u;
 constexpr uint32_t kDeferredDisplayRequest = 0x800A10F8u;
 
+// The guest register file, saved and restored around one native graphics owner. These routines are
+// the guest's own bodies driven through guest calls, so the caller-saved registers the guest expects
+// back are the ones they must hand back untouched.
+class GuestRegisters {
+public:
+  explicit GuestRegisters(Core &core) : core_(core) {
+    std::copy(std::begin(core.r), std::end(core.r), saved_.begin());
+  }
+  ~GuestRegisters() {
+    std::copy(saved_.begin(), saved_.end(), std::begin(core_.r));
+  }
+  GuestRegisters(const GuestRegisters &) = delete;
+  GuestRegisters &operator=(const GuestRegisters &) = delete;
+
+private:
+  Core &core_;
+  std::array<uint32_t, 32> saved_{};
+};
+
 void dispatchGuest(Core &core,
                    uint32_t address,
                    uint32_t a0 = 0,
@@ -58,8 +77,7 @@ void selectGraphicsBuffer(Core &core, uint32_t firstChoice) {
 }
 
 void initializeGraphicsWithoutGuestVSync(Core *core) {
-  std::array<uint32_t, 32> savedRegisters{};
-  std::copy(std::begin(core->r), std::end(core->r), savedRegisters.begin());
+  const GuestRegisters registers(*core);
   core->r[29] -= 64;
   const uint32_t rect = core->r[29] + 24;
 
@@ -123,16 +141,13 @@ void initializeGraphicsWithoutGuestVSync(Core *core) {
   core->mem_w32(0x800A13F0u, bufferASelected ? 0x801C5A20u : 0x801E6F14u);
   core->mem_w32(0x800A142Cu, bufferASelected ? 0x801E6F14u : 0x801C5A20u);
   core->mem_w32(0x800A14B4u, 0);
-
-  std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core->r));
 }
 
 void completeOwnedFieldBarrier(Core *core) {
   // 0x8003FA68 is reached only inside a finite title update after the shell has delivered fields.
   // Publish its measured RAM postcondition without dispatching guest VBlank or presenting again.
   const uint32_t requested = core->r[4];
-  std::array<uint32_t, 32> savedRegisters{};
-  std::copy(std::begin(core->r), std::end(core->r), savedRegisters.begin());
+  const GuestRegisters registers(*core);
   const bool yieldsToHost = context(*core).yieldAtFieldBarrier;
   const uint32_t elapsed = yieldsToHost ? requested : std::min(core->mem_r32(kElapsedFields), 4u);
   if (elapsed < requested) {
@@ -148,7 +163,6 @@ void completeOwnedFieldBarrier(Core *core) {
     lucent::error("ts2-frame", "native field barrier did not receive deferred-display acknowledgement");
     std::abort();
   }
-  std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core->r));
   if (yieldsToHost) {
     psx::cpu::requestExecutionExit(*core, psx::cpu::ExecutionExitReason::FrameBoundary);
   }
@@ -158,8 +172,7 @@ void completeOwnedFieldBarrier(Core *core) {
 // initializer publishes, driven through the same libgpu leaves, with the display fields the host
 // frame owner supplied instead of the ones this routine used to wait for.
 void initializeResidentGraphicsWithoutGuestVSync(Core &core) {
-  std::array<uint32_t, 32> savedRegisters{};
-  std::copy(std::begin(core.r), std::end(core.r), savedRegisters.begin());
+  const GuestRegisters registers(core);
   core.r[29] -= 72;
   const uint32_t rect = core.r[29] + 24;
   const auto setRect = [&](uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
@@ -242,8 +255,6 @@ void initializeResidentGraphicsWithoutGuestVSync(Core &core) {
   core.mem_w32(0x800A13F0u, bufferASelected ? 0x801C5A20u : 0x801E6F14u);
   core.mem_w32(0x800A142Cu, bufferASelected ? 0x801E6F14u : 0x801C5A20u);
   core.mem_w32(0x800A14B4u, 1);
-
-  std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core.r));
 }
 
 void initializeResidentGraphicsOverride(Core *core) {
@@ -251,8 +262,7 @@ void initializeResidentGraphicsOverride(Core *core) {
 }
 
 void shutdownGraphicsWithoutGuestVSync(Core *core) {
-  std::array<uint32_t, 32> savedRegisters{};
-  std::copy(std::begin(core->r), std::end(core->r), savedRegisters.begin());
+  const GuestRegisters registers(*core);
 
   // Retail 0x8003A838 drains the synchronous GPU twice, waits two fields, removes the graphics
   // callback, shuts pad communication down, and resets libgpu. The native frame owner has already
@@ -260,15 +270,13 @@ void shutdownGraphicsWithoutGuestVSync(Core *core) {
   dispatchGuest(*core, 0x80085A54u, 0);
   dispatchGuest(*core, 0x80085A54u, 0);
   dispatchGuest(*core, 0x80088920u);
-  shutdownNativePad(*core);
+  context(*core).pad.shutdown(*core);
   dispatchGuest(*core, 0x80085594u, 3);
-
-  std::copy(savedRegisters.begin(), savedRegisters.end(), std::begin(core->r));
 }
 
 } // namespace
 
-void installNativeSyncOverrides(Core &core) {
+void GraphicsSync::install(Core &core) {
   installResidentOverride(core, 0x8003A218u, "graphics-init", initializeGraphicsWithoutGuestVSync);
   installResidentOverride(core, 0x80039D9Cu, "resident-graphics-init", initializeResidentGraphicsOverride);
   installResidentOverride(core, 0x8003A838u, "graphics-shutdown", shutdownGraphicsWithoutGuestVSync);
