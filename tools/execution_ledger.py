@@ -35,6 +35,15 @@ def parse(text: str) -> Ledger:
     return found
 
 
+def is_ledger_line(line: str) -> bool:
+    """Whether `line` carries a ledger group. The one answer to that question: a consumer that wants
+    to show the ledger shows exactly the lines this grammar accepts, never a looser pattern of its own."""
+    if RUN_END in line:
+        line = line.split(RUN_END, 1)[1]
+    name, separator, _ = line.partition(":")
+    return bool(separator) and name.strip() in GROUPS
+
+
 def render(ledger: Ledger) -> list[str]:
     return [f"{group}: " + " ".join(f"{key}={value}" for key, value in ledger[group].items()) for group in GROUPS]
 

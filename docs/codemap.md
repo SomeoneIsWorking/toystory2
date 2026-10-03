@@ -129,6 +129,7 @@ that is not in this table does not belong to this title.
 | Namespace | Owner | Responsibility |
 |---|---|---|
 | `ts2` | `ResidentSceneHistory`, `ResidentSceneFrame` | `install` the observation wrappers that record the guest's own visibility batches (`0x8002622C`) and mesh submissions (`0x800100E4`) per frame, decoded, without changing guest state — the input a future native producer would read. |
+| `ts2` | `ResidentSceneSubmissionBatch`, `ResidentSceneCandidate`, `ResidentMeshSubmission` | One frame's decoded observations: each visibility batch the guest submitted, the candidate it names in that batch, and the mesh each candidate submits. |
 | `ts2` | `ResidentMeshLayout`, `ResidentMeshVertex`, `ResidentMeshCommand`, `ResidentMeshPrimitive`, `ResidentMeshCommandSummary`, `ResidentMeshMaterialState`, `ResidentMeshDescriptorSample`, `ResidentMeshMaterialCensus` | The checked source layout and command walk of one resident mesh. |
 | `ts2` | `decodeResidentMeshLayout`, `decodeResidentMeshVertex`, `decodeResidentMeshCommand`, `decodeResidentMeshPrimitive`, `summarizeResidentMeshCommands` | Those decoders. |
 | `ts2::render` | `readResidentView` | The camera the GUEST publishes at the GTE addresses (`0x1F800384`, `0x1F800394`), as the view a time between two fields is built from. |
@@ -145,7 +146,7 @@ that is not in this table does not belong to this title.
 
 | Path | Responsibility |
 |---|---|
-| `tools/` | Modular Python owners: the launcher (`run.py`, `psxport_fetch.py`), the gameplay controls (`headless_run.py`, `ts2_route.py`, `verify_route.py`, `ts2_guest_words.py`, `execution_ledger.py`) and the binary/asset evidence extractors (`extract_exe.py`, `overlay_map.py`, `ghidra_xref.py`, `re_xref.py`, `ram_image.py`, `raw_probe.py`, `raw_unpack.py`, `discdump.py`, `resolve_disc.py`, `re_frontier.py`). |
+| `tools/` | Modular Python owners: the launcher (`run.py`, `psxport_fetch.py`), the gameplay controls (`headless_run.py`, `ts2_route.py`, `verify_route.py`, `ts2_guest_words.py`, `execution_ledger.py`), the gate (`verify.py`), and the binary/asset evidence extractors (`extract_exe.py`, `extract_disc_files.py`, `overlay_map.py`, `ghidra_xref.py`, `re_xref.py`, `ram_image.py`, `raw_probe.py`, `raw_unpack.py`, `discdump.py`, `resolve_disc.py`, `re_frontier.py`). |
 | `tests/` | The hermetic C++ boundaries: `toystory2_projection_boundary` (projection publication), `toystory2_cd_hle_boundary` (stock libcd), `frame_turn_boundary.cpp` (the per-field order, the outer-loop sequencing, the runtime factories), `resident_producers_boundary.cpp` (the pad owner, the authored camera, the mesh observation), `toystory2_execution_boundary` (title execution) and `toystory2_level_start_card_boundary`. They exercise the shipping owners through a seam and never reimplement them. |
 | `cmake/toystory2_port.cmake`, `CMakeLists.txt` | The title source list, the include root (`game`), and the CTest surface. |
 
@@ -158,11 +159,14 @@ that is not in this table does not belong to this title.
 - `ts2::stepResidentFrame` runs the measured order through `ResidentFrameBoundary`: `displayFieldQuota`, `beginLogicFrame`, `sampleInput`, `tickDisplayField` × quota, `serviceDeferredDisplay`, `updateResidentGame`, `advanceAudio`, `present`.
 - `updateResidentGame` is `ts2::stepOuterLoop(OuterLoopState&, OuterLoopBoundary&)`, which performs ONE finite title operation per call and records the next `OuterLoopPhase`.
 - A guest call that must return goes through `ts2::callGuestToReturn` / `ts2::callFiniteGuestToReturn`.
-- **While a movie or a loading call blocks**: the driver's `FrameCallState::fieldCall()` holds one `ts2::ResumableGuestCall`. The guest's own field barrier (`0x8003FA68`, owned by `installNativeSyncOverrides`) publishes the elapsed fields and then exits the executor with `FrameBoundary`, so the turn comes back to `ResumableGuestCall::advance` as `Progress::fieldBoundary`; the native movie player (`game/fmv`) exits with `CooperativeYield` instead, which is `Progress::hostSlice`. Either way `stepOuterLoop` returns, the host presents that field, and the call is resumed at the same guest PC on the next step. Host input is pumped once per turn by `sampleInput`, so a blocking movie never stops the pad, the control channel or the window's events.
+- **While a movie or a loading call blocks**: the driver's `FrameCallState::fieldCall()` holds one `ts2::ResumableGuestCall`. The guest's own field barrier (`0x8003FA68`, owned by `GraphicsSync::install`) publishes the elapsed fields and then exits the executor with `FrameBoundary`, so the turn comes back to `ResumableGuestCall::advance` as `Progress::fieldBoundary`; the native movie player (`game/fmv`) exits with `CooperativeYield` instead, which is `Progress::hostSlice`. Either way `stepOuterLoop` returns, the host presents that field, and the call is resumed at the same guest PC on the next step. Host input is pumped once per turn by `sampleInput`, so a blocking movie never stops the pad, the control channel or the window's events.
 
 ### Host input → guest pad buffer
 
-- psxport's `Pad` reads the host keyboard/controller and is serviced once per frame by `ResidentFrameBoundary::sampleInput` → `core.game->pad.serviceFrame()`.
+- psxport's `psx::input::HostInput` is the ONE owner of host input: it drains the SDL event queue, holds the
+  delivered key state and the open controllers, and latches the P / `.` debug edges. `Pad` consumes its
+  mask through `Pad::pollHostInput`, the one pump every site calls.
+- The pump is serviced once per frame by `ResidentFrameBoundary::sampleInput` → `core.game->pad.serviceFrame()`.
 - The same step calls `ts2::PadOwner::service(Core&)`, which fills the retail slot buffers `0x800CF8A0` / `0x800CF8C8` through `Pad::fillBuffer`.
 - The guest reads that buffer through its own `0x8003AC58`, which `PadOwner::install` replaces with `PadOwner::decode` (active-low, release `0xFF`).
 - **Movie skip**: a Start press travels the ordinary pad path above; psxport's native FMV owner resolves it and the title's `GuestMoviePlayer` override returns the cold-start word `0x800A1670`, which ends the remaining intro movies.
@@ -173,8 +177,8 @@ that is not in this table does not belong to this title.
 
 - The guest's renderer writes its ordering table and packets; psxport's GTE path rasterizes the captured GP0 stream.
 - **Real field**: `ResidentFrameBoundary::present` → `Game::presentation::commit(core, guestFields, temporal)`.
-- **60 fps in-between**: the same `commit` hands the frame to `ts2::render::ResidentTemporalSource` (created in `ToyStory2Runtime::createTemporalFramePresentation`), which pairs vertices through the scopes opened by `installResidentProjectionScopes` and only pairs a frame `ResidentCameraHistory::continuous` accepts.
-- **Widescreen**: `ResidentFrameBoundary::tickDisplayField` calls `ResidentWidescreenProjection::syncToGuestDisplay` + `beginField` before the guest transforms this field's vertices; `present` calls `presentField` after the update and before rasterization, so the captured stream is rasterized into and presented from the same canvas. Every one of those is a no-op unless `ResidentWidescreenProjection::active`.
+- **60 fps in-between**: the same `commit` hands the frame to `ts2::render::ResidentTemporalSource` (created in `ToyStory2Runtime::createTemporalFramePresentation`), which pairs vertices through the scopes opened by `render::ResidentProjectionScopes::install` and only pairs a frame `ResidentCameraHistory::continuous` accepts.
+- **Widescreen**: `ResidentFrameBoundary::tickDisplayField` calls `ResidentWidescreenProjection::syncToGuestDisplay` + `beginField` before the guest transforms this field's vertices; `present` calls `presentField` after the update and before rasterization, so the captured stream is rasterized into and presented from the same canvas. The plan itself is the framework's `gpu_vk_latch_guest_projection`, and whether there is a window to present to is `gpu_vk_windowed()` (declared once in `gpu_vk.h`), which the title never calls: the same code path serves the windowed player and the headless `PSXPORT_PRESENT_SINK` sink. Every one of those is a no-op unless `ResidentWidescreenProjection::active`.
 - **Front-end screens** (title, level map, movies) present at their authored width: `syncToGuestDisplay` is told the host is not on the resident leg, and the plan is retired.
 
 ### CD and streaming

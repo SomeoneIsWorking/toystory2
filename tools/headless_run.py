@@ -36,11 +36,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from execution_ledger import Ledger, parse as parse_ledger, render as render_ledger
-from ts2_route import Tap, compile_pad, parse_tap
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from execution_ledger import Ledger, is_ledger_line, parse as parse_ledger, render as render_ledger  # noqa: E402
+from resolve_disc import resolve as resolve_disc  # noqa: E402
+from ts2_route import Tap, compile_pad, parse_tap  # noqa: E402
+
 FRAMEWORK = ROOT / "external" / "psxport"
 SCRATCH = ROOT / "scratch" / "headless"
 SETTINGS_4X3 = ROOT / "config" / "aspect_4x3.ini"
@@ -58,7 +60,6 @@ DEFAULT_ICD = "/usr/share/vulkan/icd.d/radeon_icd.x86_64.json"
 
 PRESENT_LINE = re.compile(r"present_shot|\[shot\]|present-shot", re.IGNORECASE)
 EXIT_LINE = re.compile(r"frame driver required|native boot returned|REFUSED|abort|fault", re.IGNORECASE)
-LEDGER_LINE = re.compile(r"\[guest\] run-end:|lightrec|translated|fallback", re.IGNORECASE)
 
 
 class StopWatch:
@@ -141,7 +142,7 @@ def summarize(log_text: str) -> dict[str, list[str]]:
             summary["shots"].append(line)
         elif EXIT_LINE.search(line):
             summary["exit"].append(line)
-        elif LEDGER_LINE.search(line):
+        elif is_ledger_line(line):
             summary["ledger"].append(line)
     return summary
 
@@ -250,14 +251,9 @@ def run(plan: RunPlan, base: dict[str, str]) -> int:
 
 
 def default_disc() -> str:
-    """The disc named by PSXPORT_TS2_DISC in the environment, else in the repo's gitignored `.env`."""
-    disc = os.environ.get("PSXPORT_TS2_DISC", "")
-    env_file = ROOT / ".env"
-    if not disc and env_file.is_file():
-        for line in env_file.read_text().splitlines():
-            if line.startswith("PSXPORT_TS2_DISC="):
-                disc = line.split("=", 1)[1].strip().strip('"')
-    return disc
+    """The disc, resolved by tools/resolve_disc.py — the one implementation of that question. A run
+    with no disc raises SystemExit(2) from there, naming every source it tried."""
+    return resolve_disc()
 
 
 def main() -> int:

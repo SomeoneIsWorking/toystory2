@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
-"""ts2_route.py — Toy Story 2 pad routes as EXACT-FRAME input schedules.
+"""ts2_route.py — the one owner of an EXACT-FRAME pad schedule: taps in, psxport `.pad` bytes out.
 
-A route is a list of taps `FRAME:BUTTON[:HOLD]`, where FRAME is a PAD FRAME: the index of the host
-logic frame whose `Pad::serviceFrame` resolves the controller mask the guest receives (one per
-`stepFrame`, counted from boot). The schedule is compiled into psxport's own replay file
-(`PSXPORT_PAD_REPLAY`), which the framework applies inside `serviceFrame` after every other input
-source. Nothing is polled against wall-clock time, so a tap lands on its frame on every run.
+A tap is `FRAME:BUTTON[:HOLD]`, where FRAME is a PAD FRAME: the index of the host logic frame whose
+`Pad::serviceFrame` resolves the controller mask the guest receives (one per `stepFrame`, counted from
+boot). The schedule is compiled into psxport's own replay file (`PSXPORT_PAD_REPLAY`), which the
+framework applies inside `serviceFrame` after every other input source. Nothing is polled against
+wall-clock time, so a tap lands on its frame on every run. tools/headless_run.py takes `--tap` and
+does the compiling; this module is that grammar and nothing else.
 
-The file is psxport's v1 phase-keyed `.pad` container, written through the framework's own
-`tools/psx_pad.py` so the format has exactly one spelling. A tap is numbered from BOOT, which is not a
-phase-relative offset, so the route is written as ONE EXPLICITLY UNKEYED segment: the runtime replays
-an unkeyed segment absolutely from boot (the meaning these frame numbers have) and reports the card
-identity as unknown rather than borrowing a phase key the route never observed.
-
-    uv run --frozen python tools/ts2_route.py --route andys-room --write scratch/route/andys-room.pad
+AN EXACT-FRAME SCHEDULE IS ONLY CORRECT WHEN IT IS A LIVE PROBE. It assumes how many pad frames boot,
+the front end and the movies consume, so it stops being true the moment any of them changes: an
+absolute route that once walked to Andy's Room now stops at the intro movies (docs/issues/0044).
+Anything that must keep working over time is a RECORDED phase-keyed `.pad` under replays/, whose
+presses are offsets from the screen each was captured on. Use `--tap` to drive the product in one
+session; use a recording to judge.
 """
-
 from __future__ import annotations
 
-import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,32 +72,3 @@ def compile_pad(taps: tuple[Tap, ...], length: int) -> bytes:
             runs.append((value, 1))
     # card kind 0 = unknown: this route says nothing about the memory card it was measured against.
     return encode(0, bytes(32), [(UNKEYED_PHASE, runs)])
-
-
-# Named routes. Frames are PAD FRAMES from boot, measured on the retail disc: the four intro movies end
-# near pad frame 440, "PRESS START" blinks until the first tap, the story movie between the level-select
-# confirm and "PRESS X" ends before frame 780 (an opened capture shows the "LEVEL 1: ANDY'S HOUSE" card),
-# and Buzz's object exists in guest RAM from the "PRESS X" confirm on (tools/ts2_guest_words.py).
-TITLE_TO_ANDYS_ROOM: tuple[Tap, ...] = (
-    Tap(500, "start"),  # title "PRESS START"
-    Tap(560, "cross"),  # main menu: START GAME
-    Tap(620, "cross"),  # level select: Andy's House
-    Tap(790, "cross"),  # "LEVEL 1: ANDY'S HOUSE, PRESS X"
-)
-ROUTES: dict[str, tuple[Tap, ...]] = {"andys-room": TITLE_TO_ANDYS_ROOM}
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--route", choices=sorted(ROUTES))
-    parser.add_argument("--write", type=Path)
-    args = parser.parse_args()
-    if not args.route or not args.write:
-        parser.error("--route and --write are required")
-    taps = ROUTES[args.route]
-    args.write.write_bytes(compile_pad(taps, max(tap.end for tap in taps) + 1))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

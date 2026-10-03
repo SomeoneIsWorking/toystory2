@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 """verify_route.py — Toy Story 2's gameplay control check: title -> Andy's Room, exact and repeatable.
 
-Runs the named route (tools/ts2_route.py) through the headless product with pad edges delivered at exact
-pad frames, captures guest RAM and the presented picture at exact frames, and judges from GUEST STATE:
+Replays RECORDED phase-keyed input (replays/toystory2_player_andys_house_v2.pad) through the headless
+product, captures guest RAM and the presented picture at exact frames, and judges from GUEST STATE:
 
     uv run --frozen python tools/verify_route.py --route                 # reach Andy's Room, once
     uv run --frozen python tools/verify_route.py --determinism           # the same route twice, byte-compared
-    uv run --frozen python tools/verify_route.py --negative              # route minus its last tap must FAIL
+    uv run --frozen python tools/verify_route.py --negative              # before arrival, must FAIL
 
-`--route` passes only if Buzz's object exists in the dump taken after the route and every cited
-instruction of tools/ts2_guest_words.py matches that dump. `--negative` drops the "PRESS X" confirm and
-must report that Buzz does not exist, so the arrival predicate is shown to say no. `--determinism` runs
-the route twice and requires identical RAM-dump SHA-256s, identical picture SHA-256s and non-black pixel
-counts, and identical tap schedules.
+`--route` passes only if Buzz's object exists in the dump taken after the recording and every cited
+instruction of tools/ts2_guest_words.py matches that dump. `--negative` replays the same recording
+and judges it at a pad frame inside its first segment, before any press reaches the game, and must
+report that Buzz does not exist — so the arrival predicate is shown to say no, not to say yes to
+everything. `--determinism` runs the recording twice and requires identical RAM-dump
+SHA-256s, identical picture SHA-256s and non-black pixel counts.
+
+WHY A RECORDING, NOT AN ABSOLUTE-FRAME TAP TABLE. An unkeyed schedule assumes how many pad frames boot,
+the front end and the movies consume, and it stops being true the moment any of them changes: the
+absolute route that tools/ts2_route.py used to carry could not reach the room it named, because the
+native intro movies take the frames its taps were written against (docs/issues/0044). A phase-keyed recording is keyed to
+the screen each press was captured on, so it survives those changes.
 """
 
 from __future__ import annotations
@@ -28,15 +35,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import headless_run  # noqa: E402
+
 from execution_ledger import Ledger, parse as parse_ledger, render as render_ledger  # noqa: E402
 import ts2_guest_words as words  # noqa: E402
-from ts2_route import ROUTES, Tap  # noqa: E402
 
-ROUTE = "andys-room"
-ARRIVAL_FRAME = 900  # Buzz has been controllable since ~pad frame 800
-SHOT_FRAMES = (450, 780, 900)
-DUMP_FRAMES = (780, 900)
-RUN_FRAMES = 1000
+ROOT = headless_run.ROOT
+
+# The recording that plays Andy's House: 5 phase-keyed segments, 2400 recorded pad frames, so the run
+# must carry it well past the last press.
+ROUTE = ROOT / "replays" / "toystory2_player_andys_house_v2.pad"
+ARRIVAL_FRAME = 4000  # Buzz is live well before this; the frame the arrival judge reads
+SHOT_FRAMES = (2400, 3600, 4000)
+DUMP_FRAMES = (3600, 4000)
+RUN_FRAMES = 4400
+# The falsification frame: inside the recording's own first segment, before any press reaches the game,
+# so the same replay of the same recording must be judged as NOT arrived.
+BEFORE_ARRIVAL_FRAME = 1200
 NON_BLACK = re.compile(r"present_(\d+)\.png .*non-black (\d+)/(\d+)")
 # The ordinary end of a run must reach the RAII teardown. Both lines are emitted from DESTRUCTORS —
 # `disc_read_report(&disc, "disc hunk cache at shutdown")` from ~Game (runtime/psx/game.cpp) and
@@ -60,11 +74,11 @@ class Capture:
     dumps: dict[int, str]
     pictures: dict[int, str]
     non_black: dict[int, tuple[int, int]]
-    taps: tuple[str, ...]
+    recording: str
 
     def mismatches(self, other: "Capture") -> list[str]:
         found = []
-        for name in ("dumps", "pictures", "non_black", "taps"):
+        for name in ("dumps", "pictures", "non_black", "recording"):
             if getattr(self, name) != getattr(other, name):
                 found.append(f"{name}: {getattr(self, name)} != {getattr(other, name)}")
         return found
@@ -74,7 +88,7 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def collect(result: headless_run.RunResult, plan: headless_run.RunPlan) -> Capture:
+def collect(result: headless_run.RunResult, plan: headless_run.RunPlan, recording_name: str) -> Capture:
     """Hash what the run wrote; a requested capture that is absent is a refusal, not an empty entry."""
     screenshots = result.work / "scratch" / "screenshots"
     dumps = {}
@@ -87,8 +101,7 @@ def collect(result: headless_run.RunResult, plan: headless_run.RunPlan) -> Captu
     missing = set(plan.shots) - set(non_black)
     if missing:
         raise RuntimeError(f"the log reports no non-black count for presented frame(s) {sorted(missing)}")
-    taps = tuple(f"{t.button}:{t.frame}:{t.hold}" for t in plan.taps)
-    return Capture(dumps, pictures, non_black, taps)
+    return Capture(dumps, pictures, non_black, recording_name)
 
 
 def missing_teardown_lines(log_text: str) -> list[str]:
@@ -96,11 +109,12 @@ def missing_teardown_lines(log_text: str) -> list[str]:
     return [pattern.pattern for pattern in TEARDOWN_LINES if not pattern.search(log_text)]
 
 
-def execute_route(taps: tuple[Tap, ...], binary: Path, frames: int, shots: tuple[int, ...],
+def execute_route(recording: Path, binary: Path, frames: int, shots: tuple[int, ...],
                   dump_at: tuple[int, ...]) -> tuple[headless_run.RunResult, headless_run.RunPlan]:
-    """One headless run of `taps` that must exit cleanly with its whole pad schedule consumed."""
+    """One headless run of a recorded phase-keyed replay that must exit cleanly with the whole
+    recording consumed."""
     plan = headless_run.RunPlan(binary=binary, frames=frames, shots=shots, dump_at=dump_at, debug="",
-                                timeout=300, disc=headless_run.default_disc(), taps=taps)
+                                timeout=300, disc=headless_run.default_disc(), pad=recording)
     result = headless_run.execute(plan, dict(os.environ))
     if result.code != 0:
         raise RuntimeError(f"the product exited {result.code}; log {result.log}")
@@ -126,10 +140,11 @@ class RouteRun:
     ledger: Ledger
 
 
-def run_once(taps: tuple[Tap, ...], binary: Path) -> RouteRun:
-    result, plan = execute_route(taps, binary, RUN_FRAMES, SHOT_FRAMES, DUMP_FRAMES)
-    return RouteRun(collect(result, plan), words.RamDump.read(dump_path(result, ARRIVAL_FRAME)),
+def run_once(binary: Path, dump_frames: tuple[int, ...], arrival_frame: int) -> RouteRun:
+    result, plan = execute_route(ROUTE, binary, RUN_FRAMES, SHOT_FRAMES, dump_frames)
+    return RouteRun(collect(result, plan, ROUTE.name), words.RamDump.read(dump_path(result, arrival_frame)),
                     parse_ledger(result.log_text))
+
 
 
 def judge_ledger(ledger: Ledger) -> list[str]:
@@ -153,7 +168,7 @@ def judge_arrival(dump: words.RamDump) -> list[str]:
 
 
 def command_route(binary: Path) -> int:
-    run = run_once(ROUTES[ROUTE], binary)
+    run = run_once(binary, DUMP_FRAMES, ARRIVAL_FRAME)
     problems = judge_arrival(run.arrival) + judge_ledger(run.ledger)
     player = words.read_player(run.arrival)
     for line in render_ledger(run.ledger):
@@ -166,21 +181,24 @@ def command_route(binary: Path) -> int:
 
 
 def command_negative(binary: Path) -> int:
-    taps = ROUTES[ROUTE][:-1]
-    run = run_once(taps, binary)
+    """Falsify the arrival predicate on the SAME replay: judged at a pad frame inside the recording's
+    first segment, before any press reaches the game, Buzz's object must still be absent. A predicate
+    that accepted this dump would be saying yes to every run."""
+    run = run_once(binary, (BEFORE_ARRIVAL_FRAME,), BEFORE_ARRIVAL_FRAME)
     problems = judge_arrival(run.arrival)
     player = words.read_player(run.arrival)
-    print(f"[negative] route without its last tap: Buzz exists={player.exists}; {len(problems)} problem(s)")
+    print(f"[negative] same recording at pad frame {BEFORE_ARRIVAL_FRAME}, before any press reaches the "
+          f"game: Buzz exists={player.exists}; {len(problems)} problem(s)")
     if not problems or player.exists:
-        print("[negative] FAIL: the arrival predicate accepted a route that never left the PRESS X card")
+        print("[negative] FAIL: the arrival predicate accepted a dump taken before the room was entered")
         return 1
     print("[negative] PASS: the predicate rejects it")
     return 0
 
 
 def command_determinism(binary: Path) -> int:
-    first = run_once(ROUTES[ROUTE], binary).capture
-    second = run_once(ROUTES[ROUTE], binary).capture
+    first = run_once(binary, DUMP_FRAMES, ARRIVAL_FRAME).capture
+    second = run_once(binary, DUMP_FRAMES, ARRIVAL_FRAME).capture
     differences = first.mismatches(second)
     for frame in sorted(first.dumps):
         print(f"[determinism] ram@{frame}: {first.dumps[frame][:16]} vs {second.dumps[frame][:16]}")
@@ -196,7 +214,8 @@ def command_determinism(binary: Path) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--binary", type=Path, default=headless_run.ROOT / "build/verify/bin/toystory2_port")
+    # The path tools/verify.py builds; there is no other product binary in this tree.
+    parser.add_argument("--binary", type=Path, default=ROOT / "build/bin/toystory2_port")
     parser.add_argument("--route", action="store_true")
     parser.add_argument("--negative", action="store_true")
     parser.add_argument("--determinism", action="store_true")

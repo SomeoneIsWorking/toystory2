@@ -21,8 +21,8 @@ contract and loader documented in `external/psxport/docs/config.md`.
 A future run must point `PSXPORT_SETTINGS` at a controlled INI containing `aspect=1`, select the
 runtime-verified GTE product path, and capture direct evidence that the loaded aspect and rendered
 projection are wide. Native and fps60 stay unavailable until their separate producers exist. The corrected invocation fragment is
-`PSXPORT_SETTINGS=scratch/config/capabilities-wide.ini`, where that ignored file contains
-`aspect=1`. `PSXPORT_WIDE` must not appear. Until then S010 remains missing.
+`PSXPORT_SETTINGS=<a controlled INI the run creates, containing `aspect=1`>` — no settings file in this
+tree sets a wide aspect today. `PSXPORT_WIDE` must not appear. Until then S010 remains missing.
 
 ### Falsified source candidate (2026-08-27)
 
