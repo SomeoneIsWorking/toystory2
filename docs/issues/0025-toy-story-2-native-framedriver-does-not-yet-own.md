@@ -5,7 +5,15 @@ status: investigating
 symptom: The native frame driver owns main's finite pre-resident, resident and post-resident routes, but the independent MEMORY/FMV loop owners (issues 26 and 27) are not migrated and post-resident transitions are unexercised on the real product
 tags: frame-loop,vsync,host-ownership,resident,overlay
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-10-03
+
+## Post-resident EXIT LEVEL transition exercised (2026-10-03)
+
+`replays/toystory2_exit_level_v2.pad` (7 phase-keyed segments, nothing dropped) runs pause → `EXIT LEVEL`
+→ `ARE YOU SURE?` → results → token screen → level card → back in Andy's House, playable (player X/Z
+live from `ts2_guest_words`). The transition takes the outer loop's `0x800C166C`-gated event 1 →
+`residentSetup` and re-authenticates LEVEL01. It was reachable only after `f3decdf` removed the duplicate
+`FUN_8003B33C` pad latch, which made the Start-pause rising edge impossible.
 ---
 
 ## Root cause
