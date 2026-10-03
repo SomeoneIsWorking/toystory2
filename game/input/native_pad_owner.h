@@ -14,4 +14,9 @@ void shutdownNativePad(Core &core);
 uint16_t decodeNativeDigitalPad(Core &core);
 void installNativePadOverrides(Core &core);
 
+// Retail republishes the pad packet into the guest slot buffer (0x800CF8A0) once per VBlank, and this
+// title's decoder reads that buffer rather than the SIO slot path. Before this ran per frame the buffer
+// held only what boot wrote.
+void serviceNativePad(Core &core);
+
 } // namespace ts2

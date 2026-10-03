@@ -65,6 +65,10 @@ void shutdownNativePad(Core &core) {
   core.mem_w16(kPadEnabled, 0);
 }
 
+void serviceNativePad(Core &core) {
+  writeNativePackets(core);
+}
+
 uint16_t decodeNativeDigitalPad(Core &core) {
   if (core.mem_r16(kPadEnabled) == 0) {
     return 0;

@@ -6,6 +6,7 @@
 #include "game_runtime.h"
 #include "guest_execution.h"
 #include "guest_facts.h"
+#include "input/native_pad_owner.h"
 #include "loop/outer_loop.h"
 #include "loop/resident_frame.h"
 #include "loop/resident_preparation.h"
@@ -118,6 +119,9 @@ public:
 
   void sampleInput() override {
     core_.game->pad.serviceFrame();
+    // Retail republishes the guest pad packet once per VBlank; this title's decoder reads that
+    // buffer, so the publish has to ride the same per-frame service that advances the host pad.
+    serviceNativePad(core_);
   }
 
   void tickDisplayField() override {
