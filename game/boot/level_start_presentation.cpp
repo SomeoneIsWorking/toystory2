@@ -1,9 +1,9 @@
 #include "boot/level_start_presentation.h"
 
 #include "core.h"
-#include "core/guest_execution.h"
-#include "core/toystory2_context.h"
+#include "execution/guest_execution.h"
 #include "native_dispatch.h"
+#include "runtime/toystory2_context.h"
 
 #include <cstdlib>
 #include <lucent/log.h>

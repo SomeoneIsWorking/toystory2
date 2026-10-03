@@ -10,8 +10,8 @@
 #include "game.h"
 #include "guest_cd_stream_callback_layout.h"
 #include "platform_hle.h"
+#include "runtime/toystory2_runtime.h"
 #include "testutil.h"
-#include "toystory2_runtime.h"
 
 #include <memory>
 
@@ -138,7 +138,7 @@ static void test_str_ring_code_is_outside_the_natively_owned_window() {
 }
 
 // The title declares NO per-channel DMA callback table, and the reason is measured (see
-// game/core/guest_facts.h): the SDK's DMACallback is a BIOS B0-vector entry and the table is the
+// game/facts/guest_facts.h): the SDK's DMACallback is a BIOS B0-vector entry and the table is the
 // BIOS's. A direct runtime has no table fact at all, so a fresh game's callback registry must yield
 // no callback for any channel, never one pointing at something arbitrary. The positive half keeps the
 // framework's slot arithmetic honest: a real table's slots are 4 bytes apart, one per channel, and a

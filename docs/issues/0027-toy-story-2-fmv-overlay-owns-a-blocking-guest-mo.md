@@ -25,7 +25,7 @@ the guest contract's playback-mode skip result, so it cannot simply be substitut
 must present the skip outcome retail returns, with one display field per host frame.
 ## Resolution (2026-10-03) — already resolved by the Game::fmv override; verified, not re-archived
 
-Checked before closing, because the issue asked whether that was so. It was: `game/fmv/guest_movie_player.cpp`
+Checked before closing, because the issue asked whether that was so. It was: `game/fmv/movie_player.cpp`
 replaces `FUN_800D7088` (the FMV overlay's movie player) with a native owner, and it satisfies every
 thing "What is owed" listed. Nothing was changed to close this.
 

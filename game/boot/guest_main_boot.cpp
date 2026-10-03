@@ -1,7 +1,7 @@
 #include "boot/guest_main_boot.h"
 
 #include "core.h"
-#include "guest_execution.h"
+#include "execution/guest_execution.h"
 
 #include <array>
 #include <cstdint>

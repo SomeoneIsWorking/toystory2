@@ -48,6 +48,10 @@ TEARDOWN_LINES = (
     re.compile(r"Lightrec fallback telemetry \[shutdown\]"),
 )
 
+# psxport's phase replay reports that the whole schedule was delivered. Both completion wordings it
+# emits are accepted, so a wording change upstream does not read here as a route that never arrived.
+REPLAY_COMPLETE = re.compile(r"\[padphase\] replay COMPLETE:")
+
 
 @dataclass(frozen=True)
 class Capture:
@@ -100,7 +104,7 @@ def execute_route(taps: tuple[Tap, ...], binary: Path, frames: int, shots: tuple
     result = headless_run.execute(plan, dict(os.environ))
     if result.code != 0:
         raise RuntimeError(f"the product exited {result.code}; log {result.log}")
-    if "replay fully consumed" not in result.log_text:
+    if not REPLAY_COMPLETE.search(result.log_text):
         raise RuntimeError("the pad schedule was not fully consumed, so the run did not reach the route's end")
     missing = missing_teardown_lines(result.log_text)
     if missing:

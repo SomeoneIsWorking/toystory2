@@ -105,7 +105,7 @@ design and drive timing does not come back.)
 **The fix is the title's, as instant CD requires: the movie is played by psxport's one movie owner.**
 `Game::fmv` demuxes the .STR, VLC-decodes the BS, runs Beetle's MDEC at 24-bit depth, presents the
 frame, plays the interleaved XA audio on its own host stream and paces video to the media clock. The
-guest's player is replaced by a title-owned override (`game/fmv/guest_movie_player.*`) installed when
+guest's player is replaced by a title-owned override (`game/fmv/movie_player.*`) installed when
 the FMV image generation is published, which takes the movie from the guest's own argument and returns
 exactly what the retail player returns — 0 at end of movie, `_DAT_800A1670` when Start skips, the
 word the front-end sequencer treats as "the cold intro is over". See `docs/re-frontier.md` RE-19.

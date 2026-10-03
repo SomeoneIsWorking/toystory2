@@ -2,13 +2,13 @@
 // loaded MEMORY module becomes executable only after its transferred bytes match the disc source.
 // Synthetic bytes here prove state transitions; real-title reach is a separate runtime check.
 
+#include "execution/guest_execution.h"
 #include "game.h"
-#include "guest_execution.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
 #include "overlay/overlay_images.h"
+#include "runtime/toystory2_runtime.h"
 #include "testutil.h"
-#include "toystory2_runtime.h"
 
 #include <algorithm>
 #include <lucent/content.h>

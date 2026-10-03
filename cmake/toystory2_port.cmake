@@ -5,42 +5,43 @@ option(PSXPORT_BUILD_PORT "Build the Toy Story 2 native/dynarec product" ON)
 include(${PSXPORT_DIR}/cmake/psxport.cmake)
 
 set(TOYSTORY2_RUNTIME_SOURCES
-  game/audio/guest_sound_bank.cpp
+  game/audio/sound_bank.cpp
   game/boot/guest_main_boot.cpp
+  game/boot/graphics_sync.cpp
   game/boot/level_start_presentation.cpp
-  game/boot/native_sync_overrides.cpp
+  game/boot/title_session.cpp
   game/cd/file_transfer.cpp
-  game/core/guest_execution.cpp
-  game/core/title_session.cpp
-  game/core/toystory2_context.cpp
-  game/core/toystory2_runtime.cpp
-  game/fmv/guest_movie_player.cpp
-  game/input/toystory2_input_phase.cpp
-  game/input/native_pad_owner.cpp
-  game/loop/outer_loop.cpp
-  game/loop/resident_frame.cpp
-  game/loop/resident_preparation.cpp
-  game/loop/toystory2_frame_driver.cpp
+  game/execution/guest_execution.cpp
+  game/frame/frame_boundary.cpp
+  game/frame/frame_driver.cpp
+  game/frame/outer_loop.cpp
+  game/frame/resident_frame.cpp
+  game/frame/resident_preparation.cpp
+  game/fmv/movie_player.cpp
+  game/fps60/camera_history.cpp
+  game/fps60/projection_scopes.cpp
+  game/fps60/temporal_source.cpp
+  game/input/pad_owner.cpp
+  game/input/recording_phase.cpp
   game/overlay/overlay_images.cpp
   game/overlay/overlay_slot.cpp
-  game/render/guest_widescreen.cpp
-  game/render/resident_camera_history.cpp
-  game/render/resident_mesh_format.cpp
-  game/render/resident_scene_history.cpp
-  game/render/resident_view_matrix.cpp
-  game/render/resident_projection_scopes.cpp
-  game/render/resident_temporal_source.cpp
-  game/render/resident_widescreen.cpp
+  game/render/mesh_format.cpp
+  game/render/scene_history.cpp
+  game/render/view_matrix.cpp
+  game/runtime/toystory2_context.cpp
+  game/runtime/toystory2_runtime.cpp
+  game/widescreen/guest_widescreen.cpp
+  game/widescreen/resident_widescreen.cpp
 )
 
 function(toystory2_configure_target target)
-  target_include_directories(${target} PRIVATE game game/core)
+  target_include_directories(${target} PRIVATE game)
   target_link_libraries(${target} PRIVATE psxport)
   set_target_properties(${target} PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 endfunction()
 
 if(PSXPORT_BUILD_PORT)
-  add_executable(toystory2_port game/core/main.cpp ${TOYSTORY2_RUNTIME_SOURCES})
+  add_executable(toystory2_port game/main.cpp ${TOYSTORY2_RUNTIME_SOURCES})
   toystory2_configure_target(toystory2_port)
   if(TARGET gen_gpu_shaders)
     add_dependencies(toystory2_port gen_gpu_shaders)

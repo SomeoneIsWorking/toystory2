@@ -26,7 +26,7 @@ state owner.
 
 ## Current ownership
 
-`game/loop/` splits the measured `0x8007A9E8` boot prefix from its non-returning main, and one finite
+`game/frame/` splits the measured `0x8007A9E8` boot prefix from its non-returning main, and one finite
 step owns cold front-end setup, a single front-end poll or selection iteration, resident preparation,
 and the normal `0x8007B254` or alternate `0x8007B850` update; resident-preparation (issue 29's source
 slice) consumes one authored transition field per host frame. Linked libetc `VSync 0x80088628` is fatal

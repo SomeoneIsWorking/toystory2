@@ -53,7 +53,7 @@ canvas 86..597 — but it published the **display** area at the same origin whil
 columns of the window read past the canvas into unwritten VRAM. The floor was being cut one margin's
 worth, which is exactly the width the "missing" strip had.
 
-FIX (`game/render/resident_widescreen.cpp`, `presentField`): the display area starts at the canvas's
+FIX (`game/widescreen/resident_widescreen.cpp`, `presentField`): the display area starts at the canvas's
 own origin, `displayAreaStart(0, canvas_.top)`. The draw area and draw offset stay at the margin.
 
 MEASURED at pad frame 2500, the floor's right edge per sink row:
@@ -148,7 +148,7 @@ What was checked, and what it showed:
   room's own 64x32 tile grid at x -21..427. None is a HUD element, and none sits at a widened-edge
   position. The remaining 6267 textured quads in that frame are the world, not UI.
 - **RE.** Ghidra identified the resident per-frame loop as `FUN_8007B254` (from `residentUpdateAddress`,
-  `game/loop/outer_loop.h:85`) — the same function that reads the demo flag `DAT_800A120C` six times —
+  `game/frame/outer_loop.h:85`) — the same function that reads the demo flag `DAT_800A120C` six times —
   and its draw pass `FUN_80078780` / `FUN_80074F80` / `FUN_8007863C` / `FUN_80046A88` / `FUN_8002A070`.
   Eight functions from that pass were decompiled. All are animation/scroll state updates:
   `FUN_800775CC` has `jal=0` and calls nothing, so it draws nothing; `FUN_80078780` maintains frame

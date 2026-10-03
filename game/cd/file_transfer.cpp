@@ -1,8 +1,8 @@
 #include "cd/file_transfer.h"
 
 #include "core.h"
-#include "core/guest_execution.h"
 #include "disc.h"
+#include "execution/guest_execution.h"
 #include "game.h"
 #include "invalidation.h"
 

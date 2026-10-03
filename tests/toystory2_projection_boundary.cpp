@@ -3,13 +3,13 @@
 // projection on the same Core. Hermetic: no disc, generated substrate, GPU, window, or game loop.
 
 #include "core.h"
+#include "fps60/camera_history.h"
+#include "fps60/projection_scopes.h"
 #include "game.h"
 #include "hw_bind.h"
 #include "platform_hle.h"
-#include "render/resident_camera_history.h"
-#include "render/resident_projection_scopes.h"
+#include "runtime/toystory2_runtime.h"
 #include "testutil.h"
-#include "toystory2_runtime.h"
 
 #include <memory>
 

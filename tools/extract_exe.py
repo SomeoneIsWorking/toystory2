@@ -20,7 +20,7 @@ runtime consumes the original executable directly; `tools/overlay_map.py` indepe
 overlay layout against the same identity and exact module corpus.
 
 WHAT THE HEADER PRINT IS FOR: entry pc0 / t_addr / t_size / initial sp / gp0 are the boot group's
-measured values in game/core/guest_facts.h. They are printed here too because this tool's
+measured values in game/facts/guest_facts.h. They are printed here too because this tool's
 job is to report what the extracted bytes say before any RE tool consumes them.
 """
 

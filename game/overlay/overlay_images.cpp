@@ -2,10 +2,10 @@
 
 #include "core.h"
 #include "disc.h"
-#include "fmv/guest_movie_player.h"
+#include "execution/guest_execution.h"
+#include "fmv/movie_player.h"
 #include "game.h"
-#include "guest_execution.h"
-#include "toystory2_context.h"
+#include "runtime/toystory2_context.h"
 
 #include <algorithm>
 #include <array>

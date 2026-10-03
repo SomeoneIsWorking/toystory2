@@ -2,19 +2,19 @@
 // sequencing function with a recorder and constructs the real runtime product to prove the shared
 // createFrameDriver seam is populated. No guest execution, guest RAM, audio, GPU, disc, or window.
 
+#include "fps60/camera_history.h"
+#include "frame/outer_loop.h"
+#include "frame/resident_frame.h"
 #include "game.h"
 #include "game_runtime.h"
 #include "hw_bind.h"
-#include "input/native_pad_owner.h"
-#include "loop/outer_loop.h"
-#include "loop/resident_frame.h"
-#include "render/guest_widescreen.h"
-#include "render/resident_camera_history.h"
-#include "render/resident_scene_history.h"
+#include "input/pad_owner.h"
+#include "render/scene_history.h"
 #include "render_capabilities.h"
+#include "runtime/toystory2_context.h"
+#include "runtime/toystory2_runtime.h"
 #include "testutil.h"
-#include "toystory2_context.h"
-#include "toystory2_runtime.h"
+#include "widescreen/guest_widescreen.h"
 
 #include <memory>
 #include <optional>

@@ -18,7 +18,7 @@ portfolio native/dynarec contract before changing execution architecture.
 
 ## Ownership
 
-`ToyStory2Runtime` composes title behavior. `game/core/guest_execution.*` is the one title-side
+`ToyStory2Runtime` composes title behavior. `game/execution/guest_execution.*` is the one title-side
 adapter to psxport's typed guest-call, original-call, and image-scoped native-dispatch APIs. Native
 input, finite-frame, graphics synchronization, scene observation, projection, and asset-decoding
 owners remain cohesive modules; do not grow a runtime or entry-point monolith.
@@ -34,7 +34,7 @@ modules do not read environment variables. Product diagnostics use Lucent; do no
 
 ## Evidence and workflow
 
-There is no decompilation of this game, so every address in `game/core/guest_facts.h` comes out of
+There is no decompilation of this game, so every address in `game/facts/guest_facts.h` comes out of
 Ghidra on the exact executable. Recovering more of them is what `tools/ghidra_xref.py`,
 `tools/re_xref.py`, `tools/ram_image.py` and `tools/overlay_map.py` are for: build the RAM image,
 import it, xref a guest address, and record what the bytes say. Preserve exact-image evidence and

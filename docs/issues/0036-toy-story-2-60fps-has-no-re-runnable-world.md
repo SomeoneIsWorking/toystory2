@@ -264,7 +264,7 @@ capability flag.
 
 Own the resident world projection natively: a producer that walks the captured
 `ResidentSceneSubmissionBatch` / `ResidentMeshSubmission` inputs the title already records
-(`game/render/resident_scene_history.h`, which keeps each submission's eight GTE affine control words,
+(`game/render/scene_history.h`, which keeps each submission's eight GTE affine control words,
 mesh address and material state) and emits through `RenderQueue::drawWorldQuad`, which is the only
 producer that sets `has_xyf` and the only one tier-1 knows how to re-run.
 

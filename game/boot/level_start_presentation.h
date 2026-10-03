@@ -31,7 +31,7 @@ bool demoGuardForcesLoadingCard(int demoMode);
 // inside the level start's own field-spanning call — the same call, on the same guest PC, with the
 // same fields delivered. So the override is ARMED for a level start only when the guard fires, and
 // RETIRED otherwise; the decision is the same `DAT_800A120C` the guest's own guard reads, taken once
-// per level start by `game/loop/resident_preparation.cpp`, which is where the flag is published.
+// per level start by `game/frame/resident_preparation.cpp`, which is where the flag is published.
 //
 // The decision is a per-ROUTE decision rather than a per-call one on purpose. An override that ran
 // the original as a nested call from inside the level start put the guest's own asset load and its
