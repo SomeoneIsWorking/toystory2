@@ -82,7 +82,7 @@ RenderCapabilities ToyStory2Runtime::renderCapabilities() const {
   return RenderCapabilities::guestInterpolated();
 }
 
-std::unique_ptr<TemporalFramePresentation> ToyStory2Runtime::createTemporalFramePresentation(Game &game) {
+std::unique_ptr<psx::frame::TemporalFramePresentation> ToyStory2Runtime::createTemporalFramePresentation(Game &game) {
   return std::make_unique<Fps60>(game, std::make_unique<render::ResidentTemporalSource>());
 }
 
