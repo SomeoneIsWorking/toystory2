@@ -5,6 +5,7 @@
 #include "execution_control.h"
 #include "execution_exit.h"
 #include "game.h"
+#include "native_dispatch.h"
 #include "native_fmv.h"
 
 #include <lucent/log.h>
@@ -63,7 +64,7 @@ void moviePlayerOverride(Core *core) {
 } // namespace
 
 void GuestMoviePlayer::install(Core &core) {
-  installResidentOverride(core, kMoviePlayer, "guest-movie-player", moviePlayerOverride);
+  psx::cpu::installNativeOverride(core, kMoviePlayer, "guest-movie-player", moviePlayerOverride);
 }
 
 } // namespace ts2::fmv

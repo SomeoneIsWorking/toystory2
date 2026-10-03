@@ -2,10 +2,12 @@
 
 #include "core.h"
 #include "execution/guest_execution.h"
+#include "execution_exit.h"
 #include "game.h"
 #include "gpu_native_internal.h" // gpu_gp0 — the same entry the guest's own GP0 stream uses
 #include "gpu_vk.h"              // gpu_vk_latch_guest_projection
-#include "proj_params.h"         // libgte_set_geom_offset
+#include "native_dispatch.h"
+#include "proj_params.h" // libgte_set_geom_offset
 #include "runtime/toystory2_context.h"
 
 #include <cstdint>
@@ -149,25 +151,28 @@ void putDrawEnvOverride(Core *core) {
     // field it publishes is loaded through $s0 — so the DRAWENV it reads is $a1, not $a0.
     widescreen.widenDrawEnv(*core, core->r[5]);
   }
-  callOriginalToReturn(*core, kPutDrawEnvLeaf, "resident draw environment original");
+  psx::cpu::callOriginalToReturn(
+      *core, kPutDrawEnvLeaf, psx::cpu::ExecutionBudget::currentTurn(*core), "resident draw environment original");
 }
 
 void objectCullOverride(Core *core) {
   context(*core).widescreen.widenCullRect(*core);
-  callOriginalToReturn(*core, kObjectCullLeaf, "object visibility cull original");
+  psx::cpu::callOriginalToReturn(
+      *core, kObjectCullLeaf, psx::cpu::ExecutionBudget::currentTurn(*core), "object visibility cull original");
 }
 
 void screenRectPublisherOverride(Core *core) {
   context(*core).widescreen.widenScreenRect(*core);
-  callOriginalToReturn(*core, kScreenRectPublisherLeaf, "screen rect publisher original");
+  psx::cpu::callOriginalToReturn(
+      *core, kScreenRectPublisherLeaf, psx::cpu::ExecutionBudget::currentTurn(*core), "screen rect publisher original");
 }
 
 } // namespace
 
 void ResidentWidescreenProjection::install(Core &core) {
-  installResidentOverride(core, kPutDrawEnvLeaf, "resident-draw-env", putDrawEnvOverride);
-  installResidentOverride(core, kObjectCullLeaf, "object-visibility-cull", objectCullOverride);
-  installResidentOverride(core, kScreenRectPublisherLeaf, "screen-rect-publisher", screenRectPublisherOverride);
+  psx::cpu::installNativeOverride(core, kPutDrawEnvLeaf, "resident-draw-env", putDrawEnvOverride);
+  psx::cpu::installNativeOverride(core, kObjectCullLeaf, "object-visibility-cull", objectCullOverride);
+  psx::cpu::installNativeOverride(core, kScreenRectPublisherLeaf, "screen-rect-publisher", screenRectPublisherOverride);
 }
 
 void ResidentWidescreenProjection::syncToGuestDisplay(Core &core, bool residentFrame) {

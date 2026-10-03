@@ -6,6 +6,7 @@
 #include "execution/guest_execution.h"
 #include "execution_control.h"
 #include "input/pad_owner.h"
+#include "native_dispatch.h"
 #include "runtime/toystory2_context.h"
 #include "widescreen/resident_widescreen.h"
 
@@ -277,10 +278,10 @@ void shutdownGraphicsWithoutGuestVSync(Core *core) {
 } // namespace
 
 void GraphicsSync::install(Core &core) {
-  installResidentOverride(core, 0x8003A218u, "graphics-init", initializeGraphicsWithoutGuestVSync);
-  installResidentOverride(core, 0x80039D9Cu, "resident-graphics-init", initializeResidentGraphicsOverride);
-  installResidentOverride(core, 0x8003A838u, "graphics-shutdown", shutdownGraphicsWithoutGuestVSync);
-  installResidentOverride(core, 0x8003FA68u, "field-barrier", completeOwnedFieldBarrier);
+  psx::cpu::installNativeOverride(core, 0x8003A218u, "graphics-init", initializeGraphicsWithoutGuestVSync);
+  psx::cpu::installNativeOverride(core, 0x80039D9Cu, "resident-graphics-init", initializeResidentGraphicsOverride);
+  psx::cpu::installNativeOverride(core, 0x8003A838u, "graphics-shutdown", shutdownGraphicsWithoutGuestVSync);
+  psx::cpu::installNativeOverride(core, 0x8003FA68u, "field-barrier", completeOwnedFieldBarrier);
 }
 
 } // namespace ts2

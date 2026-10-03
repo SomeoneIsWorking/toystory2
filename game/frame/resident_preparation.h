@@ -2,7 +2,7 @@
 
 #include "frame/outer_loop.h"
 
-#include "execution/guest_execution.h"
+#include "frame/field_call.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -34,9 +34,9 @@ public:
   ResidentPreparationProgress step(Core &core, uint32_t level, int playbackMode);
 
 private:
-  // Constructed with the Core on the first step: a resumable call is bound to one executor.
-  std::optional<ResumableGuestCall> levelStart_{};
-  std::optional<ResumableGuestCall> playLoopEntry_{};
+  // Each call is begun on the step that starts it and dropped when the guest's own loop takes over.
+  std::optional<FieldCall> levelStart_{};
+  std::optional<FieldCall> playLoopEntry_{};
 };
 
 } // namespace ts2

@@ -12,6 +12,7 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/boot/title_session.cpp
   game/cd/file_transfer.cpp
   game/execution/guest_execution.cpp
+  game/frame/field_call.cpp
   game/frame/frame_boundary.cpp
   game/frame/frame_driver.cpp
   game/frame/outer_loop.cpp

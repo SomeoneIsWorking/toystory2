@@ -2,6 +2,8 @@
 
 #include "frame/frame_boundary.h"
 
+#include "frame/field_call.h"
+
 #include "core.h"
 #include "facts/guest_facts.h"
 #include "game.h"
@@ -86,11 +88,8 @@ uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 
 
 } // namespace
 
-ResumableGuestCall &FrameCallState::fieldCall() {
-  if (!fieldCall_.has_value()) {
-    fieldCall_.emplace(core_);
-  }
-  return *fieldCall_;
+FieldCall &FrameCallState::fieldCall() {
+  return fieldCall_;
 }
 
 int CoreFrameBoundary::displayFieldQuota() const {
@@ -134,7 +133,7 @@ void CoreFrameBoundary::serviceDeferredDisplay() {
   if (state_.outerLoop_.phase == OuterLoopPhase::introMovies) {
     return; // the FMV overlay owns the display; 0x80021028 belongs to the resident front end
   }
-  if (state_.fieldCall().active()) {
+  if (state_.fieldCall().pending()) {
     // A guest call suspended between fields (the front-end poll) owns its own display loop and takes
     // its field callbacks from the executor. A host-initiated guest call here would clobber the
     // caller-saved registers the suspended call resumes with.
@@ -214,22 +213,21 @@ void CoreFrameBoundary::restartColdFrontEnd() {
 // `&&` chain does.
 bool CoreFrameBoundary::stepIntroMovies() {
   while (true) {
-    if (!state_.fieldCall().active()) {
+    if (!state_.fieldCall().pending()) {
       if (state_.introMovieStep_ >= kIntroMovieSteps.size()) {
         return true;
       }
       const MovieStep &step = kIntroMovieSteps[state_.introMovieStep_];
       const std::array arguments{step.a0, step.a1, step.a2, 0u};
-      state_.fieldCall().begin({step.address, 0x8007A9E8u, arguments, std::nullopt, "front-end movie"});
+      state_.fieldCall().begin(core_, {step.address, 0x8007A9E8u, arguments, std::nullopt, "front-end movie"});
     }
-    const auto progress = state_.fieldCall().advance();
-    if (progress == ResumableGuestCall::Progress::fieldBoundary ||
-        progress == ResumableGuestCall::Progress::hostSlice) {
+    const auto progress = state_.fieldCall().advance(core_);
+    if (progress == FieldCall::Step::fieldBoundary || progress == FieldCall::Step::hostSlice) {
       return false;
     }
     const bool gated = kIntroMovieSteps[state_.introMovieStep_].address == kMemoryStatus;
     state_.introMovieStep_ =
-        gated && state_.fieldCall().result() != 0 ? kIntroMovieSteps.size() : state_.introMovieStep_ + 1;
+        gated && state_.fieldCall().result(core_) != 0 ? kIntroMovieSteps.size() : state_.introMovieStep_ + 1;
   }
 }
 
@@ -253,12 +251,12 @@ void CoreFrameBoundary::prepareFrontEnd() {
 // returns the event. It therefore spans display fields like a movie, and each field is presented
 // and sampled by the host between steps; nullopt means the poll is still running.
 std::optional<int> CoreFrameBoundary::pollFrontEndEvent() {
-  if (!state_.fieldCall().active()) {
+  if (!state_.fieldCall().pending()) {
     const std::array arguments{2u, 0u};
-    state_.fieldCall().begin({kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "front-end poll"});
+    state_.fieldCall().begin(core_, {kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "front-end poll"});
     context(core_).yieldAtFieldBarrier = true;
   }
-  if (state_.fieldCall().advance() != ResumableGuestCall::Progress::returned) {
+  if (state_.fieldCall().advance(core_) != FieldCall::Step::returned) {
     return std::nullopt;
   }
   context(core_).yieldAtFieldBarrier = false;
@@ -319,10 +317,10 @@ bool CoreFrameBoundary::needsInteractiveSelection() const {
 // front-end event and re-enters the poll. A zero return means a level was chosen, optionally
 // followed by its transition screen, and then the level is prepared.
 SelectionProgress CoreFrameBoundary::stepInteractiveSelection() {
-  if (!state_.fieldCall().active()) {
+  if (!state_.fieldCall().pending()) {
     beginSelectionCall();
   }
-  if (state_.fieldCall().advance() != ResumableGuestCall::Progress::returned) {
+  if (state_.fieldCall().advance(core_) != FieldCall::Step::returned) {
     return SelectionProgress::pending;
   }
   context(core_).yieldAtFieldBarrier = false;
@@ -330,7 +328,7 @@ SelectionProgress CoreFrameBoundary::stepInteractiveSelection() {
     state_.selectionCall_ = SelectionCall::screenLoop;
     return SelectionProgress::chosen;
   }
-  if (state_.fieldCall().result() != 0) {
+  if (state_.fieldCall().result(core_) != 0) {
     core_.mem_w32(kFrontEndEvent, static_cast<uint32_t>(-1));
     return SelectionProgress::backToFrontEnd;
   }
@@ -391,14 +389,14 @@ void CoreFrameBoundary::beginLoadSaveSelection() {
 }
 
 bool CoreFrameBoundary::stepMemoryScreen() {
-  const ResumableGuestCall::Progress progress = state_.fieldCall().advance();
-  if (progress != ResumableGuestCall::Progress::returned) {
+  const FieldCall::Step progress = state_.fieldCall().advance(core_);
+  if (progress != FieldCall::Step::returned) {
     return false;
   }
   context(core_).yieldAtFieldBarrier = false;
   // The MEMORY CARD screen publishes the front end's selection-active word itself, exactly as the
   // one-turn call did, so the level that follows is keyed the same way it always was.
-  if (state_.selectionCall_ == SelectionCall::memoryCardOverlay && state_.fieldCall().result() != 0) {
+  if (state_.selectionCall_ == SelectionCall::memoryCardOverlay && state_.fieldCall().result(core_) != 0) {
     core_.mem_w32(kSelectionActive, 1);
   }
   state_.selectionCall_ = SelectionCall::screenLoop;
@@ -490,12 +488,12 @@ void CoreFrameBoundary::beginSelectionCall() {
   if (state_.selectionCall_ == SelectionCall::queuedScreen) {
     const uint32_t screen = *queuedScreenFor(core_.mem_r16s(kPlaybackLevel));
     const std::array arguments{screen, 0u, 0u, 0u};
-    state_.fieldCall().begin({kQueueScreen, 0x8007A9E8u, arguments, std::nullopt, "queued selection screen"});
+    state_.fieldCall().begin(core_, {kQueueScreen, 0x8007A9E8u, arguments, std::nullopt, "queued selection screen"});
     return;
   }
   core_.mem_w32(kFrontEndEvent, 0);
   core_.mem_w32(kSelectionActive, 1);
-  state_.fieldCall().begin({kInteractiveSelection, 0x8007A9E8u, {}, std::nullopt, "interactive selection"});
+  state_.fieldCall().begin(core_, {kInteractiveSelection, 0x8007A9E8u, {}, std::nullopt, "interactive selection"});
   context(core_).yieldAtFieldBarrier = true;
 }
 
@@ -550,12 +548,12 @@ PostResidentTransition CoreFrameBoundary::finishSequenceScreen(uint32_t level) {
 // display field per step below, which then runs the two one-turn bookkeeping calls that follow it in
 // `beginSequenceLevel` and reports whether the boot countdown still has fields to run.
 std::optional<int> CoreFrameBoundary::pollLevelTransitionEvent() {
-  if (!state_.fieldCall().active()) {
+  if (!state_.fieldCall().pending()) {
     const std::array arguments{4u, 0x40u};
-    state_.fieldCall().begin({kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "level transition"});
+    state_.fieldCall().begin(core_, {kMemoryDispatcher, 0x8007A9E8u, arguments, std::nullopt, "level transition"});
     context(core_).yieldAtFieldBarrier = true;
   }
-  if (state_.fieldCall().advance() != ResumableGuestCall::Progress::returned) {
+  if (state_.fieldCall().advance(core_) != FieldCall::Step::returned) {
     return std::nullopt;
   }
   context(core_).yieldAtFieldBarrier = false;
@@ -597,10 +595,10 @@ void CoreFrameBoundary::callMemoryDispatcher(uint32_t a0, uint32_t a1, std::stri
 }
 
 void CoreFrameBoundary::beginOverlayCall(uint32_t address, const char *owner) {
-  if (state_.fieldCall().active()) {
+  if (state_.fieldCall().pending()) {
     return;
   }
-  state_.fieldCall().begin({address, 0x8007A9E8u, {}, std::nullopt, owner});
+  state_.fieldCall().begin(core_, {address, 0x8007A9E8u, {}, std::nullopt, owner});
   context(core_).yieldAtFieldBarrier = true;
 }
 

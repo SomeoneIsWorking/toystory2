@@ -2,6 +2,8 @@
 
 #include "core.h"
 #include "execution/guest_execution.h"
+#include "execution_exit.h"
+#include "native_dispatch.h"
 #include "projection_provenance.h"
 #include "runtime/toystory2_context.h"
 
@@ -22,13 +24,15 @@ std::uint64_t scopeKey(std::uint32_t producer, std::uint32_t instance, std::uint
 template <std::uint32_t Producer> void scopedSlotTableProducer(Core *core) {
   const psxport::temporal::ProjectionProvenance::Scope scope(
       core->rsub.projectionProvenance, ResidentProjectionScopes::slotTableInstance(*core, Producer));
-  callOriginalToReturn(*core, Producer, "resident projection scope");
+  psx::cpu::callOriginalToReturn(
+      *core, Producer, psx::cpu::ExecutionBudget::currentTurn(*core), "resident projection scope");
 }
 
 template <std::uint32_t Producer> void scopedProducer(Core *core) {
   const std::uint64_t key = context(*core).projectionScopes.producerInstance(Producer, core->r[4]);
   const psxport::temporal::ProjectionProvenance::Scope scope(core->rsub.projectionProvenance, key);
-  callOriginalToReturn(*core, Producer, "resident projection scope");
+  psx::cpu::callOriginalToReturn(
+      *core, Producer, psx::cpu::ExecutionBudget::currentTurn(*core), "resident projection scope");
 }
 
 // A producer the guest calls with no arguments, so nothing in the registers identifies WHICH call
@@ -37,13 +41,16 @@ template <std::uint32_t Producer> void scopedProducer(Core *core) {
 void scopedVisibilityPass(Core *core) {
   const std::uint64_t key = context(*core).projectionScopes.passInstance(ResidentProjectionScopes::kVisibilityPass);
   const psxport::temporal::ProjectionProvenance::Scope scope(core->rsub.projectionProvenance, key);
-  callOriginalToReturn(*core, ResidentProjectionScopes::kVisibilityPass, "resident projection scope");
+  psx::cpu::callOriginalToReturn(*core,
+                                 ResidentProjectionScopes::kVisibilityPass,
+                                 psx::cpu::ExecutionBudget::currentTurn(*core),
+                                 "resident projection scope");
 }
 
 struct ScopedProducer {
   std::uint32_t address;
   const char *name;
-  NativeGuestFunction function;
+  psx::cpu::NativeFunction function;
 };
 
 constexpr std::array kScopedProducers{
@@ -82,7 +89,7 @@ std::uint64_t ResidentProjectionScopes::passInstance(std::uint32_t producer) {
 
 void ResidentProjectionScopes::install(Core &core) {
   for (const ScopedProducer &producer : kScopedProducers) {
-    installResidentOverride(core, producer.address, producer.name, producer.function);
+    psx::cpu::installNativeOverride(core, producer.address, producer.name, producer.function);
   }
 }
 

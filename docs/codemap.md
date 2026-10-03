@@ -14,7 +14,7 @@ game/main.cpp -> ts2::TitleSession -> psxport_install_game(ts2::ToyStory2Runtime
                     psxport frame loop -> FrameDriver::stepFrame (ts2::ToyStory2FrameDriver)
                                        |
                                        v
-        ts2::stepResidentFrame -> ts2::stepOuterLoop -> guest calls through ts2::ResumableGuestCall
+        ts2::stepResidentFrame -> ts2::stepOuterLoop -> guest calls through psx::cpu::ResumableGuestCall
 ```
 
 ## Directories
@@ -60,7 +60,8 @@ that is not in this table does not belong to this title.
 |---|---|---|
 | `ts2` | `GuestCall`, `NativeGuestFunction` | One typed guest call: address, return sentinel, arguments, optional stack argument, and the owner name that appears in every refusal. |
 | `ts2` | `callGuestToReturn`, `callFiniteGuestToReturn`, `executeFiniteGuestCall` | Bounded guest calls that must return: one turn, or a bounded number of resumed turns for a finite initialization transaction. |
-| `ts2` | `ResumableGuestCall` | One guest call that spans display fields or host slices: `begin`, `advance` to the next field boundary / host slice / return, `result`, `abandon`. |
+| `ts2::frame` | `FieldCall` | The title's policy over `psx::cpu::ResumableGuestCall` for a call the frame turn drives across display fields: publish the call's arguments, count and log the display fields it waited on, and treat a turn that ended `FrameBoundary` (a field) or `CooperativeYield` (a native replacement's slice) as the end of a host step while a `BudgetExhausted` turn continues inside the same step. |
+| `ts2` | `GuestCall`, `kOneFieldCallTurns`, `kFiniteInitializationSliceLimit`, `kResidentUpdateSliceLimit`, `publishCallArguments`, `callGuestToReturn`, `callFiniteGuestToReturn`, `guestString` | This title's guest-call facts: the entry, the return address, the arguments, the measured slice caps, one display field's requirement for a leaf call, and the one reader for a NUL-terminated string out of guest RAM. |
 | `ts2` | `callOriginalToReturn`, `callOriginalToReturnResuming` | Run a guest body that a native override replaced, once, or resumed across bounded turns. |
 | `ts2` | `guestString` | The one reader for a NUL-terminated string out of guest RAM, bounded by the longest name this title's guest spells. |
 | `ts2` | `installResidentOverride` | Register one image-scoped native override, refusing when the resident image identity is unavailable. |
@@ -159,7 +160,7 @@ that is not in this table does not belong to this title.
 - `ts2::stepResidentFrame` runs the measured order through `ResidentFrameBoundary`: `displayFieldQuota`, `beginLogicFrame`, `sampleInput`, `tickDisplayField` × quota, `serviceDeferredDisplay`, `updateResidentGame`, `advanceAudio`, `present`.
 - `updateResidentGame` is `ts2::stepOuterLoop(OuterLoopState&, OuterLoopBoundary&)`, which performs ONE finite title operation per call and records the next `OuterLoopPhase`.
 - A guest call that must return goes through `ts2::callGuestToReturn` / `ts2::callFiniteGuestToReturn`.
-- **While a movie or a loading call blocks**: the driver's `FrameCallState::fieldCall()` holds one `ts2::ResumableGuestCall`. The guest's own field barrier (`0x8003FA68`, owned by `GraphicsSync::install`) publishes the elapsed fields and then exits the executor with `FrameBoundary`, so the turn comes back to `ResumableGuestCall::advance` as `Progress::fieldBoundary`; the native movie player (`game/fmv`) exits with `CooperativeYield` instead, which is `Progress::hostSlice`. Either way `stepOuterLoop` returns, the host presents that field, and the call is resumed at the same guest PC on the next step. Host input is pumped once per turn by `sampleInput`, so a blocking movie never stops the pad, the control channel or the window's events.
+- **While a movie or a loading call blocks**: the driver's `FrameCallState::fieldCall()` holds one `ts2::frame::FieldCall`, over `psx::cpu::ResumableGuestCall`. The guest's own field barrier (`0x8003FA68`, owned by `GraphicsSync::install`) publishes the elapsed fields and then exits the executor with `FrameBoundary`, so the turn comes back to `ResumableGuestCall::advance` as `Progress::fieldBoundary`; the native movie player (`game/fmv`) exits with `CooperativeYield` instead, which is `Progress::hostSlice`. Either way `stepOuterLoop` returns, the host presents that field, and the call is resumed at the same guest PC on the next step. Host input is pumped once per turn by `sampleInput`, so a blocking movie never stops the pad, the control channel or the window's events.
 
 ### Host input → guest pad buffer
 

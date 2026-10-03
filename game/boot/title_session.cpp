@@ -6,16 +6,10 @@
 #include "disc.h"
 #include "fs_util.h"
 #include "game.h"
-#include "hw_bind.h" // gte_init
+#include "hw_bind.h" // gte_init, spu_init
 #include "psx_exe_image.h"
 
 #include <lucent/log.h>
-
-extern "C" {
-// spu_init is the one boot symbol with no owning header: spu_beetle.cpp defines it with C linkage
-// from the vendored Beetle SPU and declares nothing for the rest of the runtime.
-void spu_init(void);
-}
 
 void native_boot_run(Core *c); // psxport native boot owner
 

@@ -3,8 +3,10 @@
 #include "core.h"
 #include "disc.h"
 #include "execution/guest_execution.h"
+#include "execution_exit.h"
 #include "fmv/movie_player.h"
 #include "game.h"
+#include "native_dispatch.h"
 #include "runtime/toystory2_context.h"
 
 #include <algorithm>
@@ -50,7 +52,8 @@ void observeFileLoad(Core *core) {
   const std::uint32_t destination = core->r[5];
   OverlaySlot *slot = context(*core).overlays.slotAt(destination);
   if (slot == nullptr) {
-    callOriginalToReturn(*core, kFileLoader, "Toy Story 2 file loader original");
+    psx::cpu::callOriginalToReturn(
+        *core, kFileLoader, psx::cpu::ExecutionBudget::currentTurn(*core), "Toy Story 2 file loader original");
     return;
   }
 
@@ -65,7 +68,8 @@ void observeFileLoad(Core *core) {
       std::abort();
     }
   }
-  callOriginalToReturn(*core, kFileLoader, "Toy Story 2 file loader original");
+  psx::cpu::callOriginalToReturn(
+      *core, kFileLoader, psx::cpu::ExecutionBudget::currentTurn(*core), "Toy Story 2 file loader original");
   if (!module) {
     // Whatever the guest loaded here is not an authenticated code module (the LEVEL00 placeholder is
     // data), so nothing may stay executable from the previous contents.
@@ -110,7 +114,7 @@ OverlaySlot *OverlayImages::slotAt(std::uint32_t destination) {
 }
 
 void OverlayImages::installLoadObserver(Core &core) {
-  installResidentOverride(core, kFileLoader, "overlay-image-loader", observeFileLoad);
+  psx::cpu::installNativeOverride(core, kFileLoader, "overlay-image-loader", observeFileLoad);
 }
 
 } // namespace ts2

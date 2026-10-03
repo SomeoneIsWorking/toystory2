@@ -26,6 +26,25 @@ bool LevelStartPresentation::demoGuardForcesLoadingCard(int demoMode) {
 }
 
 void LevelStartPresentation::arm(Core &core, int playbackMode) {
+  const bool wanted = demoGuardForcesLoadingCard(playbackMode);
+  // Arming is idempotent, so this asks whether the title's own override is already at this address.
+  // The framework owns the key an override lives under — an address alone does not identify guest code
+  // because overlays reuse ranges — and `removeNativeOverride` resolves it and refuses by name.
+  if (wanted == firstPresentationInstalled(core)) {
+    return;
+  }
+  if (wanted) {
+    psx::cpu::installNativeOverride(
+        core, levelStartPresentationAddress(), "level-start-first-presentation", levelStartFirstPresentationEntry);
+    return;
+  }
+  if (!psx::cpu::removeNativeOverride(core, levelStartPresentationAddress())) {
+    lucent::error("ts2-level-start", "failed to retire the level start's first-presentation override");
+    std::abort();
+  }
+}
+
+bool LevelStartPresentation::firstPresentationInstalled(Core &core) {
   const auto image = core.currentImageIdentity(levelStartPresentationAddress());
   if (!image) {
     lucent::error("ts2-level-start",
@@ -33,20 +52,7 @@ void LevelStartPresentation::arm(Core &core, int playbackMode) {
                   levelStartPresentationAddress());
     std::abort();
   }
-  const psx::cpu::NativeKey key{*image, levelStartPresentationAddress()};
-  const bool wanted = demoGuardForcesLoadingCard(playbackMode);
-  if (wanted == core.nativeDispatcher().isInstalled(key)) {
-    return;
-  }
-  if (wanted) {
-    installResidentOverride(
-        core, levelStartPresentationAddress(), "level-start-first-presentation", levelStartFirstPresentationEntry);
-    return;
-  }
-  if (!core.nativeDispatcher().remove(key)) {
-    lucent::error("ts2-level-start", "failed to retire the level start's first-presentation override");
-    std::abort();
-  }
+  return core.nativeDispatcher().isInstalled(psx::cpu::NativeKey{*image, levelStartPresentationAddress()});
 }
 
 void levelStartFirstPresentationEntry(Core *core) {

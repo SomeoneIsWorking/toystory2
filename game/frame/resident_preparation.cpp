@@ -36,7 +36,7 @@ constexpr uint32_t kPlaybackMode = 0x800A120Cu;
 
 ResidentPreparationProgress ResidentPreparation::step(Core &core, uint32_t level, int playbackMode) {
   if (!levelStart_.has_value()) {
-    levelStart_.emplace(core);
+    levelStart_.emplace();
     core.mem_w32(kLevelId, level);
     core.mem_w32(kPlaybackMode, static_cast<uint32_t>(playbackMode));
     // The level start's FIRST presentation (FUN_8007C278) presents the game's LOADING card on the
@@ -46,11 +46,11 @@ ResidentPreparationProgress ResidentPreparation::step(Core &core, uint32_t level
     // presented by the level start's own field-spanning call.
     context(core).levelStartPresentation.arm(core, playbackMode);
     const std::array arguments{level};
-    levelStart_->begin({kLevelStart, kLevelStartReturn, arguments, std::nullopt, "resident level start"});
+    levelStart_->begin(core, {kLevelStart, kLevelStartReturn, arguments, std::nullopt, "resident level start"});
     context(core).yieldAtFieldBarrier = true;
   }
-  if (levelStart_->active()) {
-    if (levelStart_->advance() != ResumableGuestCall::Progress::returned) {
+  if (levelStart_->pending()) {
+    if (levelStart_->advance(core) != FieldCall::Step::returned) {
       // Still inside the routine: a display field at its own transition barrier, or a host slice
       // (the level start's first presentation hands the turn back between its own compute slices).
       // Either way `[0x800A1174]` holds the fields the wait covered, `[0x800A1480]` and
@@ -61,24 +61,24 @@ ResidentPreparationProgress ResidentPreparation::step(Core &core, uint32_t level
     // 0x8007BEC4 returns nonzero when its transition was cut short by the boot countdown, which is the
     // case the outer loop treats as an interrupted level start rather than a ready one. The main loop
     // takes its `bnez` leg to 0x8007B230 in that case, so the entry state below is not run.
-    if (levelStart_->result() != 0) {
+    if (levelStart_->result(core) != 0) {
       return ResidentPreparationProgress::finished;
     }
     levelStart_ = std::nullopt;
   }
   if (!playLoopEntry_.has_value()) {
-    playLoopEntry_.emplace(core);
-    playLoopEntry_->begin({kPlayLoopEntryState, kMainLoopEntry, {}, std::nullopt, "resident play-loop entry"});
+    playLoopEntry_.emplace();
+    playLoopEntry_->begin(core, {kPlayLoopEntryState, kMainLoopEntry, {}, std::nullopt, "resident play-loop entry"});
     context(core).yieldAtFieldBarrier = true;
   }
-  const ResumableGuestCall::Progress progress = playLoopEntry_->advance();
+  const FieldCall::Step progress = playLoopEntry_->advance(core);
   context(core).yieldAtFieldBarrier = false;
   // The guest is left parked inside its own field barrier, which is exactly where it is at every
   // display field; the host owns the loop body (0x8007B254/0x8007B850) from the next field, as it
   // already does for every field after this one, so this call is never resumed.
-  playLoopEntry_->abandon();
+  playLoopEntry_->giveUp();
   playLoopEntry_ = std::nullopt;
-  if (progress != ResumableGuestCall::Progress::fieldBoundary) {
+  if (progress != FieldCall::Step::fieldBoundary) {
     // Unreachable: the eleven stores above publish `[0x800A136E] = 0` and `[0x800A155C] = 0x5A`, which
     // is the loop condition `DAT_800a136e == 0 || DAT_800a155c != 0` the entry block branches on, so
     // the block always reaches 0x8007AEAC's barrier instead of falling out of the loop.

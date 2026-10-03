@@ -5,6 +5,7 @@
 #include "execution/guest_execution.h"
 #include "game.h"
 #include "invalidation.h"
+#include "native_dispatch.h"
 
 #include <algorithm>
 #include <array>
@@ -162,8 +163,8 @@ FileTransfer::Outcome FileTransfer::transfer(Core &core, std::uint32_t guestPath
 }
 
 void FileTransfer::install(Core &core) {
-  installResidentOverride(core, kWholeFileRead, "cd-file-transfer", fileTransferOverride);
-  installResidentOverride(core, kLoadFile, "cd-load-file", loadFileOverride);
+  psx::cpu::installNativeOverride(core, kWholeFileRead, "cd-file-transfer", fileTransferOverride);
+  psx::cpu::installNativeOverride(core, kLoadFile, "cd-load-file", loadFileOverride);
 }
 
 } // namespace ts2::cd

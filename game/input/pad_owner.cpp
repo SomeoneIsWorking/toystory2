@@ -3,6 +3,7 @@
 #include "core.h"
 #include "execution/guest_execution.h"
 #include "game.h"
+#include "native_dispatch.h"
 #include "runtime/toystory2_context.h"
 
 #include <cstdlib>
@@ -102,9 +103,9 @@ uint16_t PadOwner::decode(Core &core) {
 }
 
 void PadOwner::install(Core &core) {
-  installResidentOverride(core, 0x8003EEF0u, "pad-init", initializeOverride);
-  installResidentOverride(core, 0x8003EF78u, "pad-shutdown", shutdownOverride);
-  installResidentOverride(core, 0x8003AC58u, "digital-pad-decode", decodeOverride);
+  psx::cpu::installNativeOverride(core, 0x8003EEF0u, "pad-init", initializeOverride);
+  psx::cpu::installNativeOverride(core, 0x8003EF78u, "pad-shutdown", shutdownOverride);
+  psx::cpu::installNativeOverride(core, 0x8003AC58u, "digital-pad-decode", decodeOverride);
 }
 
 } // namespace ts2

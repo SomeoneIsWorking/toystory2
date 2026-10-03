@@ -44,6 +44,11 @@ public:
 
   // The armed override: the demo-forced card, suppressed. Refuses a route its own guard exempts.
   void run(Core &core);
+
+private:
+  // Whether this title's own override is currently armed at its entry, which is what makes `arm`
+  // idempotent. The key is (active image identity, address), so this is the one place that resolves it.
+  static bool firstPresentationInstalled(Core &core);
 };
 
 // The override entry, installed by `arm` through the title's own resident registration.

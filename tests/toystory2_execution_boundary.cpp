@@ -3,6 +3,7 @@
 // Synthetic bytes here prove state transitions; real-title reach is a separate runtime check.
 
 #include "execution/guest_execution.h"
+#include "frame/field_call.h"
 #include "game.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
@@ -11,6 +12,7 @@
 #include "testutil.h"
 
 #include <algorithm>
+#include <array>
 #include <lucent/content.h>
 #include <memory>
 #include <optional>
@@ -19,7 +21,12 @@
 #include <string_view>
 #include <vector>
 
-static void test_finite_guest_call_continues_guest_state_and_preserves_return_sentinel() {
+// What THIS TITLE owns about a guest call, now that the loop, the return-address latch, the turn cap
+// and the classification of a stop belong to `psx::cpu::ResumableGuestCall`: the arguments a call is
+// entered with, the slice caps this title measured, and the finite entry points built on the shared
+// owner. Synthetic bytes here prove those; the resume/refusal rules are psxport's own and are tested
+// there, not reimplemented here.
+static void test_title_publishes_call_arguments_and_finishes_through_the_shared_owner() {
   static ts2::ToyStory2Runtime runtime;
   psxport_install_game(runtime);
   auto game = std::make_unique<Game>();
@@ -43,38 +50,45 @@ static void test_finite_guest_call_continues_guest_state_and_preserves_return_se
   core.mem_w32(inner + 24u, 0u);
   core.mem_w32(returnAddress, 0x24177BADu); // must not execute
 
-  const ts2::GuestCall call{entry, returnAddress, {}, std::nullopt, "synthetic finite call"};
-  const auto result = ts2::executeFiniteGuestCall(
-      core, call, psx::cpu::ExecutionBudget::fromCycles(32), ts2::kFiniteInitializationSliceLimit);
-  CHECK(result.returned());
-  CHECK_EQ(result.guestPc, returnAddress);
-  CHECK_EQ(core.r[2], 200u);
+  // The arguments are the title's fact: `$a0`-`$a3` in the guest's register file, the fifth argument in
+  // the stack slot at `$sp + 16`. The shared owner deliberately takes only the entry and the return
+  // address, so this is where they are published.
+  const std::array arguments{0x11111111u, 0x22222222u, 0x33333333u, 0x44444444u};
+  core.r[29] = 0x801FF000u;
+  const ts2::GuestCall call{
+      entry, returnAddress, arguments, std::optional<std::uint32_t>{0x55555555u}, "synthetic finite call"};
+  ts2::publishCallArguments(core, call);
+  CHECK_EQ(core.r[4], 0x11111111u);
+  CHECK_EQ(core.r[5], 0x22222222u);
+  CHECK_EQ(core.r[6], 0x33333333u);
+  CHECK_EQ(core.r[7], 0x44444444u);
+  CHECK_EQ(core.mem_r32(0x801FF000u + 16u), 0x55555555u);
+
+  // The finite entry point: a bounded number of display fields through `psx::cpu`'s owner.
+  CHECK_EQ(ts2::callFiniteGuestToReturn(core, call, ts2::kFiniteInitializationSliceLimit), 200u);
+  // The guest's `jr s0` returned through the boundary the call latched, not through whatever the body
+  // left in `$ra`.
   CHECK_EQ(core.r[31], entry + 12u);
   CHECK_EQ(core.r[23], 0u);
-  CHECK(result.cycles > 32u);
   CHECK(core.lightrecExecutor().counters().translatedBlocks > 0u);
   CHECK_EQ(core.lightrecExecutor().counters().fallback.calls, 0u);
+  CHECK(core.guestCallCensus().completed() > 0u);
 
-  core.r[2] = 0;
-  core.r[23] = 0;
-  const auto bounded = ts2::executeFiniteGuestCall(core, call, psx::cpu::ExecutionBudget::fromCycles(32), 1);
-  CHECK_EQ(bounded.reason, psx::cpu::ExecutionExitReason::BudgetExhausted);
-  CHECK(bounded.detail == "finite guest call exceeded its slice bound");
-  CHECK_EQ(core.r[23], 0u);
+  // The measured caps this title states, as values: one display field for the leaf calls, a bounded
+  // slice count for the two initialization transactions.
+  CHECK_EQ(ts2::kOneFieldCallTurns, 1u);
+  CHECK(ts2::kFiniteInitializationSliceLimit > 0u);
+  CHECK_EQ(ts2::kResidentUpdateSliceLimit, 8u);
 
-  constexpr std::uint32_t nonReturning = entry + 0x80u;
-  core.mem_w32(nonReturning, 0x26520001u);                                             // addiu s2, s2, 1
-  core.mem_w32(nonReturning + 4u, 0x08000000u | ((nonReturning >> 2u) & 0x03FFFFFFu)); // j nonReturning
-  core.mem_w32(nonReturning + 8u, 0u);
-  core.r[18] = 0;
-  const ts2::GuestCall nonReturningCall{nonReturning, returnAddress, {}, std::nullopt, "synthetic non-return"};
-  const auto refused =
-      ts2::executeFiniteGuestCall(core, nonReturningCall, psx::cpu::ExecutionBudget::fromCycles(32), 2);
-  CHECK_EQ(refused.reason, psx::cpu::ExecutionExitReason::BudgetExhausted);
-  CHECK(refused.detail == "finite guest call exceeded its slice bound");
-  CHECK(core.r[18] > 0u);
-  CHECK_EQ(core.r[23], 0u);
-  CHECK_EQ(core.lightrecExecutor().counters().fallback.calls, 0u);
+  // The field call the frame turn drives: one host step, one display field counted, then the return.
+  ts2::FieldCall fieldCall;
+  CHECK(!fieldCall.pending());
+  fieldCall.begin(core, {entry, returnAddress, {}, std::nullopt, "synthetic field call"});
+  CHECK(fieldCall.pending());
+  CHECK(fieldCall.advance(core) == ts2::FieldCall::Step::returned);
+  CHECK(!fieldCall.pending());
+  CHECK_EQ(fieldCall.displayFields(), 0u);
+  CHECK_EQ(fieldCall.result(core), 200u);
 }
 
 static void writeGuestPath(Core &core, std::uint32_t address, std::string_view path) {
@@ -330,7 +344,7 @@ static void test_level_slot_is_coresident_with_the_shared_slot_and_each_load_rep
 }
 
 int main() {
-  RUN(finite_guest_call_continues_guest_state_and_preserves_return_sentinel);
+  RUN(title_publishes_call_arguments_and_finishes_through_the_shared_owner);
   RUN(memory_overlay_publication_authenticates_bytes_and_retires_replaced_identity);
   RUN(shared_slot_authenticates_fmv_and_replaces_memory_without_identity_leak);
   RUN(level_slot_is_coresident_with_the_shared_slot_and_each_load_replaces_only_its_own_identity);

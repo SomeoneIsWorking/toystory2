@@ -9,6 +9,7 @@
 #pragma once
 
 #include "execution/guest_execution.h"
+#include "frame/field_call.h"
 #include "frame/outer_loop.h"
 #include "frame/resident_frame.h"
 #include "frame/resident_preparation.h"
@@ -32,15 +33,15 @@ class FrameCallState {
 public:
   explicit FrameCallState(Core &core) : core_(core) {}
 
-  // The one resumable guest call the frame turn owns, bound to the Core on first use.
-  ResumableGuestCall &fieldCall();
+  // The one field-spanning guest call the frame turn owns.
+  FieldCall &fieldCall();
 
 private:
   friend class CoreFrameBoundary;
   Core &core_;
   OuterLoopState outerLoop_{};
   ResidentPreparation residentPreparation_{};
-  std::optional<ResumableGuestCall> fieldCall_;
+  FieldCall fieldCall_;
   std::size_t introMovieStep_ = 0;
   SelectionCall selectionCall_ = SelectionCall::screenLoop;
 };

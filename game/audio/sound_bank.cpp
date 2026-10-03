@@ -2,6 +2,8 @@
 
 #include "core.h"
 #include "execution/guest_execution.h"
+#include "execution_exit.h"
+#include "native_dispatch.h"
 
 #include <cstdint>
 
@@ -12,13 +14,14 @@ namespace {
 constexpr std::uint32_t kSoundBankProcessor = 0x8007F108u;
 
 void soundBankProcessorOverride(Core *core) {
-  callOriginalToReturnResuming(*core, kSoundBankProcessor, "guest sound-bank processor");
+  psx::cpu::callOriginalToReturnResuming(
+      *core, kSoundBankProcessor, psx::cpu::ExecutionBudget::currentTurn(*core), "guest sound-bank processor");
 }
 
 } // namespace
 
 void SoundBankProcessor::install(Core &core) {
-  installResidentOverride(core, kSoundBankProcessor, "sound-bank-processor", soundBankProcessorOverride);
+  psx::cpu::installNativeOverride(core, kSoundBankProcessor, "sound-bank-processor", soundBankProcessorOverride);
 }
 
 } // namespace ts2::audio

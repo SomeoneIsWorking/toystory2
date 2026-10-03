@@ -4,6 +4,8 @@
 
 #include "core.h"
 #include "execution/guest_execution.h"
+#include "execution_exit.h"
+#include "native_dispatch.h"
 #include "projection_provenance.h"
 #include "runtime/toystory2_context.h"
 
@@ -88,7 +90,8 @@ void observeSceneOwner(Core *core) {
   if (history.capturing()) {
     history.captureOwnerSubmission(*core, core->r[4], core->r[5], core->r[6], core->r[7]);
   }
-  callOriginalToReturn(*core, 0x8002622Cu, "resident scene owner original");
+  psx::cpu::callOriginalToReturn(
+      *core, 0x8002622Cu, psx::cpu::ExecutionBudget::currentTurn(*core), "resident scene owner original");
 }
 
 void observeMeshSubmitter(Core *core) {
@@ -100,7 +103,8 @@ void observeMeshSubmitter(Core *core) {
   const psxport::temporal::ProjectionProvenance::Scope scope(
       core->rsub.projectionProvenance,
       render::ResidentProjectionScopes::slotTableInstance(*core, render::ResidentProjectionScopes::kMeshSubmitter));
-  callOriginalToReturn(*core, 0x800100E4u, "resident mesh submitter original");
+  psx::cpu::callOriginalToReturn(
+      *core, 0x800100E4u, psx::cpu::ExecutionBudget::currentTurn(*core), "resident mesh submitter original");
 }
 
 } // namespace
@@ -328,8 +332,8 @@ const ResidentSceneFrame &ResidentSceneHistory::current() const {
 }
 
 void ResidentSceneHistory::install(Core &core) {
-  installResidentOverride(core, 0x8002622Cu, "resident-scene-observer", observeSceneOwner);
-  installResidentOverride(core, 0x800100E4u, "resident-mesh-observer", observeMeshSubmitter);
+  psx::cpu::installNativeOverride(core, 0x8002622Cu, "resident-scene-observer", observeSceneOwner);
+  psx::cpu::installNativeOverride(core, 0x800100E4u, "resident-mesh-observer", observeMeshSubmitter);
 }
 
 } // namespace ts2
