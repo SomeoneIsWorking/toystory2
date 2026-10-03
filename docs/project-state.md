@@ -19,16 +19,6 @@ Tools/docs pass (2026-10-03): `headless_run.py` reuses `resolve_disc.py` and `ex
 
 Shared-owner migration (2026-10-03): psxport's `ResumableGuestCall`, `installNativeOverride`/`removeNativeOverride` and `Core::guestCallCensus()` replace the title's own loop, keying and census; `ts2::frame::FieldCall` keeps only how a host step ends. EXIT LEVEL replay unchanged.
 
-The shared owner needed one change for that to hold, made in psxport and NOT yet landed there: a turn
-that ended `FrameBoundary` or `CooperativeYield` is a SUSPENSION rather than a refusal (this title's
-guest waits on VSync and its native FMV player yields), and the "consumed no guest cycles" refusal
-applies to `BudgetExhausted` alone — a `CooperativeYield` carries zero guest cycles by construction,
-because an FMV frame is decoded, uploaded and drawn in host code. Without the second half, the first
-intro movie was refused after two turns.
-
-STILL IN FLIGHT: psxport is adding the boot Machine and the field-turn spine. Nothing in this title
-references them yet.
-
 **Current focus**: G004 loading removal (S015). The v1 route is inventoried and carries no
 loading-only presentation; the one load still unmeasured is the post-level transition
 `0x8007BC74(4, 0x40)`, which no verified route reaches. Playing a level to completion is ABANDONED
