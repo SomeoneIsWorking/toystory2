@@ -52,11 +52,6 @@ constexpr uint32_t kResetGraphics = 0x8003A774u;
 constexpr uint32_t kPlaybackSetup = 0x80079B58u;
 constexpr uint32_t kInteractiveSelection = 0x80041240u;
 constexpr uint32_t kCheckSave = 0x800415E4u;
-// The guest's per-field pad latch: FUN_8003B33C { DAT_800a11e4 = DAT_800a1480; DAT_800a1480 =
-// FUN_8003AC58(1); }, the only writer of the current/previous pad words every rising-edge test reads.
-// Retail reaches it from the VBlank handler FUN_8003A888, which this port does not dispatch (it owns
-// that handler's draw-env and VSync work natively), so the latch alone is driven before each update.
-constexpr uint32_t kPadLatch = 0x8003B33Cu;
 constexpr uint32_t kLoadSave = 0x8004171Cu;
 constexpr uint32_t kShutdownGraphics = 0x8003A838u;
 constexpr uint32_t kEndResidentDisplay = 0x8003AA74u;
@@ -505,8 +500,6 @@ public:
     const bool alternate = core_.mem_r32(kAlternateUpdateMode) != 0;
     context(core_).scene.beginFrame();
     context(core_).projectionScopes.beginFrame();
-    // Retail latches the pad in VBlank, before the field's update reads it.
-    callGuest(core_, kPadLatch);
     const std::array noArguments{0u, 0u, 0u, 0u};
     callFiniteGuestToReturn(
         core_,
