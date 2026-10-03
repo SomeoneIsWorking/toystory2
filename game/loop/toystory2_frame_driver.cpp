@@ -80,7 +80,10 @@ uint32_t callGuest(Core &core, uint32_t address, uint32_t a0 = 0, uint32_t a1 = 
 }
 
 // Which resumable guest call one interactive-selection iteration is currently running.
-enum class SelectionCall { screenLoop, queuedScreen };
+// Which guest call the one resumable field call is currently running. It lives in the RUNTIME, not
+// in the boundary: the boundary is constructed afresh every step and holds only references to
+// state that has to outlive it.
+enum class SelectionCall { screenLoop, queuedScreen, memoryCardOverlay, loadSaveOverlay };
 
 class CoreResidentFrameBoundary final : public ResidentFrameBoundary, public OuterLoopBoundary {
 public:
@@ -416,23 +419,67 @@ public:
   // field-barrier override yielding to the host: ONE STEP, ONE DISPLAY FIELD. Every original call in
   // the guest's body still runs through the seam — nothing here reimplements the load, the decode, or
   // the overlay's UI — this only decides where the turn is handed back.
-  bool checkSaveSelection() override {
-    if (!fieldCall_.active()) {
-      fieldCall_.begin({kCheckSave, 0x8007A9E8u, {}, std::nullopt, "memory-card selection"});
-      context(core_).yieldAtFieldBarrier = true;
+  // THE MODAL OVERLAY SCREENS ARE ONE GUEST CALL EACH, AND BOTH SPAN DISPLAY FIELDS. Ghidra, exact
+  // bytes, and both bodies are the same shape: an asset load and then the overlay's own loop.
+  //
+  //   0x800415E4 (36 instructions, 5 calls) — MEMORY CARD:
+  //     DAT_800a16a8 = 0x10;  DAT_800a138c = 0xf8;
+  //     FUN_80039d9c();  FUN_8003d88c(DAT_800a16a8);  DAT_800a141c = 0;
+  //     FUN_80078c84(0x800c1608);  uVar2 = func_0x800def6c();
+  //     FUN_80078cc4(0x800c1608);  return uVar2;
+  //
+  //   0x8004171C (63 instructions, 8 calls) — LOAD/SAVE:
+  //     DAT_800a16a8 = 0x10;  DAT_800a138c = 0xb8;
+  //     while (true) { FUN_8003d88c(DAT_800a16a8); iVar2 = func_0x800dc67c(iVar2);
+  //                    if (iVar2 < 0) break; FUN_80082508("FMV/FMV.BIN", 0x800d5d20);
+  //                    func_0x800d6628(iVar2 + 10); }
+  //
+  // Neither can be a one-turn finite call, for two independent reasons:
+  //
+  //  1. `FUN_8003d88c(0x10)` decodes a large asset set through 0x8003B544 -> 0x80021190, the live
+  //     back-reference decoder `restartColdFrontEnd` already records as unfinishable in one turn
+  //     (15,245,664 cycles over 28 host turns for the cold corpus). MEASURED for the MEMORY CARD
+  //     case as a one-turn call: it aborted with "frame driver required a completed guest call ...
+  //     budget-exhausted at 0x800215B4 after 564492 cycles".
+  //  2. `func_0x800def6c()` / the `while (true)` ARE the screens' own display loops — a 24-field
+  //     "Please wait" prologue then a UI loop consuming exactly one 0x8003FA68 field barrier per
+  //     iteration, returning only when the player backs out.
+  //
+  // So both are driven as resumable field calls, exactly like the screen loop at 0x80041240, with the
+  // installed field-barrier override yielding to the host: ONE STEP, ONE DISPLAY FIELD. Every
+  // original call in the guest's body still runs through the seam; nothing here reimplements the
+  // load, the decode, or a screen's UI. This only decides where the turn is handed back.
+  void beginMemorySelection() override {
+    beginOverlayCall(kCheckSave, "memory-card selection");
+    selectionCall_ = SelectionCall::memoryCardOverlay;
+  }
+
+  void beginLoadSaveSelection() override {
+    beginOverlayCall(kLoadSave, "load-save selection");
+    selectionCall_ = SelectionCall::loadSaveOverlay;
+  }
+
+  void beginOverlayCall(uint32_t address, const char *owner) {
+    if (fieldCall_.active()) {
+      return;
     }
-    if (fieldCall_.advance() != ResumableGuestCall::Progress::returned) {
+    fieldCall_.begin({address, 0x8007A9E8u, {}, std::nullopt, owner});
+    context(core_).yieldAtFieldBarrier = true;
+  }
+
+  bool stepMemoryScreen() override {
+    const ResumableGuestCall::Progress progress = fieldCall_.advance();
+    if (progress != ResumableGuestCall::Progress::returned) {
       return false;
     }
     context(core_).yieldAtFieldBarrier = false;
-    if (fieldCall_.result() != 0) {
+    // The MEMORY CARD screen publishes the front end's selection-active word itself, exactly as the
+    // one-turn call did, so the level that follows is keyed the same way it always was.
+    if (selectionCall_ == SelectionCall::memoryCardOverlay && fieldCall_.result() != 0) {
       core_.mem_w32(kSelectionActive, 1);
     }
+    selectionCall_ = SelectionCall::screenLoop;
     return true;
-  }
-
-  void loadSaveSelection() override {
-    callGuest(core_, kLoadSave);
   }
 
   void restartFrontEnd() override {

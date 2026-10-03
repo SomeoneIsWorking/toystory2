@@ -11,6 +11,10 @@ enum class OuterLoopPhase {
   introMovies,
   frontEndSetup,
   pollFrontEnd,
+  // The MEMORY CARD / LOAD-SAVE modal overlay screens. These are guest calls that span display
+  // fields, so the loop needs a phase of its own to keep stepping them: re-entering pollFrontEnd
+  // would start a SECOND guest call while the first is still running.
+  memoryScreen,
   interactiveSelection,
   residentSetup,
   resident,
@@ -70,8 +74,12 @@ public:
   virtual void showMemoryDialog() = 0;
   // One display field of the MEMORY CARD selection (0x800415E4). false while that guest call is
   // still running, true once it has returned and its save-selection answer is published.
-  virtual bool checkSaveSelection() = 0;
-  virtual void loadSaveSelection() = 0;
+  // One display field of the modal overlay screen (0x800415E4 MEMORY CARD, 0x8004171C LOAD/SAVE):
+  // false while that guest call is still running, true once it has returned. Which of the two is
+  // running is chosen by `beginMemorySelection` / `beginLoadSaveSelection` before the first step.
+  virtual bool stepMemoryScreen() = 0;
+  virtual void beginMemorySelection() = 0;
+  virtual void beginLoadSaveSelection() = 0;
   virtual void restartFrontEnd() = 0;
   virtual bool residentActive() const = 0;
   virtual void updateResident() = 0;

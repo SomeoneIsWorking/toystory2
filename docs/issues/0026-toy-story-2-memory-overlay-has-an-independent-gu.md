@@ -135,3 +135,66 @@ the overlay publishes for its own screen, or a segment keyed to the phase actual
 Event 4, `loadSaveSelection()` at `0x8004171C`, still has the same load-plus-loop shape
 (`FUN_8003d88c` inside a `while (true)` over `func_0x800d6628`/`func_0x800dc67c`) and is still driven
 by a one-turn `callGuest`. It is not yet migrated.
+
+## Correction and follow-up (2026-10-03) — the landed fix advanced the overlay under the WRONG phase
+
+The version landed as `58fb485` got the screen on screen but was wrong in a way the first evidence
+could not see: `case 3:` called `checkSaveSelection()` and then FELL THROUGH to `finishFrontEndPoll()`
+on the same step, leaving `state.phase` at `pollFrontEnd`. The next step therefore called
+`pollFrontEndEvent()` again, which found the driver's single resumable `fieldCall_` still active and
+advanced the MEMORY overlay's guest call while the loop believed it was polling the front end. The
+overlay animated because it was being driven — by the wrong owner, under the wrong phase. When that
+call returned, its return value would have been read as the front-end poll's event.
+
+**Fix.** `OuterLoopPhase::memoryScreen` is now a phase of its own. `case 3:` calls
+`beginMemorySelection()` and moves to it; `case 4:` calls `beginLoadSaveSelection()` and moves to it;
+the new case steps the screen one display field at a time and only calls `finishFrontEndPoll()` and
+returns to `pollFrontEnd` once the call has actually returned.
+`native_frame_driver_boundary`'s `outer_loop_front_end_events_are_finite_and_non_fallthrough` now
+records that contract: for events 3 and 4 the poll is NOT finished on the dispatch step, and it is
+finished only after the screen returns.
+
+**A second defect found while fixing the first.** The overlay state was initially kept in a
+`memorySelection_` member of `CoreResidentFrameBoundary`. That boundary is constructed afresh on
+every step and holds only REFERENCES to state that must outlive it (`fieldCall_`, `introMovieStep_`,
+`selectionCall_`), so the member was silently reset to its default every single step. Measured: a
+probe counter in the same class read `0` on all 207 calls. The overlay's identity now rides the
+existing runtime-owned `SelectionCall` enum, extended with `memoryCardOverlay` and `loadSaveOverlay`.
+
+### The phase was never the problem, and a fifth key word would have been wrong
+
+The recorded cause of the replay stalling was a phase collision between the MEMORY screen and the
+level-select screen (`levelId = 0x10` on both). Measured on the product, the overlay's actual phase is
+`pb=0 fe=1 sel=0 level=0x10` -> **`0x20010`**, while level select is `sel=1` -> `0x30010`. They were
+never equal: the MEMORY screen publishes `sel=0`, which is what separates it. The four existing words
+already key this screen uniquely and no change to `toystory2_input_phase` was needed.
+
+A fifth word was investigated and rejected on measurement. `0x800A138C` (gp+0x6B4) looks ideal: four
+writers, zero readers, `FUN_800415E4` stores `0xF8`, `FUN_8004171C` stores `0xB8`, the dispatcher
+stores `a1 + 0x43E`, and MEMORY.BIN contains no `lui 0x800a` and no `0x6B4` displacement so the
+overlay cannot reach it. But the word reads **0** for the whole overlay, with `gp = 0x800A0CD8`
+verified correct at the same sample — the overlay's own initialisation (`do { *puVar6 = 0; } while
+(uVar19 < 0x21c9)` over a buffer at `_DAT_800a124c + 0x2000`) clears it. An unstable word is worse
+than no word, so the change was reverted.
+
+The replay stall was the phase ORDER: the recorded file still carried the v2 route's `0x30010` and
+`0x30000` segments, which this route never visits, so the matcher waited for a phase that never came
+and never advanced to the overlay's segment. `replays/toystory2_memory_card_exit_v1.pad` is rebuilt
+with only the three phases the route actually visits.
+
+### Event 4, and the evidence
+
+`FUN_8004171C` is not a save/load screen — its body is `while (true) { FUN_8003d88c(...);
+iVar2 = func_0x800dc67c(iVar2); if (iVar2 < 0) break; FUN_80082508("FMV/FMV.BIN", 0x800d5d20);
+func_0x800d6628(iVar2 + 10); }`, i.e. the MOVIE VIEWER, reached from the main menu. It is migrated the
+same way and measured through the product via `replays/toystory2_movie_viewer_v1.pad`:
+
+- `front-end poll returned event 4`, all 3 segments entered, no budget abort.
+- Screen captured: the binocular-car carousel with `SELECT` / `BACK`.
+
+Both overlay routes now end clean:
+`run-end: replay COMPLETE — segments entered 3 of 3` and
+`run-end: fallback: calls=0 instructions=0 refused_calls=0 compilation_failed=0 self_modifying_code=0
+unsupported_block=0 load_delay_hazard=0 unsafe_instruction_fetch=0 …`.
+
+`tools/verify.py` passes 7/7 with `clang-format` clean.

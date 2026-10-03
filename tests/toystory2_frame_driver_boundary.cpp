@@ -110,12 +110,17 @@ public:
   void showMemoryDialog() override {
     operations.emplace_back("memory-dialog");
   }
-  bool checkSaveSelection() override {
-    operations.emplace_back("check-save");
-    return true;
+  bool memoryScreenDone_ = true;
+
+  bool stepMemoryScreen() override {
+    operations.emplace_back("memory-screen-step");
+    return memoryScreenDone_;
   }
-  void loadSaveSelection() override {
-    operations.emplace_back("load-save");
+  void beginMemorySelection() override {
+    operations.emplace_back("begin-check-save");
+  }
+  void beginLoadSaveSelection() override {
+    operations.emplace_back("begin-load-save");
   }
   void restartFrontEnd() override {
     operations.emplace_back("restart");
@@ -624,8 +629,7 @@ static void test_outer_loop_front_end_events_are_finite_and_non_fallthrough() {
     int event;
     const char *operation;
   };
-  static constexpr EventExpectation expectations[] = {
-      {2, "memory-dialog"}, {3, "check-save"}, {4, "load-save"}, {8, "restart"}};
+  static constexpr EventExpectation expectations[] = {{2, "memory-dialog"}, {8, "restart"}};
 
   for (const auto &expectation : expectations) {
     ts2::OuterLoopState state{ts2::OuterLoopPhase::pollFrontEnd};
@@ -639,6 +643,38 @@ static void test_outer_loop_front_end_events_are_finite_and_non_fallthrough() {
     if (expectation.event != 8) {
       CHECK(boundary.operations[2] == "finish-poll");
     }
+  }
+
+  // Events 3 and 4 are the MODAL OVERLAY SCREENS: one guest call each that spans display fields, so
+  // they get a phase of their own and the poll is NOT finished until the screen returns. Finishing
+  // the poll on the same step is the defect this records — it published the poll's completion while
+  // the overlay was still drawing, and on the next step it re-entered pollFrontEnd, which advanced
+  // the still-running overlay call under the wrong phase and would have read the overlay's return
+  // value as the poll's event.
+  static constexpr EventExpectation overlayExpectations[] = {{3, "begin-check-save"}, {4, "begin-load-save"}};
+
+  for (const auto &expectation : overlayExpectations) {
+    ts2::OuterLoopState state{ts2::OuterLoopPhase::pollFrontEnd};
+    RecordingOuterLoop boundary;
+    boundary.event = expectation.event;
+    ts2::stepOuterLoop(state, boundary);
+    CHECK(state.phase == ts2::OuterLoopPhase::memoryScreen);
+    // operations[0] is the poll step itself; the begin is what this event dispatched.
+    CHECK_EQ(boundary.operations.size(), 2u);
+    CHECK(boundary.operations[1] == expectation.operation);
+
+    // The screen is still running: one display field per step, and the poll stays open.
+    boundary.memoryScreenDone_ = false;
+    ts2::stepOuterLoop(state, boundary);
+    CHECK(state.phase == ts2::OuterLoopPhase::memoryScreen);
+    CHECK(boundary.operations[2] == "memory-screen-step");
+
+    // The screen returned: only now is the poll finished and the loop back on the front end.
+    boundary.memoryScreenDone_ = true;
+    ts2::stepOuterLoop(state, boundary);
+    CHECK(state.phase == ts2::OuterLoopPhase::pollFrontEnd);
+    CHECK(boundary.operations[3] == "memory-screen-step");
+    CHECK(boundary.operations[4] == "finish-poll");
   }
 
   ts2::OuterLoopState finished{ts2::OuterLoopPhase::pollFrontEnd};

@@ -67,17 +67,12 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
       boundary.finishFrontEndPoll();
       return;
     case 3:
-      // The MEMORY CARD screen is a guest call that spans display fields (see checkSaveSelection),
-      // so the front-end phase STAYS here and takes one field per step until it returns. Leaving
-      // early would publish the poll's completion while the overlay was still drawing.
-      if (!boundary.checkSaveSelection()) {
-        return;
-      }
-      boundary.finishFrontEndPoll();
+      boundary.beginMemorySelection();
+      state.phase = OuterLoopPhase::memoryScreen;
       return;
     case 4:
-      boundary.loadSaveSelection();
-      boundary.finishFrontEndPoll();
+      state.phase = OuterLoopPhase::memoryScreen;
+      boundary.beginLoadSaveSelection();
       return;
     case 8:
       boundary.restartFrontEnd();
@@ -93,6 +88,20 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
       beginCurrentMode(state, boundary);
       return;
     }
+  }
+
+  // The modal overlay screens are one guest call each that spans display fields, so this phase
+  // takes ONE display field per step until the call returns. It must be a phase of its own: both
+  // overlay calls share the driver's single resumable call, so re-entering pollFrontEnd would call
+  // pollFrontEndEvent() again, which would find that call still active and advance it under the
+  // wrong phase, then read the overlay's return value as the front-end poll's event.
+  case OuterLoopPhase::memoryScreen: {
+    if (!boundary.stepMemoryScreen()) {
+      return;
+    }
+    boundary.finishFrontEndPoll();
+    state.phase = OuterLoopPhase::pollFrontEnd;
+    return;
   }
 
   case OuterLoopPhase::interactiveSelection:
