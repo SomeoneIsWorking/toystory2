@@ -1,6 +1,6 @@
 # 0042 — the 16:9 leg loses floor the 4:3 leg draws, from inside the original view
 
-**Status**: open, reproduced, cause not yet identified.
+**Status**: fixed (display-area origin, `resident_widescreen.cpp presentField`). The residuals below are scene content.
 
 ## The defect
 
@@ -73,10 +73,61 @@ after (`cmp` clean), which it must be — this only runs when the widening is ac
 This also explains every earlier null result at last: the floor was never culled, never frustum-tested
 and never unsent — it was submitted, rasterised, and then not presented.
 
-RESIDUAL: the floor still ends ~40 canvas columns short of the right canvas edge at the bottom of the
-frame. With every submitted primitive now presented, that remainder is the room's own floor boundary
-rather than a presentation fault; it has not been re-verified against an independent 4:3 reference and
-is left as the open tail of this issue.
+## The two residuals after the fix
+
+**(b) the left margin's dark slanted region — NOT A DEFECT, it is real geometry.** The pixels there
+are quilt-wall blue, not void: over the sampled region the dominant colours are `(16,33,74)` (1863 of
+3225 samples), `(0,25,49)` (742) and `(0,33,66)` (630), and `(16,33,74)` is exactly the blue the guest
+draws on the quilt at guest column 0 of the 4:3 frame. The "dark slant" is a shadowed facet of that
+wall continuing into the margin. Nothing to fix.
+
+**(a) the bottom-right wedge and the right-edge band — the guest's own backdrop where the room ends,
+not a presentation fault**, on this evidence:
+
+- The void colour is the guest's `bg=1` backdrop, `rgb(32,32,32)`. That is the same fill the 4:3 leg
+  shows ABOVE the room's ceiling — the dark band across the top of every 4:3 capture is this same
+  backdrop, so void where the room has no geometry is how this title renders, in both legs.
+- The void's shape is stable while the scene animates: backdrop samples in the two regions are
+  643/720 and 141/336 at frames 2500, 2650, 2800 AND 2950 — identical proportions 450 frames apart.
+- The guest submits geometry well past the canvas in exactly those rows (vertices to x=739 at canvas
+  rows 210..239, and to the GTE's overflow x=1023 elsewhere), so nothing is being clipped at the
+  canvas edge as a class; the presented content simply stops where the guest stopped drawing.
+
+LIMITATION, stated rather than hidden: **the camera does not pan on this route.** Verified directly:
+at 4:3 frame 2950 the framing is unchanged from 2500 with Buzz merely larger and turned, so there is
+no frame of `toystory2_player_andys_house_v2.pad` that brings these areas inside the 4:3 view, and the
+direct 4:3 reference the comparison wanted could not be obtained on this route. And the primitive CSV
+records only 2 of up to 4 vertices, so it cannot prove coverage of the void regions either. The
+conclusion is therefore "consistent with the room's own boundary", NOT proven.
+
+## HUD anchoring at 16:9 — MEASURED
+
+`replays/toystory2_andys_house_pause_v1.pad` (new; the v2 route with a 6-frame Start press added in
+the resident phase, same card sha256 `77d33c6b...`) opens the pause menu, giving the first HUD-bearing
+16:9 gameplay frame. Captured at both aspects at pad frame 2900
+(`scratch/wide/hud/present_2900.png`, `present_2900_43.png`).
+
+The menu panel's 1px outline, found as the longest near-black horizontal run:
+
+```
+        x extent        width   centre x
+ 4:3    460..820          361     640.0
+16:9    460..820          361     640.0
+```
+
+and the glyph runs inside the panel outline (measured strictly inside x 464..816 so a wall star cannot
+contaminate them):
+
+```
+               4:3                16:9              ratio
+ PAUSE MENU   x 526..753 w 228   x 526..753 w 228   1.0000 / 1.0000
+ EXIT LEVEL   x 477..800 w 324   x 477..800 w 324   1.0000 / 1.0000
+```
+
+So the centred HUD stays centred — centre 640.0, the sink centre, in both legs — keeps its authored
+width exactly, and its glyphs are pixel-identical in position and size. A full horizontal stretch would
+have measured 1.333; the measured ratio is 1.0000. That is the widescreen rule satisfied for a centred
+element: centred stays centred, nothing stretches.
 
 ## Packet evidence (`PSXPORT_PRIMDUMP=2495:2505`)
 
