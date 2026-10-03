@@ -129,6 +129,74 @@ width exactly, and its glyphs are pixel-identical in position and size. A full h
 have measured 1.333; the measured ratio is 1.0000. That is the widescreen rule satisfied for a centred
 element: centred stays centred, nothing stretches.
 
+## Edge-anchored in-level HUD — NOT FOUND in reachable content, so no anchoring change was made
+
+The widescreen rule also requires edge HUD elements to move to the widened edges. **That precondition
+could not be evaluated, because no edge-anchored in-level HUD element exists in any reachable content.**
+No native anchoring adjustment was written, because an unmeasured change is exactly what must not ship.
+
+What was checked, and what it showed:
+
+- **Routes driven with pad replay only (no RAM writes).** `toystory2_player_andys_house_v2.pad` reaches
+  Andy's House as a player; idle-at-title attract reaches the arcade interior and the Wild West barn
+  yard. Captured at 4:3 (`scratch/headless/work/scratch/screenshots/present_3300.png`, `present_6100.png`,
+  both inspected at full 1280x720): **no in-level HUD in either**. The barn yard shows only the
+  "DEMO MODE" attract caption, which is attract presentation, not the gameplay HUD.
+- **Primitive evidence, not just the picture.** `PSXPORT_PRIMDUMP` over resident gameplay at 16:9 frame
+  2495 (`scratch/wide/user/prims_16x9.csv`) yields exactly 14 sprites: one full-canvas `bg=1` backdrop
+  (`op 0x60`, x 0..684), one `op 0x60` fill (x 0..512), and twelve `op 0x65` textured cells forming the
+  room's own 64x32 tile grid at x -21..427. None is a HUD element, and none sits at a widened-edge
+  position. The remaining 6267 textured quads in that frame are the world, not UI.
+- **RE.** Ghidra identified the resident per-frame loop as `FUN_8007B254` (from `residentUpdateAddress`,
+  `game/loop/outer_loop.h:85`) — the same function that reads the demo flag `DAT_800A120C` six times —
+  and its draw pass `FUN_80078780` / `FUN_80074F80` / `FUN_8007863C` / `FUN_80046A88` / `FUN_8002A070`.
+  Eight functions from that pass were decompiled. All are animation/scroll state updates:
+  `FUN_800775CC` has `jal=0` and calls nothing, so it draws nothing; `FUN_80078780` maintains frame
+  counters. None computes a screen x for UI, and the executable contains no `lui/ori` materialisation
+  of a GP0 `0x65` command, so the drawer could not be located by command-writer either.
+
+**Scope of the claim.** This is "not present in the content this port can reach", NOT "Toy Story 2 has
+no in-level HUD". Levels with collectibles or damage states were never reached, so a HUD that draws
+only once a collectible counter is non-zero cannot be excluded. Reaching one is the next step, and it
+needs a pad route that selects a level other than Andy's House — not a code change.
+
+## Edge-anchored UI DOES exist on the stage-select screen — and it is correct by design
+
+A front-end sweep of `toystory2_player_andys_house_v2.pad` locates the stage-select screen at pad frame
+~1000 (title at 500, main menu 600-950, stage select 1000-1040, then the level load). It is the only
+edge-anchored UI found anywhere in reachable content, and it carries three elements:
+
+| element | anchor | sink x, 4:3 | sink x, 16:9 |
+|---|---|---|---|
+| `ANDY'S HOUSE` | top centre | centred | centred |
+| `00` (level number) | bottom LEFT | 358..398 | 358..398 |
+| `○ SELECT` / `○ BACK` | bottom RIGHT | 858..1068 | 858..1068 |
+| red panel | full frame | 190..1119 | 190..1119 |
+
+Captures `scratch/wide/sel/{4x3,16x9}/present_1035.png`. Every element measures **identical** at both
+aspects, so the bottom-right pair sits at its 4:3 x inside the 16:9 frame and the panel is pillarboxed
+rather than widened.
+
+**That is the documented intent, not a defect.** `ResidentWidescreenProjection::syncToGuestDisplay`
+takes a `residentFrame` flag and the class comment records why: "The front end publishes 512-wide
+screens of its own (the Level map) ... every front-end screen is presented at the width it authored,
+centred by the letterbox." An earlier attempt that widened this very screen kept the panel at its
+authored width while the widened display area made the guest lay the map preview out beside it, and the
+menu stopped filling its own frame. So the stage-select screen is evidence for the scoping decision,
+not for a change.
+
+## What the widening does to an edge-anchored 2D element, if one is ever found
+
+Worth recording for whoever reaches a level with a real HUD, because it decides whether a change is
+needed at all. The presenter maps guest VRAM columns straight onto the widened canvas
+(`guestClipLeft = presentationExtent.width - guestDrawWidth`, which is 0 for a full-width 684 canvas),
+so a guest element at column 0 already sits on the widened left edge, while one anchored to the guest's
+literal 512 would stay at 512 and would NOT reach the widened right edge at 683. The title already
+tells the guest its canvas is 684 wide (`widenDrawEnv` writes `drawWidth()` into the draw env's width
+field), so a drawer that derives its right edge from the draw env follows the widening on its own; one
+that anchors to a literal 512 would need a title-owned adjustment. No such drawer has been located, so
+nothing has been changed on that basis.
+
 ## Packet evidence (`PSXPORT_PRIMDUMP=2495:2505`)
 
 Captured at both aspects for the same route and frame, `scratch/wide/user/prims_4x3.csv` and
