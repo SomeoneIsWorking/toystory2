@@ -67,7 +67,12 @@ void stepOuterLoop(OuterLoopState &state, OuterLoopBoundary &boundary) {
       boundary.finishFrontEndPoll();
       return;
     case 3:
-      boundary.checkSaveSelection();
+      // The MEMORY CARD screen is a guest call that spans display fields (see checkSaveSelection),
+      // so the front-end phase STAYS here and takes one field per step until it returns. Leaving
+      // early would publish the poll's completion while the overlay was still drawing.
+      if (!boundary.checkSaveSelection()) {
+        return;
+      }
       boundary.finishFrontEndPoll();
       return;
     case 4:

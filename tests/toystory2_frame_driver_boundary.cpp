@@ -110,8 +110,9 @@ public:
   void showMemoryDialog() override {
     operations.emplace_back("memory-dialog");
   }
-  void checkSaveSelection() override {
+  bool checkSaveSelection() override {
     operations.emplace_back("check-save");
+    return true;
   }
   void loadSaveSelection() override {
     operations.emplace_back("load-save");

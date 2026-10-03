@@ -68,7 +68,9 @@ public:
   virtual SelectionProgress stepInteractiveSelection() = 0;
   virtual ResidentPreparationProgress prepareResident() = 0;
   virtual void showMemoryDialog() = 0;
-  virtual void checkSaveSelection() = 0;
+  // One display field of the MEMORY CARD selection (0x800415E4). false while that guest call is
+  // still running, true once it has returned and its save-selection answer is published.
+  virtual bool checkSaveSelection() = 0;
   virtual void loadSaveSelection() = 0;
   virtual void restartFrontEnd() = 0;
   virtual bool residentActive() const = 0;

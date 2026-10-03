@@ -393,10 +393,42 @@ public:
     callMemoryDispatcher(9, 0x80, "memory dialog asset load");
   }
 
-  void checkSaveSelection() override {
-    if (callGuest(core_, kCheckSave) != 0) {
+  // THE MEMORY CARD SELECTION IS ONE GUEST CALL THAT SPANS DISPLAY FIELDS. Ghidra, exact bytes
+  // (0x800415E4, 36 instructions, 5 calls):
+  //
+  //     uVar1 = DAT_800a16a8;  DAT_800a16a8 = 0x10;  DAT_800a138c = 0xf8;
+  //     FUN_80039d9c();  FUN_8003d88c(DAT_800a16a8);  DAT_800a141c = 0;
+  //     FUN_80078c84(0x800c1608);  uVar2 = func_0x800def6c();
+  //     FUN_80078cc4(0x800c1608);  DAT_800a16a8 = uVar1;  return uVar2;
+  //
+  // Two independent reasons it cannot be a one-turn finite call, and both are load-bearing:
+  //
+  //  1. `FUN_8003D88C(0x10)` loads MEMORY.BIN plus LEVEL06/LEVEL3.RAW (85,860 bytes) and decodes it
+  //     through 0x8003B544 -> 0x80021190, the same live back-reference decoder `restartColdFrontEnd`
+  //     already records as unfinishable in one turn (15.2M cycles over 28 host turns for the cold
+  //     corpus). MEASURED: as a one-turn call this aborted with "frame driver required a completed
+  //     guest call ... budget-exhausted at 0x800215B4 after 564492 cycles".
+  //  2. `func_0x800def6c()` IS the MEMORY overlay's own display loop (issue 26): it opens with a
+  //     24-field "Please wait" prologue and then a UI state loop that consumes exactly one
+  //     0x8003FA68 field barrier per iteration, and it never returns until the player backs out.
+  //
+  // So it is driven as a resumable field call, exactly like the screen loop above, with the installed
+  // field-barrier override yielding to the host: ONE STEP, ONE DISPLAY FIELD. Every original call in
+  // the guest's body still runs through the seam — nothing here reimplements the load, the decode, or
+  // the overlay's UI — this only decides where the turn is handed back.
+  bool checkSaveSelection() override {
+    if (!fieldCall_.active()) {
+      fieldCall_.begin({kCheckSave, 0x8007A9E8u, {}, std::nullopt, "memory-card selection"});
+      context(core_).yieldAtFieldBarrier = true;
+    }
+    if (fieldCall_.advance() != ResumableGuestCall::Progress::returned) {
+      return false;
+    }
+    context(core_).yieldAtFieldBarrier = false;
+    if (fieldCall_.result() != 0) {
       core_.mem_w32(kSelectionActive, 1);
     }
+    return true;
   }
 
   void loadSaveSelection() override {
