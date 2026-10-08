@@ -1,0 +1,33 @@
+# Build and disposable runtime artifacts
+build/
+scratch/
+.venv/
+
+# INPUTS come from YOUR OWN disc and are never committed: the disc image and anything extracted from
+# it are Activision's/Traveller's Tales', not this repo's.
+#
+# Kept NARROW on purpose. Everything extracted lands under scratch/ (already ignored above); the
+# patterns here are the belt to that braces, for a file dropped in the repo root. Broad patterns
+# (*.bin, *.raw, *.all, *.dat) would be actively wrong here — this game's entire asset set uses those
+# extensions, so they would also match ordinary PROSE naming those files in docs. `SLUS_008.93` is
+# deliberately NOT listed for the same reason: every doc in this repo names it in prose.
+*.chd
+.env
+
+# The framework. Not tracked: either a relative link to the workspace's live psxport checkout (local)
+# or a clone of its main (CI, fresh machine). Managed by tools/psxport_fetch.py.
+/external/psxport
+*.log
+
+# The video settings file the product writes into its working directory when it is launched from the
+# repository root. It is runtime state, not configuration this repo owns.
+psxport_settings.ini
+
+# Python bytecode — never committed. Compiled .pyc embed ABSOLUTE SOURCE PATHS, i.e. a machine-path
+# leak that a TEXT-only audit cannot see, because they are binary.
+__pycache__/
+*.pyc
+
+# Editor / OS noise
+compile_commands.json
+.DS_Store
