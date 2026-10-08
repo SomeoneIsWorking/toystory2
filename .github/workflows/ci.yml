@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# This Linux-hosted job builds the asset-free product and runs the whole gate: hermetic boundary
+# tests, the executable's help contract, and clang-format/clang-tidy/cpp_policy.
+jobs:
+  gate:
+    name: Product gate (Linux host)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install locked uv and Python
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: '0.10.12'
+          python-version: '3.12'
+          enable-cache: false
+      - name: Verify checkout is not shallow
+        shell: bash
+        run: test "$(git rev-parse --is-shallow-repository)" = false
+      - name: Install locked Python environment
+        run: uv sync --locked
+      - name: Install Ninja and Clang
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+      - name: Resolve the framework
+        run: uv run --frozen python tools/psxport_fetch.py
+      - name: Build and run the product gate
+        run: uv run --frozen python tools/verify.py
