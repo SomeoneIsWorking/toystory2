@@ -86,7 +86,7 @@ bool submit(Core &core, uint32_t submitter, uint32_t table) {
 }
 
 std::optional<RecordKey> keyOfSlot(Core &core, uint32_t slot) {
-  return core.emission.keyFor(kPackets + slot * 4u);
+  return core.emission.identityFor(kPackets + slot * 4u);
 }
 
 bool keyedAs(Core &core, uint32_t slot, uint32_t producer, uint32_t table, uint32_t entry) {
@@ -165,7 +165,7 @@ static void test_packets_outside_the_slot_array_stay_unkeyed() {
   core.r[5] = kPoolPacket;
   CHECK(submit(core, ts2::SlotMeshProducers::kStaticMeshSubmitter, kTable));
   CHECK(keyedAs(core, 3u, ts2::SlotMeshProducers::kStaticMeshSubmitter, kTable, 0u));
-  CHECK(!core.emission.keyFor(kPoolPacket).has_value());
+  CHECK(!core.emission.identityFor(kPoolPacket).has_value());
 }
 
 static void test_rigid_mesh_faces_are_keyed_by_the_rigid_drawer() {
@@ -303,7 +303,7 @@ static void test_actor_faces_are_keyed_by_model_face_not_packet_order() {
   CHECK(renderActor(core, kActor));
   CHECK_EQ(core.mem_r32(kCursor), kPool + 0x28u);
   CHECK_EQ(core.mem_r32(kOt), kPool & 0x00FFFFFFu);
-  CHECK(core.emission.keyFor(kPool) == faceKey(kActor, 0u, 1u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 1u));
 }
 
 static void test_lit_quads_and_triangles_keep_their_model_indices() {
@@ -318,9 +318,9 @@ static void test_lit_quads_and_triangles_keep_their_model_indices() {
 
   CHECK(renderActor(core, kActor));
   CHECK_EQ(core.mem_r32(kCursor), kPool + 0x34u + 0x34u + 0x28u);
-  CHECK(core.emission.keyFor(kPool) == faceKey(kActor, 0u, 0u));
-  CHECK(core.emission.keyFor(kPool + 0x34u) == faceKey(kActor, 0u, 2u));
-  CHECK(core.emission.keyFor(kPool + 0x68u) == faceKey(kActor, 0u, 3u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 0u));
+  CHECK(core.emission.identityFor(kPool + 0x34u) == faceKey(kActor, 0u, 2u));
+  CHECK(core.emission.identityFor(kPool + 0x68u) == faceKey(kActor, 0u, 3u));
 }
 
 // The guest's reset of a pool record starts a new life: its faces stop pairing with the old life's.
@@ -331,17 +331,17 @@ static void test_a_reset_actor_gets_a_new_key() {
   core.mem_w32(writeTriangle(core, kFaces, kNearZ), 0u);
 
   CHECK(renderActor(core, kActor));
-  CHECK(core.emission.keyFor(kPool) == faceKey(kActor, 0u, 0u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 0u));
 
   core.r[4] = kOtherActor;
   CHECK(call(core, ts2::ActorIncarnations::kActorReset));
   CHECK(renderActor(core, kActor));
-  CHECK(core.emission.keyFor(kPool) == faceKey(kActor, 0u, 0u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 0u));
 
   core.r[4] = kActor;
   CHECK(call(core, ts2::ActorIncarnations::kActorReset));
   CHECK(renderActor(core, kActor));
-  CHECK(core.emission.keyFor(kPool) == faceKey(kActor, 1u, 0u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 1u, 0u));
   CHECK(!(faceKey(kActor, 1u, 0u) == faceKey(kActor, 0u, 0u)));
 }
 
@@ -362,7 +362,7 @@ static void test_unported_drawer_packets_stay_unkeyed() {
   psx::cpu::installNativeOverride(core, kUnportedDrawer, "unported-drawer", &unportedDrawer);
 
   CHECK(renderActor(core, kActor));
-  CHECK(!core.emission.keyFor(kPool).has_value());
+  CHECK(!core.emission.identityFor(kPool).has_value());
 }
 
 bool passIsCut(Core &core) {
