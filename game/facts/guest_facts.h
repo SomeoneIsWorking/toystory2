@@ -32,12 +32,20 @@ static_assert(kSystemCnfStack < kPsExeSpHeader,
               "RE-01's note is stale");
 
 // Graphics init 0x80039D9C builds the buffer objects at 0x801BBD28/0x801DD21C; the selected one publishes
-// object+0x2C4 to gp+0x3E4 (0x800A10BC). The OT extent is unbound.
+// object+0x2C4 to gp+0x3E4 (0x800A10BC), the ordering table's bucket 4.
 inline constexpr uint32_t kPacketPoolBase = 0x801BBFECu;
 inline constexpr uint32_t kPacketPoolStride = 0x000214F4u;
 inline constexpr uint32_t kCurrentPacketPoolPointer = 0x800A10BCu;
 static_assert(kPacketPoolBase + kPacketPoolStride == 0x801DD4E0u,
               "the two measured render-buffer parities must retain the same packet-pool offset");
+// The two buffer objects graphics init builds. Each holds its ClearOTagR table (0x80085F5C, 0x57C buckets) at
+// +0x2B4; the packets the frame's drawers link into it come from the pool at +0x1924.
+inline constexpr uint32_t kGraphicsBufferA = 0x801BBD28u;
+inline constexpr uint32_t kGraphicsBufferB = 0x801DD21Cu;
+inline constexpr uint32_t kOrderingTableOffset = 0x2B4u;
+inline constexpr uint32_t kOrderingTableBuckets = 0x57Cu;
+inline constexpr uint32_t kPacketPoolOffset = 0x1924u;
+
 inline constexpr GuestPacketPoolWindows kPacketPoolWindows{
     .representation = GuestPacketPoolWindows::Representation::FixedBaseStride,
     .base = kPacketPoolBase,

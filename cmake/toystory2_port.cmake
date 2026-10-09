@@ -27,6 +27,8 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/render/actor_incarnation.cpp
   game/render/actor_producers.cpp
   game/render/mesh_format.cpp
+  game/render/ordering_tables.cpp
+  game/render/part_draw_state.cpp
   game/render/part_face_drawers.cpp
   game/render/slot_mesh_producers.cpp
   game/runtime/toystory2_context.cpp

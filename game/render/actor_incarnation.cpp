@@ -25,9 +25,9 @@ void ActorIncarnations::begin(std::uint32_t actor) {
   ++generations_[actor & kActorOffsetMask];
 }
 
-std::uint32_t ActorIncarnations::object(std::uint32_t actor) const {
+std::uint32_t ActorIncarnations::generation(std::uint32_t actor) const {
   const auto found = generations_.find(actor & kActorOffsetMask);
-  return incarnationObject(actor, found == generations_.end() ? 0u : found->second);
+  return found == generations_.end() ? 0u : found->second;
 }
 
 } // namespace ts2

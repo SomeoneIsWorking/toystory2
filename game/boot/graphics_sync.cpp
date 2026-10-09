@@ -5,6 +5,7 @@
 #include "core.h"
 #include "execution/guest_execution.h"
 #include "execution_control.h"
+#include "facts/guest_facts.h"
 #include "input/pad_owner.h"
 #include "native_dispatch.h"
 #include "runtime/toystory2_context.h"
@@ -17,11 +18,11 @@
 namespace ts2 {
 namespace {
 
-constexpr uint32_t kGraphicsBufferA = 0x801BBD28u;
-constexpr uint32_t kGraphicsBufferB = 0x801DD21Cu;
+using facts::kGraphicsBufferA;
+using facts::kGraphicsBufferB;
 constexpr uint32_t kCurrentGraphicsBuffer = 0x800A1468u; // gp+0x790
-constexpr uint32_t kOrderingTable = 0x800A1608u;         // gp+0x930
-constexpr uint32_t kPrimitivePool = 0x800A10BCu;         // gp+0x3e4
+constexpr uint32_t kPacketPoolCursor = 0x800A1608u;      // gp+0x930
+constexpr uint32_t kOrderingTableBase = 0x800A10BCu;     // gp+0x3e4
 constexpr uint32_t kElapsedFields = 0x800A1174u;
 constexpr uint32_t kFieldAccumulator = 0x800A14D4u;
 constexpr uint32_t kDeferredDisplayRequest = 0x800A10F8u;
@@ -65,9 +66,9 @@ void selectGraphicsBuffer(Core &core, uint32_t firstChoice) {
   if (core.mem_r32(kCurrentGraphicsBuffer) == kGraphicsBufferA) {
     selected = kGraphicsBufferB;
   }
-  core.mem_w32(kOrderingTable, selected + 0x1924);
+  core.mem_w32(kPacketPoolCursor, selected + facts::kPacketPoolOffset);
   core.mem_w32(kCurrentGraphicsBuffer, selected);
-  core.mem_w32(kPrimitivePool, selected + 0x2C4);
+  core.mem_w32(kOrderingTableBase, selected + facts::kOrderingTableOffset + 0x10u);
   core.mem_w16(0x800A1E64u, 0xFFFF);
   dispatchGuest(core, 0x80086320u, selected + 0x270);
   dispatchGuest(core, 0x80086054u, selected + 0x18A0);

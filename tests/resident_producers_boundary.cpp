@@ -1,21 +1,31 @@
 // Resident producers boundary: the native pad owner, the slot-mesh and actor producers' keys and the frame cut,
 // each through the shipping override with a stub guest body.
 
+#include "facts/guest_facts.h"
 #include "frame/frame_cut.h"
+#include "frame_state.h"
 #include "game.h"
 #include "game_runtime.h"
+#include "gp0_primitive_decode.h"
+#include "gte_control.h"
 #include "hw_bind.h"
 #include "native_dispatch.h"
 #include "render/actor_incarnation.h"
 #include "render/actor_producers.h"
+#include "render/ordering_tables.h"
 #include "render/part_face_drawers.h"
 #include "render/slot_mesh_producers.h"
 #include "runtime/toystory2_context.h"
 #include "runtime/toystory2_runtime.h"
 #include "testutil.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <optional>
+#include <span>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -190,7 +200,7 @@ constexpr uint32_t kOtherActor = 0x800C2FD0u;
 constexpr uint32_t kPartIndex = 3u;
 constexpr uint32_t kPart = ts2::ActorProducers::kPartTable + kPartIndex * ts2::ActorProducers::kPartBytes;
 constexpr uint32_t kFaces = 0x800B4000u;
-constexpr uint32_t kOt = 0x800B6000u;
+constexpr uint32_t kOt = ts2::facts::kGraphicsBufferA + ts2::facts::kOrderingTableOffset + 0x10u;
 constexpr uint32_t kBuckets = 0x800B6100u;
 constexpr uint32_t kPool = 0x801E0000u;
 constexpr uint32_t kCursor = 0x800A1608u;
@@ -254,6 +264,7 @@ void prepareActorScene(Core &core, uint32_t drawer) {
   returnStub(core, ts2::ActorIncarnations::kActorReset);
   ts2::ActorIncarnations::install(core);
   ts2::ActorProducers::install(core);
+  ts2::OrderingTables::name(core);
   core.mem_w32(kPart + 0x20u, kFaces);
   core.mem_w32(0x800A1100u, 240u);
   core.mem_w32(0x800A135Cu, 0x200u);
@@ -279,16 +290,16 @@ void prepareActorScene(Core &core, uint32_t drawer) {
   }
 }
 
-bool renderActor(Core &core, uint32_t actor) {
-  core.mem_w32(kCursor, kPool);
+bool renderActor(Core &core, uint32_t actor, uint32_t pool = kPool) {
+  core.mem_w32(kCursor, pool);
   core.mem_w32(kOt, 0x00FFFFFFu);
   core.r[4] = actor;
   return call(core, ts2::ActorProducers::kActorRenderer);
 }
 
-RecordKey faceKey(uint32_t actor, uint32_t generation, uint32_t face) {
-  return RecordKey{
-      ts2::ActorProducers::kActorRenderer, ts2::incarnationObject(actor, generation), (kPartIndex << 16) | face, 0u};
+// The key of one face of the test part: the part is the object, under the actor's life.
+RecordKey faceKey(uint32_t generation, uint32_t face) {
+  return RecordKey{ts2::ActorProducers::kActorRenderer, ts2::ActorProducers::partObject(kPart, generation), face, 0u};
 }
 
 // A face culled before it reaches the pool consumes no packet, yet the next face keeps its own index.
@@ -303,24 +314,7 @@ static void test_actor_faces_are_keyed_by_model_face_not_packet_order() {
   CHECK(renderActor(core, kActor));
   CHECK_EQ(core.mem_r32(kCursor), kPool + 0x28u);
   CHECK_EQ(core.mem_r32(kOt), kPool & 0x00FFFFFFu);
-  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 1u));
-}
-
-static void test_lit_quads_and_triangles_keep_their_model_indices() {
-  auto game = residentGame();
-  Core &core = game->core;
-  prepareActorScene(core, ts2::PartFaceDrawers::kLit);
-  uint32_t at = writeQuad(core, kFaces, kNearZ);
-  at = writeTriangle(core, at, kFarZ);
-  at = writeQuad(core, at, kNearZ);
-  at = writeTriangle(core, at, kNearZ);
-  core.mem_w32(at, 0u);
-
-  CHECK(renderActor(core, kActor));
-  CHECK_EQ(core.mem_r32(kCursor), kPool + 0x34u + 0x34u + 0x28u);
-  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 0u));
-  CHECK(core.emission.identityFor(kPool + 0x34u) == faceKey(kActor, 0u, 2u));
-  CHECK(core.emission.identityFor(kPool + 0x68u) == faceKey(kActor, 0u, 3u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(0u, 1u));
 }
 
 // The guest's reset of a pool record starts a new life: its faces stop pairing with the old life's.
@@ -331,18 +325,18 @@ static void test_a_reset_actor_gets_a_new_key() {
   core.mem_w32(writeTriangle(core, kFaces, kNearZ), 0u);
 
   CHECK(renderActor(core, kActor));
-  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 0u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(0u, 0u));
 
   core.r[4] = kOtherActor;
   CHECK(call(core, ts2::ActorIncarnations::kActorReset));
   CHECK(renderActor(core, kActor));
-  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 0u, 0u));
+  CHECK(core.emission.identityFor(kPool) == faceKey(0u, 0u));
 
   core.r[4] = kActor;
   CHECK(call(core, ts2::ActorIncarnations::kActorReset));
   CHECK(renderActor(core, kActor));
-  CHECK(core.emission.identityFor(kPool) == faceKey(kActor, 1u, 0u));
-  CHECK(!(faceKey(kActor, 1u, 0u) == faceKey(kActor, 0u, 0u)));
+  CHECK(core.emission.identityFor(kPool) == faceKey(1u, 0u));
+  CHECK(!(faceKey(1u, 0u) == faceKey(0u, 0u)));
 }
 
 constexpr uint32_t kUnportedDrawer = 0x80031C3Cu;
@@ -363,6 +357,277 @@ static void test_unported_drawer_packets_stay_unkeyed() {
 
   CHECK(renderActor(core, kActor));
   CHECK(!core.emission.identityFor(kPool).has_value());
+}
+
+// ---- The part drawers' state render ----
+
+using psx::present::DrawPrimitive;
+using psx::present::GteControl;
+using psx::present::OtSlot;
+
+constexpr uint32_t kNormals = 0x800B5000u;
+constexpr uint32_t kLightVector = 0x1F8003E8u;
+constexpr uint32_t kOffsetStride = 4u;
+constexpr uint32_t kTableBase = ts2::facts::kGraphicsBufferA + ts2::facts::kOrderingTableOffset;
+
+// A helper that cannot return a CHECK's early exit stops the test where it is.
+void require(bool condition, const char *what) {
+  if (!condition) {
+    std::fprintf(stderr, "    REQUIRED: %s\n", what);
+    std::abort();
+  }
+}
+
+class Collect final : public psx::present::PrimitiveSink {
+public:
+  void emit(OtSlot slot, const DrawPrimitive &primitive) override {
+    emitted.emplace_back(slot, primitive);
+  }
+  std::vector<std::pair<OtSlot, DrawPrimitive>> emitted;
+};
+
+// Buckets spread over [4, 0x44) by depth, so a render has to put each face in the guest's bucket.
+void writeBucketOffsets(Core &core) {
+  for (uint32_t otz = 0x14u; otz < 0x200u; ++otz) {
+    core.mem_w16(kBuckets + otz * 4u, static_cast<uint16_t>(((otz * 3u) & 0x3Fu) * kOffsetStride));
+  }
+}
+
+// Faces at several depths, a quad, a triangle and a culled one among them.
+void writeFaces(Core &core) {
+  uint32_t at = writeQuad(core, kFaces, 0u);
+  at = writeTriangle(core, at, 300u);
+  at = writeTriangle(core, at, kFarZ);
+  at = writeQuad(core, at, 900u);
+  at = writeTriangle(core, at, 40u);
+  core.mem_w32(at, 0u);
+}
+
+// Two normals and the corner indices of the faces above, for the normal-lit drawer.
+void writeNormals(Core &core) {
+  core.mem_w16(kNormals, 2u);
+  const uint16_t normals[] = {0x400, 0x200, 0x100, 0, 0x100, 0x800, 0x300, 0};
+  uint32_t at = kNormals + 4u;
+  for (const uint16_t value : normals) {
+    core.mem_w16(at, value);
+    at += 2u;
+  }
+  for (uint32_t corner = 0; corner != 4u + 3u + 3u + 4u + 3u; ++corner) {
+    core.mem_w16(at, static_cast<uint16_t>(corner & 1u));
+    at += 2u;
+  }
+  core.mem_w32(kPart + 0x0Cu, kNormals);
+  for (uint32_t i = 0; i != 3u; ++i) {
+    core.mem_w16(kLightVector + i * 4u, static_cast<uint16_t>(0x300 + i * 0x40u));
+  }
+}
+
+void clearTable(Core &core, uint32_t pool) {
+  for (uint32_t bucket = 0; bucket != ts2::facts::kOrderingTableBuckets; ++bucket) {
+    core.mem_w32(kTableBase + bucket * 4u, 0u);
+  }
+  core.mem_w32(kCursor, pool);
+}
+
+void setArguments(Core &core, uint32_t drawer) {
+  core.r[5] = drawer == ts2::PartFaceDrawers::kNormalLit ? kLightVector : 0x0A0u;
+  core.r[6] = drawer == ts2::PartFaceDrawers::kNormalLit ? 0x0800u : 0x0B0u;
+  core.r[7] = drawer == ts2::PartFaceDrawers::kNormalLit ? 0x00808080u : 0x0C0u;
+}
+
+// A fresh frame of the test part drawn into a cleared table from `pool`.
+bool drawPart(Core &core, uint32_t drawer, uint32_t pool) {
+  clearTable(core, pool);
+  setArguments(core, drawer);
+  return renderActor(core, kActor, pool);
+}
+
+// What the guest's table holds, bucket by bucket from the last, as the walk decodes it.
+std::vector<std::pair<OtSlot, DrawPrimitive>> guestPrimitives(Core &core) {
+  std::vector<std::pair<OtSlot, DrawPrimitive>> primitives;
+  for (uint32_t bucket = ts2::facts::kOrderingTableBuckets; bucket-- > 0;) {
+    uint32_t packet = core.mem_r32(kTableBase + bucket * 4u) & 0x00FFFFFFu;
+    while (packet != 0u && packet != 0x00FFFFFFu) {
+      const uint32_t tag = core.mem_r32(packet);
+      std::vector<uint32_t> words;
+      for (uint32_t word = 0; word != (tag >> 24); ++word) {
+        words.push_back(core.mem_r32(packet + 4u + word * 4u));
+      }
+      const auto primitive = psx::gpu::decodePacketPrimitive(words);
+      require(primitive.has_value(), "a linked packet decodes");
+      primitives.emplace_back(OtSlot{ts2::OrderingTables::kTableId, bucket}, *primitive);
+      packet = tag & 0x00FFFFFFu;
+    }
+  }
+  return primitives;
+}
+
+// The state the part's packets name, collected as the record that drew them would.
+psx::present::FrameState collectedState(Core &core, uint32_t packet) {
+  psx::present::FrameRecord record(1, true);
+  DrawPrimitive primitive;
+  primitive.key = core.emission.keyFor(packet);
+  record.append(primitive);
+  return core.frameStates.collect(record);
+}
+
+std::span<const std::byte> partState(const psx::present::FrameState &collected) {
+  const auto found = collected.find({ts2::ActorProducers::kActorRenderer, ts2::ActorProducers::partObject(kPart, 0u)});
+  require(found.has_value(), "the part saved a state");
+  return *found;
+}
+
+Collect renderPart(Core &core, std::span<const std::byte> from, std::span<const std::byte> to, float t) {
+  const psx::present::StateProducer *render = core.stateProducers.find(ts2::ActorProducers::kActorRenderer);
+  require(render != nullptr, "the actor renderer has a render");
+  Collect sink;
+  render->render(from, to, t, sink);
+  return sink;
+}
+
+bool samePrimitives(const Collect &sink, const std::vector<std::pair<OtSlot, DrawPrimitive>> &expected) {
+  if (sink.emitted.size() != expected.size() || expected.empty()) {
+    return false;
+  }
+  for (std::size_t i = 0; i != expected.size(); ++i) {
+    if (!(sink.emitted[i].first == expected[i].first) || !(sink.emitted[i].second == expected[i].second)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Everything a drawer reads of the guest, overwritten; the render must not need any of it again. The bucket
+// offsets are level data and stay.
+void scrambleDrawerInputs(Core &core) {
+  for (uint32_t at = kFaces; at != kFaces + 0x400u; at += 4u) {
+    core.mem_w32(at, 0xA5A5A5A5u);
+  }
+  for (uint32_t at = kNormals; at != kNormals + 0x100u; at += 4u) {
+    core.mem_w32(at, 0xA5A5A5A5u);
+  }
+  for (uint32_t at = kPart; at != kPart + ts2::ActorProducers::kPartBytes; at += 4u) {
+    core.mem_w32(at, 0xA5A5A5A5u);
+  }
+  for (const uint32_t global : {0x800A1100u, 0x800A10BCu, kCursor, 0x800A13B4u, 0x800A12F8u, 0x800A135Cu}) {
+    core.mem_w32(global, 0xA5A5A5A5u);
+  }
+  for (uint32_t at = 0x800CD200u; at != 0x800CD400u; at += 4u) {
+    core.mem_w32(at, 0xA5A5A5A5u);
+  }
+  for (uint32_t at = 0x1F800000u; at != 0x1F800400u; at += 4u) {
+    core.mem_w32(at, 0xA5A5A5A5u);
+  }
+  for (uint32_t reg = 0; reg != 32u; ++reg) {
+    if (reg != 31u) {
+      gte_write_ctrl(reg, 0xA5A5A5A5u);
+    }
+  }
+}
+
+void prepareScene(Core &core, uint32_t drawer) {
+  prepareActorScene(core, drawer);
+  writeBucketOffsets(core);
+  writeFaces(core);
+  if (drawer == ts2::PartFaceDrawers::kNormalLit) {
+    writeNormals(core);
+  }
+}
+
+void renderMatchesGuestAtOne(uint32_t drawer) {
+  auto game = residentGame();
+  Core &core = game->core;
+  prepareScene(core, drawer);
+  CHECK(drawPart(core, drawer, kPool));
+  const auto expected = guestPrimitives(core);
+  CHECK(expected.size() >= 4u);
+  const psx::present::FrameState state = collectedState(core, kPool);
+  const std::span<const std::byte> saved = partState(state);
+
+  scrambleDrawerInputs(core);
+  const Collect sink = renderPart(core, saved, saved, 1.0f);
+  CHECK(samePrimitives(sink, expected));
+}
+
+static void test_prelit_render_at_one_reproduces_the_guest_packets_with_memory_scrambled() {
+  renderMatchesGuestAtOne(ts2::PartFaceDrawers::kPrelit);
+}
+
+static void test_normal_lit_render_at_one_reproduces_the_guest_packets_with_memory_scrambled() {
+  renderMatchesGuestAtOne(ts2::PartFaceDrawers::kNormalLit);
+}
+
+constexpr uint32_t kPoolBefore = 0x801E0000u;
+constexpr uint32_t kPoolAfter = 0x801E4000u;
+constexpr uint32_t kPoolHalf = 0x801E8000u;
+
+GteControl currentControl() {
+  return psx::present::readGteControl();
+}
+
+void setControl(const GteControl &control) {
+  psx::present::writeGteControl(control);
+}
+
+// Draws the part under `before` then `after`, and checks that the render halfway equals the guest drawing it
+// under the controls halfway between.
+void halfwayMatchesGuest(uint32_t drawer, GteControl (*move)(const GteControl &)) {
+  auto game = residentGame();
+  Core &core = game->core;
+  prepareScene(core, drawer);
+  const GteControl before = currentControl();
+  const GteControl after = move(before);
+  setControl(before);
+  CHECK(drawPart(core, drawer, kPoolBefore));
+  const psx::present::FrameState first = collectedState(core, kPoolBefore);
+  setControl(after);
+  CHECK(drawPart(core, drawer, kPoolAfter));
+  const psx::present::FrameState second = collectedState(core, kPoolAfter);
+
+  setControl(psx::present::blendGteControl(before, after, 0.5f));
+  CHECK(drawPart(core, drawer, kPoolHalf));
+  const auto expected = guestPrimitives(core);
+  const GteControl untouched = currentControl();
+
+  const Collect sink = renderPart(core, partState(first), partState(second), 0.5f);
+  CHECK(samePrimitives(sink, expected));
+  CHECK(currentControl() == untouched);
+  // Halfway is neither end.
+  CHECK(!samePrimitives(renderPart(core, partState(first), partState(second), 1.0f), expected));
+  CHECK(!samePrimitives(renderPart(core, partState(first), partState(second), 0.0f), expected));
+}
+
+GteControl movedTransform(const GteControl &control) {
+  GteControl moved = control;
+  moved[5] += 60u;
+  moved[6] += 24u;
+  moved[7] += 90u;
+  return moved;
+}
+
+// The camera turned about the view axis by about half a radian.
+GteControl movedCamera(const GteControl &control) {
+  GteControl moved = control;
+  moved[0] = (static_cast<uint32_t>(static_cast<uint16_t>(-0x7AB)) << 16) | 0xE0Fu; // R12 = -sin, R11 = cos
+  moved[1] = (0x7ABu << 16) | (control[1] & 0xFFFFu);                               // R21 = sin
+  moved[2] = (control[2] & 0xFFFF0000u) | 0xE0Fu;                                   // R22 = cos
+  return moved;
+}
+
+GteControl movedBoth(const GteControl &control) {
+  return movedCamera(movedTransform(control));
+}
+
+static void test_prelit_render_halfway_equals_a_frame_drawn_with_the_transform_halfway() {
+  halfwayMatchesGuest(ts2::PartFaceDrawers::kPrelit, &movedTransform);
+}
+
+static void test_prelit_render_halfway_equals_a_frame_drawn_with_the_camera_halfway() {
+  halfwayMatchesGuest(ts2::PartFaceDrawers::kPrelit, &movedCamera);
+}
+
+static void test_normal_lit_render_halfway_equals_a_frame_drawn_with_both_halfway() {
+  halfwayMatchesGuest(ts2::PartFaceDrawers::kNormalLit, &movedBoth);
 }
 
 bool passIsCut(Core &core) {
@@ -420,9 +685,13 @@ int main() {
   RUN(packets_outside_the_slot_array_stay_unkeyed);
   RUN(rigid_mesh_faces_are_keyed_by_the_rigid_drawer);
   RUN(actor_faces_are_keyed_by_model_face_not_packet_order);
-  RUN(lit_quads_and_triangles_keep_their_model_indices);
   RUN(a_reset_actor_gets_a_new_key);
   RUN(unported_drawer_packets_stay_unkeyed);
+  RUN(prelit_render_at_one_reproduces_the_guest_packets_with_memory_scrambled);
+  RUN(normal_lit_render_at_one_reproduces_the_guest_packets_with_memory_scrambled);
+  RUN(prelit_render_halfway_equals_a_frame_drawn_with_the_transform_halfway);
+  RUN(prelit_render_halfway_equals_a_frame_drawn_with_the_camera_halfway);
+  RUN(normal_lit_render_halfway_equals_a_frame_drawn_with_both_halfway);
   RUN(frame_cut_follows_the_guests_scene_and_camera_state);
   return pt_summary();
 }

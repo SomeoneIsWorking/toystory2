@@ -30,3 +30,10 @@ in-betweens. `SlotMeshProducers` no longer opens a dispatcher scope (test
 
 The actor drawers' approach (issue 40) applies: a native port that writes each sub-packet inside a full
 key opened by the port itself, never a dispatcher scope. Not started.
+
+## State-producer conversion
+
+`SlotMeshProducers` (`0x800100E4`, `0x80017FF8`) is still a keyed producer. Converting it needs native
+ports of both bodies over `EmitMemory` first (the submitter is a 4806-instruction computed-jump renderer
+writing a caller-published slot array; the rigid drawer is 2281 instructions), each proven with
+`PSXPORT_OVERRIDE_DIFF`. Not started.

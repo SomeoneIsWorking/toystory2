@@ -25,7 +25,8 @@ public:
   static void install(Core &core);
 
   void begin(std::uint32_t actor);
-  [[nodiscard]] std::uint32_t object(std::uint32_t actor) const;
+  // How many times the record has been reset: the life an object key of it names.
+  [[nodiscard]] std::uint32_t generation(std::uint32_t actor) const;
 
 private:
   std::unordered_map<std::uint32_t, std::uint32_t> generations_; // main-RAM offset -> generation

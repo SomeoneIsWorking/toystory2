@@ -7,6 +7,7 @@
 #include "game.h"
 #include "overlay/overlay_images.h"
 #include "render/actor_producers.h"
+#include "render/ordering_tables.h"
 #include "render/slot_mesh_producers.h"
 #include "runtime/toystory2_context.h"
 #include "widescreen/guest_widescreen.h"
@@ -84,6 +85,7 @@ void ToyStory2Runtime::registerOverrides(Game &game) {
   cd::FileTransfer::install(game.core);
   title.soundBank.install(game.core);
   title.pad.install(game.core);
+  OrderingTables::name(game.core);
   SlotMeshProducers::install(game.core);
   ActorIncarnations::install(game.core);
   ActorProducers::install(game.core);
