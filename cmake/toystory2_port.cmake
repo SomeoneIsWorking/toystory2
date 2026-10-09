@@ -26,10 +26,25 @@ set(TOYSTORY2_RUNTIME_SOURCES
   game/overlay/overlay_slot.cpp
   game/render/actor_incarnation.cpp
   game/render/actor_producers.cpp
+  game/render/mesh_culling.cpp
+  game/render/memory_range.cpp
+  game/render/mesh_subdividers.cpp
+  game/render/quad_split.cpp
+  game/render/quad_split_attributes.cpp
+  game/render/split_engine.cpp
+  game/render/tri_split.cpp
+  game/render/tri_split_attributes.cpp
+  game/render/slot_packets.cpp
+  game/render/slot_release.cpp
+  game/render/mesh_draw_state.cpp
+  game/render/mesh_drawers.cpp
   game/render/mesh_format.cpp
   game/render/ordering_tables.cpp
   game/render/part_draw_state.cpp
   game/render/part_face_drawers.cpp
+  game/render/rigid_mesh_drawer.cpp
+  game/render/static_mesh_drawer.cpp
+  game/render/static_mesh_plan.cpp
   game/render/slot_mesh_producers.cpp
   game/runtime/toystory2_context.cpp
   game/runtime/toystory2_runtime.cpp

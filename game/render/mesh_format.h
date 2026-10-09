@@ -1,9 +1,10 @@
 #pragma once
 
+#include "emit_memory.h"
+
 #include <cstdint>
 #include <optional>
-
-class Core;
+#include <vector>
 
 namespace ts2 {
 
@@ -28,7 +29,19 @@ struct ResidentMeshCommand {
   bool terminal = false;
 };
 
-std::optional<ResidentMeshLayout> decodeResidentMeshLayout(Core &core, uint32_t meshAddress);
-std::optional<ResidentMeshCommand> decodeResidentMeshCommand(Core &core, uint32_t commandAddress);
+std::optional<ResidentMeshLayout> decodeResidentMeshLayout(const psx::present::EmitMemory &memory,
+                                                           uint32_t meshAddress);
+std::optional<ResidentMeshCommand> decodeResidentMeshCommand(const psx::present::EmitMemory &memory,
+                                                             uint32_t commandAddress);
+
+// A whole mesh: its layout, every command through the terminal, and the address after the terminal's header.
+struct ResidentMeshStream {
+  ResidentMeshLayout layout;
+  std::vector<ResidentMeshCommand> commands;
+  uint32_t primitives = 0;
+  uint32_t end = 0;
+};
+
+std::optional<ResidentMeshStream> walkResidentMesh(const psx::present::EmitMemory &memory, uint32_t meshAddress);
 
 } // namespace ts2

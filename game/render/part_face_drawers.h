@@ -4,6 +4,7 @@
 #pragma once
 
 #include "emit_memory.h"
+#include "render/memory_range.h"
 
 #include <array>
 #include <cstdint>
@@ -17,11 +18,6 @@ namespace ts2 {
 struct PartDrawCall {
   std::uint32_t drawer = 0;
   std::array<std::uint32_t, 4> args{};
-};
-
-struct MemoryRange {
-  std::uint32_t address = 0;
-  std::uint32_t size = 0;
 };
 
 // What a drawer reads from guest memory for one call, and the most packet bytes it can write.

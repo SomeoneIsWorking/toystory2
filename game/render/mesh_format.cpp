@@ -34,11 +34,12 @@ std::optional<uint32_t> checkedResidentAddress(uint32_t base, uint64_t offset, u
 
 } // namespace
 
-std::optional<ResidentMeshLayout> decodeResidentMeshLayout(Core &core, uint32_t meshAddress) {
+std::optional<ResidentMeshLayout> decodeResidentMeshLayout(const psx::present::EmitMemory &memory,
+                                                           uint32_t meshAddress) {
   if (!guestRamRange(meshAddress, sizeof(uint32_t))) {
     return std::nullopt;
   }
-  const int32_t headerWord = static_cast<int32_t>(core.mem_r32(meshAddress));
+  const int32_t headerWord = static_cast<int32_t>(memory.mem_r32(meshAddress));
   if (headerWord == std::numeric_limits<int32_t>::min()) {
     return std::nullopt;
   }
@@ -61,12 +62,13 @@ std::optional<ResidentMeshLayout> decodeResidentMeshLayout(Core &core, uint32_t 
   };
 }
 
-std::optional<ResidentMeshCommand> decodeResidentMeshCommand(Core &core, uint32_t commandAddress) {
+std::optional<ResidentMeshCommand> decodeResidentMeshCommand(const psx::present::EmitMemory &memory,
+                                                             uint32_t commandAddress) {
   if (!guestRamRange(commandAddress, sizeof(uint32_t))) {
     return std::nullopt;
   }
-  const uint8_t opcode = static_cast<uint8_t>(core.mem_r16(commandAddress) & 0x1Fu);
-  const int16_t primitiveCount = core.mem_r16s(commandAddress + 2u);
+  const uint8_t opcode = static_cast<uint8_t>(memory.mem_r16(commandAddress) & 0x1Fu);
+  const int16_t primitiveCount = memory.mem_r16s(commandAddress + 2u);
   const bool terminal = opcode >= 24u;
   if (terminal) {
     return ResidentMeshCommand{
@@ -92,6 +94,28 @@ std::optional<ResidentMeshCommand> decodeResidentMeshCommand(Core &core, uint32_
       .primitiveCount = static_cast<uint16_t>(primitiveCount),
       .opcode = opcode,
   };
+}
+
+std::optional<ResidentMeshStream> walkResidentMesh(const psx::present::EmitMemory &memory, uint32_t meshAddress) {
+  const std::optional<ResidentMeshLayout> layout = decodeResidentMeshLayout(memory, meshAddress);
+  if (!layout) {
+    return std::nullopt;
+  }
+  ResidentMeshStream stream{.layout = *layout};
+  uint32_t address = layout->commandAddress;
+  while (true) {
+    const std::optional<ResidentMeshCommand> command = decodeResidentMeshCommand(memory, address);
+    if (!command) {
+      return std::nullopt;
+    }
+    stream.commands.push_back(*command);
+    if (command->terminal) {
+      stream.end = command->nextCommandAddress;
+      return stream;
+    }
+    stream.primitives += command->primitiveCount;
+    address = command->nextCommandAddress;
+  }
 }
 
 } // namespace ts2

@@ -630,6 +630,349 @@ static void test_normal_lit_render_halfway_equals_a_frame_drawn_with_both_halfwa
   halfwayMatchesGuest(ts2::PartFaceDrawers::kNormalLit, &movedBoth);
 }
 
+// ---- The slot mesh drawers' state render ----
+
+constexpr uint32_t kRigid = ts2::SlotMeshProducers::kRigidMeshDrawer;
+constexpr uint32_t kStatic = ts2::SlotMeshProducers::kStaticMeshSubmitter;
+constexpr uint32_t kMeshAt = 0x800B7000u;
+constexpr uint32_t kMeshTable = 0x800B7800u;
+constexpr uint32_t kRigidOffsets = 0x800B8000u;
+constexpr uint32_t kMeshTextures = 0x800CD200u;
+constexpr uint32_t kMeshView = 0x800B8800u;
+constexpr uint32_t kFreeSlots = 0x800B8900u;
+constexpr uint32_t kReleasedSlots = 0x800B8A00u;
+constexpr uint32_t kOwnPackets = 0x801E0000u;
+constexpr uint32_t kAltPackets = 0x801E4000u;
+constexpr uint32_t kScratchPad = 0x1F800000u;
+constexpr uint32_t kSlotWords = 16u; // packets are spaced 64 bytes apart
+constexpr uint32_t kFreeCount = 100u;
+
+uint32_t meshIndices(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+  return a | (b << 8) | (c << 16) | (d << 24);
+}
+
+uint32_t writeVertex(Core &core, uint32_t at, int16_t x, int16_t y, int16_t z, uint16_t colour) {
+  core.mem_w16(at, static_cast<uint16_t>(x));
+  core.mem_w16(at + 2u, static_cast<uint16_t>(y));
+  core.mem_w16(at + 4u, static_cast<uint16_t>(z));
+  core.mem_w16(at + 6u, colour);
+  return at + 8u;
+}
+
+// Descriptors of a textured command are three words, of a plain one the index word alone.
+uint32_t writeMeshCommand(Core &core, uint32_t at, uint16_t opcode, std::initializer_list<uint32_t> indices) {
+  core.mem_w16(at, opcode);
+  core.mem_w16(at + 2u, static_cast<uint16_t>(indices.size()));
+  at += 4u;
+  for (const uint32_t index : indices) {
+    core.mem_w32(at, index);
+    if (opcode < 16u) {
+      core.mem_w32(at + 4u, 0x20104030u + at);
+      core.mem_w32(at + 8u, 0x30502060u + at);
+      at += 12u;
+    } else {
+      at += 4u;
+    }
+  }
+  return at;
+}
+
+// A square and a smaller one behind it, drawn by every ported command kind in both windings; the one-sided
+// kinds cull the windings facing away. The static submitter's extra textured quad (2) is never culled.
+uint32_t writeMesh(Core &core, uint32_t drawer) {
+  core.mem_w32(kMeshAt, 8u);
+  uint32_t at = kMeshAt + 4u;
+  at = writeVertex(core, at, -40, -40, 0, 0x7C1Fu);
+  at = writeVertex(core, at, 40, -40, 0, 0x03E0u);
+  at = writeVertex(core, at, 40, 40, 0, 0x001Fu);
+  at = writeVertex(core, at, -40, 40, 0, 0x4210u);
+  at = writeVertex(core, at, -30, -30, 200, 0x7FFFu);
+  at = writeVertex(core, at, 30, -30, 200, 0x1234u);
+  at = writeVertex(core, at, 30, 30, 200, 0x5678u);
+  at = writeVertex(core, at, -30, 30, 200, 0x0F0Fu);
+  uint32_t primitives = 0;
+  const auto command = [&](uint16_t opcode, std::initializer_list<uint32_t> indices) {
+    at = writeMeshCommand(core, at, opcode, indices);
+    primitives += static_cast<uint32_t>(indices.size());
+  };
+  command(0u, {meshIndices(0, 1, 2, 3), meshIndices(0, 3, 2, 1)});
+  command(1u, {meshIndices(0, 1, 2, 0), meshIndices(0, 2, 1, 0)});
+  if (drawer == kStatic) {
+    command(2u, {meshIndices(0, 1, 2, 3), meshIndices(0, 3, 2, 1)});
+  }
+  command(4u, {meshIndices(0, 3, 2, 1)});
+  command(16u, {meshIndices(0, 1, 2, 3), meshIndices(3, 2, 1, 0)});
+  command(17u, {meshIndices(4, 5, 6, 0), meshIndices(4, 6, 5, 0)});
+  command(20u, {meshIndices(4, 7, 6, 5)});
+  core.mem_w16(at, 0x8018u);
+  core.mem_w16(at + 2u, 0u);
+  return primitives;
+}
+
+// Bucket offsets by depth, a texture page table, and the scratchpad words the caller publishes. Returns the
+// mesh's face entries.
+uint32_t prepareMeshScene(Core &core, uint32_t drawer) {
+  ts2::SlotMeshProducers::install(core);
+  ts2::OrderingTables::name(core);
+  returnStub(core, drawer);
+  gte_bind(&core);
+  const uint32_t control[][2] = {{0u, 0x1000u},
+                                 {1u, 0u},
+                                 {2u, 0x1000u},
+                                 {3u, 0u},
+                                 {4u, 0x1000u},
+                                 {5u, 0u},
+                                 {6u, 0u},
+                                 {7u, 1000u},
+                                 {24u, 0u},
+                                 {25u, 16u << 16},
+                                 {26u, 256u},
+                                 {29u, 0x155u},
+                                 {30u, 0x100u}};
+  for (const auto &[reg, value] : control) {
+    gte_write_ctrl(reg, value);
+  }
+  const uint32_t primitives = writeMesh(core, drawer);
+  for (uint32_t at = 0; at != 0x200u; at += 4u) {
+    core.mem_w32(kMeshTextures + at, 0x00290000u + (at << 4) + (at >> 2));
+  }
+  core.mem_w32(ts2::kInstanceSlotTable, kMeshTable);
+  core.mem_w32(kMeshView + 0xCu, 50u);
+  core.mem_w32(kScratchPad + 0x44u, kOwnPackets);
+  core.mem_w32(kScratchPad + 0x48u, kAltPackets);
+  core.mem_w32(kScratchPad + 0x4Cu, kReleasedSlots);
+  core.mem_w32(kScratchPad + 0x50u, kFreeSlots);
+  core.mem_w32(kScratchPad + 0x60u, static_cast<uint32_t>(-200) << 16);
+  core.mem_w32(kScratchPad + 0x64u, 200u << 16);
+  core.mem_w32(kScratchPad + 0x68u, static_cast<uint32_t>(-200) << 16);
+  core.mem_w32(kScratchPad + 0x6Cu, 200u << 16);
+  for (uint32_t entry = 0; entry != primitives; ++entry) {
+    core.mem_w16(kMeshTable + entry * 2u, 0u);
+  }
+  for (uint32_t slot = 0; slot != kFreeCount; ++slot) {
+    core.mem_w16(kFreeSlots + slot * 2u, static_cast<uint16_t>((slot + 1u) * kSlotWords));
+  }
+  core.mem_w16(kFreeSlots + kFreeCount * 2u, 0u);
+  if (drawer == kRigid) {
+    for (uint32_t at = 0; at != 0x800u; at += 2u) {
+      core.mem_w16(kRigidOffsets + at, static_cast<uint16_t>(((at / 2u * 3u) & 0x3Fu) * kOffsetStride));
+    }
+    core.mem_w32(0x800A1108u, kRigidOffsets);
+    core.mem_w32(0x800A1184u, 0x7FFu);
+  } else {
+    writeBucketOffsets(core);
+    core.mem_w32(0x800A12F8u, kBuckets);
+    core.mem_w32(0x800A135Cu, 0x200u);
+    core.mem_w32(kScratchPad + 0x40u, kTableBase);
+  }
+  return primitives;
+}
+
+// A fresh frame: the ordering table cleared, the free list at its start where `consumed` of it are already taken.
+bool drawMesh(Core &core, uint32_t drawer, uint32_t consumed, uint32_t nearScale = 0u) {
+  for (uint32_t bucket = 0; bucket != ts2::facts::kOrderingTableBuckets; ++bucket) {
+    core.mem_w32(kTableBase + bucket * 4u, 0u);
+  }
+  core.mem_w32(kScratchPad + 0x50u, kFreeSlots + consumed * 2u);
+  core.r[4] = kMeshAt;
+  core.r[5] = nearScale;
+  core.r[6] = drawer == kRigid ? kTableBase : 0u;
+  core.r[7] = kMeshView;
+  return call(core, drawer);
+}
+
+std::span<const std::byte> meshState(const psx::present::FrameState &collected, uint32_t drawer) {
+  const auto found = collected.find({drawer, kMeshTable});
+  require(found.has_value(), "the drawer saved a state");
+  return *found;
+}
+
+psx::present::FrameState meshCollected(Core &core, uint32_t primitives) {
+  psx::present::FrameRecord record(1, true);
+  for (uint32_t entry = 0; entry != primitives; ++entry) {
+    const uint32_t slot = core.mem_r16(kMeshTable + entry * 2u);
+    if (slot == 0u) {
+      continue;
+    }
+    DrawPrimitive primitive;
+    primitive.key = core.emission.keyFor(kOwnPackets + slot * 4u);
+    record.append(primitive);
+  }
+  return core.frameStates.collect(record);
+}
+
+Collect
+renderMesh(Core &core, uint32_t drawer, std::span<const std::byte> from, std::span<const std::byte> to, float t) {
+  const psx::present::StateProducer *render = core.stateProducers.find(drawer);
+  require(render != nullptr, "the drawer has a render");
+  Collect sink;
+  render->render(from, to, t, sink);
+  return sink;
+}
+
+// Everything the drawer reads of the guest, overwritten. The bucket offsets are level data and stay.
+void scrambleMeshInputs(Core &core) {
+  const std::pair<uint32_t, uint32_t> regions[] = {{kMeshAt, 0x400u},
+                                                   {kMeshTable, 0x40u},
+                                                   {kMeshTextures, 0x200u},
+                                                   {kMeshView, 0x40u},
+                                                   {kFreeSlots, 0x100u},
+                                                   {kReleasedSlots, 0x80u},
+                                                   {kOwnPackets, 0x2000u},
+                                                   {kAltPackets, 0x2000u},
+                                                   {kScratchPad, 0x400u},
+                                                   {0x800A1108u, 4u},
+                                                   {0x800A1184u, 4u},
+                                                   {0x800A12F8u, 4u},
+                                                   {0x800A135Cu, 4u},
+                                                   {ts2::kInstanceSlotTable, 4u}};
+  for (const auto &[address, size] : regions) {
+    for (uint32_t at = address; at != address + size; at += 4u) {
+      core.mem_w32(at, 0xA5A5A5A5u);
+    }
+  }
+  for (uint32_t reg = 0; reg != 32u; ++reg) {
+    if (reg != 31u) {
+      gte_write_ctrl(reg, 0xA5A5A5A5u);
+    }
+  }
+}
+
+void renderAtOneReproducesGuest(uint32_t drawer) {
+  auto game = residentGame();
+  Core &core = game->core;
+  const uint32_t primitives = prepareMeshScene(core, drawer);
+  CHECK(drawMesh(core, drawer, 0u));
+  const auto expected = guestPrimitives(core);
+  CHECK(expected.size() >= 6u);
+  const psx::present::FrameState state = meshCollected(core, primitives);
+  const std::span<const std::byte> saved = meshState(state, drawer);
+
+  scrambleMeshInputs(core);
+  const Collect sink = renderMesh(core, drawer, saved, saved, 1.0f);
+  CHECK(samePrimitives(sink, expected));
+}
+
+// The second frame finds every face's slot taken; the render still has the retained packets it links.
+void renderHalfwayEqualsGuest(uint32_t drawer) {
+  for (GteControl (*move)(const GteControl &) : {&movedTransform, &movedCamera, &movedBoth}) {
+    auto game = residentGame();
+    Core &core = game->core;
+    const uint32_t primitives = prepareMeshScene(core, drawer);
+    const GteControl before = currentControl();
+    const GteControl after = move(before);
+    setControl(before);
+    CHECK(drawMesh(core, drawer, 0u));
+    const psx::present::FrameState first = meshCollected(core, primitives);
+    uint32_t consumed = 0;
+    for (uint32_t entry = 0; entry != primitives; ++entry) {
+      consumed += core.mem_r16(kMeshTable + entry * 2u) != 0u ? 1u : 0u;
+    }
+    CHECK(consumed >= 6u);
+    setControl(after);
+    CHECK(drawMesh(core, drawer, consumed));
+    const psx::present::FrameState second = meshCollected(core, primitives);
+
+    setControl(psx::present::blendGteControl(before, after, 0.5f));
+    CHECK(drawMesh(core, drawer, consumed));
+    const auto expected = guestPrimitives(core);
+    CHECK(expected.size() >= 6u);
+    const GteControl untouched = currentControl();
+
+    const Collect sink = renderMesh(core, drawer, meshState(first, drawer), meshState(second, drawer), 0.5f);
+    CHECK(samePrimitives(sink, expected));
+    CHECK(currentControl() == untouched);
+    CHECK(
+        !samePrimitives(renderMesh(core, drawer, meshState(first, drawer), meshState(second, drawer), 1.0f), expected));
+  }
+}
+
+static void test_rigid_render_at_one_reproduces_the_guest_packets_with_memory_scrambled() {
+  renderAtOneReproducesGuest(kRigid);
+}
+
+static void test_rigid_render_halfway_equals_a_frame_drawn_with_the_control_halfway() {
+  renderHalfwayEqualsGuest(kRigid);
+}
+
+static void test_static_render_at_one_reproduces_the_guest_packets_with_memory_scrambled() {
+  renderAtOneReproducesGuest(kStatic);
+}
+
+static void test_static_render_halfway_equals_a_frame_drawn_with_the_control_halfway() {
+  renderHalfwayEqualsGuest(kStatic);
+}
+
+// Every packet the guest's table holds, from the last bucket, as the walk visits them.
+std::vector<uint32_t> linkedPackets(Core &core) {
+  std::vector<uint32_t> packets;
+  for (uint32_t bucket = ts2::facts::kOrderingTableBuckets; bucket-- > 0;) {
+    uint32_t packet = core.mem_r32(kTableBase + bucket * 4u) & 0x00FFFFFFu;
+    while (packet != 0u && packet != 0x00FFFFFFu) {
+      packets.push_back(0x80000000u | packet);
+      packet = core.mem_r32(0x80000000u | packet) & 0x00FFFFFFu;
+    }
+  }
+  return packets;
+}
+
+// A face near the camera is drawn as children in slots of their own, kept for the next frame; they belong to the
+// call's object like the faces do, or the composer would draw them twice.
+static void test_static_children_of_a_subdivided_face_belong_to_the_calls_object() {
+  auto game = residentGame();
+  Core &core = game->core;
+  const uint32_t primitives = prepareMeshScene(core, kStatic);
+  CHECK(drawMesh(core, kStatic, 0u, 400u));
+  uint32_t faces = 0;
+  for (uint32_t entry = 0; entry != primitives; ++entry) {
+    faces += core.mem_r16(kMeshTable + entry * 2u) != 0u ? 1u : 0u;
+  }
+  CHECK(linkedPackets(core).size() > faces);
+
+  // Another object's store names the packets, as a slot's earlier use does.
+  for (const uint32_t packet : linkedPackets(core)) {
+    const psx::present::EmissionScope::Guard other(core.emission, kRigid, kMeshTable, 0u);
+    core.mem_w32(packet + 4u, core.mem_r32(packet + 4u));
+  }
+  const uint32_t consumed = (core.mem_r32(kScratchPad + 0x50u) - kFreeSlots) / 2u;
+  CHECK(drawMesh(core, kStatic, consumed, 400u));
+  const RecordKey object{kStatic, kMeshTable, 0u, 0u};
+  for (const uint32_t packet : linkedPackets(core)) {
+    CHECK(core.emission.identityFor(packet) == object);
+  }
+}
+
+// A primitive left of the screen is culled by the branch that has the depth average in its delay slot. The
+// vertices sit at SZ 1400 (z 400 over the 1000 translation); the quad averages with ZSF4 0x100, the triangle
+// with ZSF3 0x155.
+void culledLeftAveragesDepth(uint32_t opcode, bool quad, uint32_t expectedOtz) {
+  auto game = residentGame();
+  Core &core = game->core;
+  prepareMeshScene(core, kRigid);
+  core.mem_w32(kMeshAt, 4u);
+  uint32_t at = kMeshAt + 4u;
+  for (uint32_t corner = 0; corner != 4u; ++corner) {
+    at = writeVertex(core, at, -3000, static_cast<int16_t>(corner * 10u), 400, 0x7FFFu);
+  }
+  at = writeMeshCommand(
+      core, at, static_cast<uint16_t>(opcode), {quad ? meshIndices(0, 1, 2, 3) : meshIndices(0, 1, 2, 0)});
+  core.mem_w16(at, 0x8018u);
+  core.mem_w16(at + 2u, 0u);
+  core.mem_w16(kMeshTable, 0u);
+  gte_write_data(7, 0x1234u);
+  CHECK(drawMesh(core, kRigid, 0u));
+  CHECK_EQ(gte_read_data(7), expectedOtz);
+  CHECK(linkedPackets(core).empty());
+}
+
+static void test_rigid_quad_culled_left_of_the_screen_still_averages_its_depth() {
+  culledLeftAveragesDepth(16u, true, 350u);
+}
+
+static void test_rigid_triangle_culled_left_of_the_screen_still_averages_its_depth() {
+  culledLeftAveragesDepth(17u, false, 349u);
+}
+
 bool passIsCut(Core &core) {
   ts2::context(core).frameCut.notePassEnded(core);
   return core.game->runtime->sealedFrameIsCut(core);
@@ -692,6 +1035,13 @@ int main() {
   RUN(prelit_render_halfway_equals_a_frame_drawn_with_the_transform_halfway);
   RUN(prelit_render_halfway_equals_a_frame_drawn_with_the_camera_halfway);
   RUN(normal_lit_render_halfway_equals_a_frame_drawn_with_both_halfway);
+  RUN(rigid_render_at_one_reproduces_the_guest_packets_with_memory_scrambled);
+  RUN(rigid_render_halfway_equals_a_frame_drawn_with_the_control_halfway);
+  RUN(static_render_at_one_reproduces_the_guest_packets_with_memory_scrambled);
+  RUN(static_render_halfway_equals_a_frame_drawn_with_the_control_halfway);
+  RUN(static_children_of_a_subdivided_face_belong_to_the_calls_object);
+  RUN(rigid_quad_culled_left_of_the_screen_still_averages_its_depth);
+  RUN(rigid_triangle_culled_left_of_the_screen_still_averages_its_depth);
   RUN(frame_cut_follows_the_guests_scene_and_camera_state);
   return pt_summary();
 }
