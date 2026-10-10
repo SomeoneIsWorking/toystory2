@@ -198,7 +198,6 @@ static void test_runtime_selects_the_record_path_with_guest_widescreen() {
   CHECK(capabilities.defaultPath == RenderPath::Record);
   CHECK(!capabilities.nativeRenderPath);
   CHECK(capabilities.temporalInterpolation);
-  render_path_install(&game->core);
   CHECK(game->core.rsub.mode.path() == RenderPath::Record);
   CHECK(game->temporalPresentation == nullptr);
 
